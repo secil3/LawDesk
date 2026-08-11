@@ -11,10 +11,17 @@ const pool = new Pool({
       : false,
 });
 
-const query = (text, params) => pool.query(text, params);
+const query = (text, params) => {
+  return pool.query(text, params);
+};
+
+const close = () => {
+  return pool.end();
+};
 
 const testConnection = async () => {
   const client = await pool.connect();
+
   try {
     await client.query("SELECT 1");
   } finally {
@@ -24,5 +31,6 @@ const testConnection = async () => {
 
 module.exports = {
   query,
+  close,
   testConnection,
 };
