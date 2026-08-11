@@ -19,7 +19,7 @@
    ============================================================ */
 
 -- Önce ayrı olarak çalıştır, sonra "gys" veritabanına bağlanıp devam et:
--- CREATE DATABASE gys;
+-- CREATE DATABASE gys_lawdesk;
 
 /* ============================================================
    1. KULLANICILAR

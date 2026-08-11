@@ -5,11 +5,21 @@ exports.getRoot = (req, res) => {
 };
 
 exports.testDbConnection = async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Not found" });
+  }
+
   try {
     await db.testConnection();
-    res.json({ message: "Database connection successful" });
+
+    return res.json({
+      message: "Database connection successful",
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Database connection failed", details: error.message });
+    console.error("Database connection failed:", error);
+
+    return res.status(500).json({
+      error: "Database connection failed",
+    });
   }
 };
