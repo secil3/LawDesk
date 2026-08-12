@@ -40,7 +40,7 @@ const getAuthConfig = () => {
 
     cookieOptions: {
       httpOnly: true,
-      sameSite: "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: tokenTtlHours * 60 * 60 * 1000,
@@ -48,7 +48,7 @@ const getAuthConfig = () => {
 
     clearCookieOptions: {
       httpOnly: true,
-      sameSite: "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
     },

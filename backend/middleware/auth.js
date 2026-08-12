@@ -9,6 +9,18 @@ const clearSessionCookie = (res, config) => {
   );
 };
 
+const normalizeGroupRole = (value) => {
+  if (value === "uye") {
+    return "grup_uyesi";
+  }
+
+  if (value === "yonetici") {
+    return "grup_yoneticisi";
+  }
+
+  return value;
+};
+
 const requireAuth = async (req, res, next) => {
   const config = getAuthConfig();
   const token = req.cookies?.[config.cookieName];
@@ -58,11 +70,26 @@ const requireAuth = async (req, res, next) => {
       });
     }
 
+    const memberships = await db.query(
+      `SELECT gu.grupid AS "grupId",
+              g.grupadi AS "grupAdi",
+              gu.gruprolu AS "grupRolu"
+       FROM grupuyelikleri gu
+       JOIN gruplar g ON g.grupid = gu.grupid
+       WHERE gu.kullaniciid = $1`,
+      [userId],
+    );
+
     req.user = {
       id: user.kullaniciid,
       adSoyad: user.adsoyad,
       email: user.email,
       rol: user.rol,
+      groups: memberships.rows.map((row) => ({
+        grupId: row.grupId,
+        grupAdi: row.grupAdi,
+        grupRolu: normalizeGroupRole(row.grupRolu),
+      })),
     };
 
     return next();
@@ -100,7 +127,37 @@ const requireSystemRole =
     return next();
   };
 
+const requireGroupRole =
+  (groupId, requiredRole) =>
+  (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        error: "Giriş yapmanız gerekiyor",
+      });
+    }
+
+    const membership =
+      req.user.groups?.find(
+        (group) => Number(group.grupId) === Number(groupId),
+      ) || null;
+
+    if (!membership) {
+      return res.status(403).json({
+        error: "Bu grup için gerekli yetki bulunmuyor",
+      });
+    }
+
+    if (normalizeGroupRole(membership.grupRolu) !== normalizeGroupRole(requiredRole)) {
+      return res.status(403).json({
+        error: "Bu grup için gerekli yetki bulunmuyor",
+      });
+    }
+
+    return next();
+  };
+
 module.exports = {
   requireAuth,
   requireSystemRole,
+  requireGroupRole,
 };

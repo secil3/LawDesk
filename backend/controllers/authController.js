@@ -8,6 +8,7 @@ const publicUser = (user) => ({
   adSoyad: user.adsoyad,
   email: user.email,
   rol: user.rol,
+  groups: user.groups || [],
 });
 
 const invalidCredentials = (res) =>

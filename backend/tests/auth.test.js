@@ -18,6 +18,7 @@ const app = require("../app");
 const db = require("../config/db");
 const {
   requireSystemRole,
+  requireGroupRole,
 } = require("../middleware/auth");
 
 const testPassword = "GuvenliTestSifresi123!";
@@ -53,7 +54,26 @@ before(async () => {
 
 beforeEach(() => {
   db.query = async (text, params) => {
-    if (text.includes("sifrehash")) {
+    const t = String(text || "").toLowerCase();
+
+    if (
+      t.includes("insert into kullanicilar") ||
+      t.includes('insert into "kullanicilar"')
+    ) {
+      return {
+        rows: [
+          {
+            kullaniciid: 99,
+            adsoyad: params[0],
+            email: params[1],
+            rol: params[3],
+            aktifmi: params[4],
+          },
+        ],
+      };
+    }
+
+    if (t.includes("sifrehash")) {
       const email = String(params[0]).toLowerCase();
 
       if (email === activeEmail) {
@@ -73,7 +93,7 @@ beforeEach(() => {
       };
     }
 
-    if (text.includes("WHERE kullaniciid = $1")) {
+    if (t.includes("where kullaniciid = $1")) {
       if (Number(params[0]) === 1) {
         return {
           rows: [activeUser()],
@@ -82,6 +102,19 @@ beforeEach(() => {
 
       return {
         rows: [],
+      };
+    }
+
+    if (t.includes("grupuyelikleri")) {
+      return {
+        rows: [],
+      };
+    }
+
+    // handle gruplar name lookup when multiple groups are provided
+    if (t.includes("from gruplar") || t.includes("select grupid") || t.includes("select grupadi")) {
+      return {
+        rows: [ { grupid: 2, grupadi: 'KVKK' } ],
       };
     }
 
@@ -172,6 +205,7 @@ test(
       adSoyad: "Test Admin",
       email: activeEmail,
       rol: "admin",
+      groups: [],
     });
 
     const cookie =
@@ -182,7 +216,10 @@ test(
       /lawdesk_test_session=/,
     );
     assert.match(cookie, /HttpOnly/i);
-    assert.match(cookie, /SameSite=Strict/i);
+    assert.match(
+      cookie,
+      /SameSite=(Lax|Strict)/i,
+    );
   },
 );
 
@@ -310,5 +347,134 @@ test(
     assert.equal(nextCalled, true);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body, null);
+  },
+);
+
+test(
+  "group role rejects non-manager user",
+  () => {
+    const req = {
+      user: {
+        rol: "kullanici",
+        groups: [
+          {
+            grupId: 2,
+            grupAdi: "KVKK",
+            grupRolu: "grup_uyesi",
+          },
+        ],
+      },
+    };
+
+    const res = createResponse();
+    let nextCalled = false;
+
+    requireGroupRole(2, "grup_yoneticisi")(
+      req,
+      res,
+      () => {
+        nextCalled = true;
+      },
+    );
+
+    assert.equal(nextCalled, false);
+    assert.equal(res.statusCode, 403);
+    assert.deepEqual(res.body, {
+      error: "Bu grup için gerekli yetki bulunmuyor",
+    });
+  },
+);
+
+test(
+  "group role allows group manager",
+  () => {
+    const req = {
+      user: {
+        rol: "kullanici",
+        groups: [
+          {
+            grupId: 2,
+            grupAdi: "KVKK",
+            grupRolu: "grup_yoneticisi",
+          },
+        ],
+      },
+    };
+
+    const res = createResponse();
+    let nextCalled = false;
+
+    requireGroupRole(2, "grup_yoneticisi")(
+      req,
+      res,
+      () => {
+        nextCalled = true;
+      },
+    );
+
+    assert.equal(nextCalled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body, null);
+  },
+);
+
+test(
+  "admin can create a group manager account for login",
+  async () => {
+    const agent = request.agent(app);
+
+    const loginResponse = await agent
+      .post("/api/auth/login")
+      .send({
+        email: activeEmail,
+        password: testPassword,
+      });
+
+    assert.equal(loginResponse.status, 200);
+
+    const response = await agent
+      .post("/api/admin/users")
+      .send({
+        adSoyad: "Grup Yöneticisi",
+        email: "grup.yoneticisi@sirket.com",
+        password: "OrnekKullanici123!",
+        roleMode: "grup_yoneticisi",
+        aktifMi: true,
+      grupIds: [2],
+      });
+
+    assert.equal(response.status, 201);
+    assert.equal(response.body.user.email, "grup.yoneticisi@sirket.com");
+    assert.equal(response.body.user.rol, "kullanici");
+  },
+);
+
+test(
+  "admin can create a standard user account for login",
+  async () => {
+    const agent = request.agent(app);
+
+    const loginResponse = await agent
+      .post("/api/auth/login")
+      .send({
+        email: activeEmail,
+        password: testPassword,
+      });
+
+    assert.equal(loginResponse.status, 200);
+
+    const response = await agent
+      .post("/api/admin/users")
+      .send({
+        adSoyad: "Örnek Kullanıcı",
+        email: "ornek.kullanici@sirket.com",
+        password: "OrnekKullanici123!",
+        roleMode: "kullanici",
+        aktifMi: true,
+      });
+
+    assert.equal(response.status, 201);
+    assert.equal(response.body.user.email, "ornek.kullanici@sirket.com");
+    assert.equal(response.body.user.rol, "kullanici");
   },
 );

@@ -1,0 +1,67 @@
+name: CI - Backend tests & Frontend build
+
+on:
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  backend-tests-and-frontend-build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gys_lawdesk
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d gys_lawdesk"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      AUTH_TOKEN_SECRET: test-secret-test-secret-test-secret-test-secret-test-secret-test-secret
+      AUTH_TOKEN_TTL_HOURS: 1
+      AUTH_COOKIE_NAME: lawdesk_session
+      NODE_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/gys_lawdesk
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci
+
+      - name: Wait for Postgres
+        run: |-
+          for i in {1..30}; do
+            pg_isready -h localhost -p 5432 -U postgres && break
+            sleep 1
+          done
+
+      - name: Run backend tests
+        working-directory: backend
+        run: npm test
+
+      - name: Install frontend deps & build
+        working-directory: frontend
+        run: |-
+          npm ci
+          npm run build
+
+      - name: Upload build artifact (optional)
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: frontend-build
+          path: frontend/dist

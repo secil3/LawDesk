@@ -8,6 +8,7 @@ const cookieParser = require("cookie-parser");
 
 const homeRoutes = require("./routes/home");
 const authRoutes = require("./routes/auth");
+const adminRoutes = require("./routes/admin");
 const { getAuthConfig } = require("./config/auth");
 
 const app = express();
@@ -15,7 +16,12 @@ const app = express();
 // Uygulama başlarken authentication ayarlarını doğrular.
 getAuthConfig();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use(cookieParser());
 
@@ -27,5 +33,6 @@ app.get("/", (req, res) => {
 
 app.use("/api", homeRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
 
 module.exports = app;
