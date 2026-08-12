@@ -29,6 +29,35 @@ function App() {
   const [creationMessage, setCreationMessage] = useState("");
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState({
+    open: false,
+    userId: null,
+    userName: "",
+  });
+
+  const groupOptions = [
+    { id: 1, name: "Uyum" },
+    { id: 2, name: "KVKK" },
+  ];
+
+  const toggleGroupSelection = (groupId) => {
+    const groupKey = String(groupId);
+    setUserForm((current) => {
+      const currentIds = Array.isArray(current.grupIds)
+        ? current.grupIds.map(String)
+        : [];
+
+      return currentIds.includes(groupKey)
+        ? {
+            ...current,
+            grupIds: currentIds.filter((id) => id !== groupKey),
+          }
+        : {
+            ...current,
+            grupIds: [...currentIds, groupKey],
+          };
+    });
+  };
 
   const loadUsers = async () => {
     setLoadingUsers(true);
@@ -134,18 +163,43 @@ function App() {
     }
   };
 
-  const handleDeleteUser = async (userId) => {
+  const openDeleteConfirmation = (userId, userName) => {
+    setDeleteConfirmation({
+      open: true,
+      userId,
+      userName,
+    });
+  };
+
+  const closeDeleteConfirmation = () => {
+    setDeleteConfirmation({
+      open: false,
+      userId: null,
+      userName: "",
+    });
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deleteConfirmation.open || !deleteConfirmation.userId) {
+      return;
+    }
+
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const response = await fetch(
+        `/api/admin/users/${deleteConfirmation.userId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
 
       const data = await readResponse(response);
       setCreationMessage(data.message || "Kullanıcı silindi");
       await loadUsers();
     } catch (requestError) {
       setError(requestError.message || "Kullanıcı silinemedi");
+    } finally {
+      closeDeleteConfirmation();
     }
   };
 
@@ -234,7 +288,7 @@ function App() {
         password: "",
         roleMode: "kullanici",
         aktifMi: true,
-        grupId: "2",
+        grupIds: [],
       });
       await loadUsers();
     } catch (requestError) {
@@ -376,24 +430,30 @@ function App() {
 
                 {(userForm.roleMode === "grup_uyesi" || userForm.roleMode === "grup_yoneticisi") && (
                   <>
-                    <label htmlFor="admin-user-group">Grup</label>
-                    <select
-                      id="admin-user-group"
-                      multiple
-                      value={userForm.grupIds}
-                      onChange={(event) => {
-                        const options = Array.from(event.target.selectedOptions || []);
-                        const values = options.map((o) => o.value);
-                        setUserForm((current) => ({
-                          ...current,
-                          grupIds: values,
-                        }));
-                      }}
-                      size={2}
-                    >
-                      <option value="1">Uyum</option>
-                      <option value="2">KVKK</option>
-                    </select>
+                    <label>Grup seçimi</label>
+                    <div className="group-toggle" role="group" aria-label="Grup seçimi">
+                      {groupOptions.map((group) => {
+                        const isSelected = Array.isArray(userForm.grupIds)
+                          ? userForm.grupIds.map(String).includes(String(group.id))
+                          : false;
+
+                        return (
+                          <label
+                            key={group.id}
+                            className={`group-chip ${isSelected ? "selected" : ""}`}
+                          >
+                            <input
+                              type="checkbox"
+                              value={group.id}
+                              checked={isSelected}
+                              onChange={() => toggleGroupSelection(group.id)}
+                            />
+                            {group.name}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="form-hint">Birden fazla grup seçebilirsiniz. Kullanıcıya hangi gruplar üzerinden erişim verileceğini buradan belirleyin.</p>
                   </>
                 )}
 
@@ -496,7 +556,7 @@ function App() {
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
                           type="button"
-                          onClick={() => handleDeleteUser(item.id)}
+                          onClick={() => openDeleteConfirmation(item.id, item.adSoyad)}
                           style={{
                             padding: '8px 12px',
                             borderRadius: 8,
@@ -516,6 +576,26 @@ function App() {
                 </div>
                 )}
               </div>
+
+              {deleteConfirmation.open && (
+                <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title">
+                  <div className="confirm-card">
+                    <p className="eyebrow">Onay gerektiriyor</p>
+                    <h3 id="delete-dialog-title">Kullanıcıyı silmek üzeresiniz</h3>
+                    <p>
+                      <strong>{deleteConfirmation.userName}</strong> adlı kullanıcıyı silmek istediğinizden emin misiniz?
+                    </p>
+                    <div className="confirm-actions">
+                      <button type="button" onClick={confirmDeleteUser}>
+                        Evet, sil
+                      </button>
+                      <button type="button" className="secondary-button" onClick={closeDeleteConfirmation}>
+                        Vazgeç
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

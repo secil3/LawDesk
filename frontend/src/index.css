@@ -326,6 +326,87 @@ button:disabled {
   }
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.confirm-card {
+  width: min(100%, 420px);
+  padding: 24px;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.confirm-card h3 {
+  margin: 12px 0 10px;
+  color: #0f172a;
+  font-size: 1.1rem;
+}
+
+.confirm-card p {
+  color: #334155;
+  line-height: 1.6;
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.confirm-actions button {
+  width: auto;
+  padding: 10px 16px;
+  min-width: 120px;
+}
+
+.confirm-actions .secondary-button {
+  background: #e5e7eb;
+  color: #0f172a;
+}
+
+.group-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.group-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 8px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.group-chip.selected {
+  border-color: #2563eb;
+  background: #e0efff;
+  color: #1d4ed8;
+}
+
+.group-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media (max-width: 520px) {
   .auth-page {
     padding: 14px;
