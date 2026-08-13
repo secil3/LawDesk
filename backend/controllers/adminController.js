@@ -30,6 +30,18 @@ const normalizeText = (value, maxLength) => {
   return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
 };
 
+const recordUserActivity = async (
+  query,
+  { actor, action, detail },
+) => {
+  await query(
+    `INSERT INTO aktiviteloglari
+       (kullaniciid, gorevid, islem, detay)
+     VALUES ($1, NULL, $2, $3)`,
+    [actor.id, action, detail],
+  );
+};
+
 exports.listGroups = async (req, res) => {
   try {
     const result = await db.query(
@@ -53,6 +65,8 @@ exports.listGroups = async (req, res) => {
 };
 
 exports.listUsers = async (req, res) => {
+  const archived = req.query?.archived === "true";
+
   try {
     const result = await db.query(
       `SELECT k.kullaniciid AS "id",
@@ -60,6 +74,7 @@ exports.listUsers = async (req, res) => {
               k.email,
               k.rol,
               k.aktifmi AS "aktifMi",
+              k.silinmetarihi AS "archivedAt",
               COALESCE(
                 json_agg(
                   json_build_object(
@@ -78,13 +93,15 @@ exports.listUsers = async (req, res) => {
        LEFT JOIN gruplar g
          ON g.grupid = gu.grupid
        WHERE k.rol IN ('kullanici', 'yonetici')
-         AND k.silindimi = FALSE
+         AND k.silindimi = $1::boolean
        GROUP BY k.kullaniciid,
                 k.adsoyad,
                 k.email,
                 k.rol,
-                k.aktifmi
+                k.aktifmi,
+                k.silinmetarihi
        ORDER BY k.kullaniciid ASC`,
+      [archived],
     );
 
     return res.json({
@@ -94,6 +111,7 @@ exports.listUsers = async (req, res) => {
         email: user.email,
         rol: user.rol,
         aktifMi: user.aktifMi,
+        archivedAt: user.archivedAt,
         groups: Array.isArray(user.groups)
           ? user.groups
           : [],
@@ -118,37 +136,130 @@ exports.deleteUser = async (req, res) => {
   }
 
   try {
-    const result = await db.query(
-      `UPDATE kullanicilar
-       SET silindimi = TRUE,
-           silinmetarihi = NOW(),
-           aktifmi = FALSE
-       WHERE kullaniciid = $1
-         AND rol IN ('kullanici', 'yonetici')
-         AND silindimi = FALSE
-       RETURNING kullaniciid AS "id",
-                 email,
-                 silindimi AS "silindiMi",
-                 silinmetarihi AS "silinmeTarihi"`,
-      [userId],
+    const archivedUser = await db.withTransaction(
+      async (transactionQuery) => {
+        const result = await transactionQuery(
+          `UPDATE kullanicilar
+           SET silindimi = TRUE,
+               silinmetarihi = NOW(),
+               aktifmi = FALSE
+           WHERE kullaniciid = $1
+             AND rol IN ('kullanici', 'yonetici')
+             AND silindimi = FALSE
+           RETURNING kullaniciid AS "id",
+                     adsoyad AS "adSoyad",
+                     email,
+                     silindimi AS "silindiMi",
+                     silinmetarihi AS "silinmeTarihi"`,
+          [userId],
+        );
+
+        if (result.rowCount === 0) {
+          const notFoundError = new Error(
+            "Arşivlenecek kullanıcı bulunamadı veya bu hesap arşivlenemez",
+          );
+          notFoundError.statusCode = 404;
+          throw notFoundError;
+        }
+
+        const targetUser = result.rows[0];
+
+        await recordUserActivity(transactionQuery, {
+          actor: req.user,
+          action: "KullaniciArsivleme",
+          detail:
+            `${req.user.adSoyad}, ${targetUser.adSoyad} ` +
+            `(${targetUser.email}) kullanıcısını arşivledi.`,
+        });
+
+        return targetUser;
+      },
     );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({
-        error:
-          "Arşivlenecek kullanıcı bulunamadı veya bu hesap arşivlenemez",
-      });
-    }
-
     return res.json({
-      archivedUserId: result.rows[0].id,
+      archivedUserId: archivedUser.id,
       message: "Kullanıcı arşivlendi",
     });
   } catch (error) {
+    if (error?.statusCode === 404) {
+      return res.status(404).json({
+        error: error.message,
+      });
+    }
+
     console.error("Archive user failed:", error);
 
     return res.status(500).json({
       error: "Kullanıcı arşivlenemedi",
+    });
+  }
+};
+
+exports.restoreUser = async (req, res) => {
+  const userId = Number(req.params?.id);
+
+  if (!Number.isInteger(userId) || userId < 1) {
+    return res.status(400).json({
+      error: "Geçersiz kullanıcı id",
+    });
+  }
+
+  try {
+    const restoredUser = await db.withTransaction(
+      async (transactionQuery) => {
+        const result = await transactionQuery(
+          `UPDATE kullanicilar
+           SET silindimi = FALSE,
+               silinmetarihi = NULL,
+               aktifmi = FALSE
+           WHERE kullaniciid = $1
+             AND rol IN ('kullanici', 'yonetici')
+             AND silindimi = TRUE
+           RETURNING kullaniciid AS "id",
+                     adsoyad AS "adSoyad",
+                     email,
+                     rol,
+                     aktifmi AS "aktifMi"`,
+          [userId],
+        );
+
+        if (result.rowCount === 0) {
+          const notFoundError = new Error(
+            "Geri yüklenecek kullanıcı bulunamadı",
+          );
+          notFoundError.statusCode = 404;
+          throw notFoundError;
+        }
+
+        const targetUser = result.rows[0];
+
+        await recordUserActivity(transactionQuery, {
+          actor: req.user,
+          action: "KullaniciGeriYukleme",
+          detail:
+            `${req.user.adSoyad}, ${targetUser.adSoyad} ` +
+            `(${targetUser.email}) kullanıcısını pasif olarak geri yükledi.`,
+        });
+
+        return targetUser;
+      },
+    );
+
+    return res.json({
+      user: restoredUser,
+      message: "Kullanıcı pasif olarak geri yüklendi",
+    });
+  } catch (error) {
+    if (error?.statusCode === 404) {
+      return res.status(404).json({
+        error: error.message,
+      });
+    }
+
+    console.error("Restore user failed:", error);
+
+    return res.status(500).json({
+      error: "Kullanıcı geri yüklenemedi",
     });
   }
 };

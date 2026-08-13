@@ -120,7 +120,15 @@ CREATE TABLE Gorevler (
     OlusturmaTarihi         TIMESTAMP NOT NULL DEFAULT NOW(),
     GuncellemeTarihi        TIMESTAMP NOT NULL DEFAULT NOW(),
 
-    CHECK (AtananKullaniciID IS NOT NULL OR AtananGrupID IS NOT NULL)
+    -- Arşivleme fiziksel silme değildir; geçmiş ve ilişkiler korunur.
+    ArsivlendiMi            BOOLEAN NOT NULL DEFAULT FALSE,
+    ArsivlenmeTarihi        TIMESTAMP,
+    ArsivleyenKullaniciID   INT REFERENCES Kullanicilar(KullaniciID),
+
+    CHECK (NOT (
+        AtananKullaniciID IS NOT NULL
+        AND AtananGrupID IS NOT NULL
+    ))
 );
 
 /* Görev - Etiket (many-to-many) */
