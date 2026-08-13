@@ -7,6 +7,7 @@ const {
   listActivityLogs,
   listTasks,
   restoreTask,
+  updateTask,
   updateTaskAssignment,
   updateTaskDueDate,
   updateTaskStatus,
@@ -28,6 +29,7 @@ router.get(
 );
 router.get("/", listTasks);
 router.post("/", createTask);
+router.patch("/:id", updateTask);
 router.patch("/:id/assignment", updateTaskAssignment);
 router.patch("/:id/due-date", updateTaskDueDate);
 router.patch("/:id/restore", restoreTask);

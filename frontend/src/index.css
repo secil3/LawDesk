@@ -187,6 +187,15 @@ button:disabled {
   opacity: 0.65;
 }
 
+.secondary-button {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: #cbd5e1;
+}
+
 .error-message {
   margin: 8px 0 0;
   padding: 10px 12px;
@@ -411,6 +420,133 @@ button:disabled {
   position: absolute;
   opacity: 0;
   pointer-events: none;
+}
+
+.group-management-panel {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.group-create-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.group-create-form label,
+.group-management-card label {
+  display: grid;
+  gap: 7px;
+  color: #334155;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.group-create-form input,
+.group-management-card input,
+.membership-row select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  outline: none;
+  background: white;
+  color: #0f172a;
+}
+
+.group-create-form input:focus,
+.group-management-card input:focus,
+.membership-row select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.group-create-form button,
+.group-management-card button {
+  width: auto;
+  margin-top: 0;
+}
+
+.group-management-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.group-management-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #dbe4f0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.group-stat-row,
+.user-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.group-stat-row span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.user-card-actions {
+  justify-content: space-between;
+}
+
+.user-card-actions button {
+  width: auto;
+  margin-top: 0;
+}
+
+.membership-card {
+  width: min(100%, 620px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.membership-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.membership-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(170px, 0.8fr);
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.membership-row label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.membership-row input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
 }
 
 .user-list-panel {
@@ -710,6 +846,26 @@ button:disabled {
   font-weight: 650;
 }
 
+.task-edit-button {
+  width: auto;
+  margin-top: 16px;
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.task-edit-card {
+  width: min(100%, 680px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.task-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
 .task-assignment-editor,
 .task-lifecycle-editor,
 .task-due-date-editor,
@@ -880,7 +1036,14 @@ button:disabled {
   .task-form-grid,
   .task-grid,
   .task-meta,
-  .task-action-buttons {
+  .task-action-buttons,
+  .task-edit-grid,
+  .group-management-grid,
+  .membership-row {
+    grid-template-columns: 1fr;
+  }
+
+  .group-create-form {
     grid-template-columns: 1fr;
   }
 
@@ -898,7 +1061,10 @@ button:disabled {
   .refresh-button,
   .assignment-controls button,
   .due-date-controls button,
-  .task-restore-editor button {
+  .task-restore-editor button,
+  .group-create-form button,
+  .group-management-card button,
+  .task-edit-button {
     width: 100%;
   }
 

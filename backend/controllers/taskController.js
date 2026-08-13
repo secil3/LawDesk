@@ -269,8 +269,12 @@ const findTaskWithManagement = async (
   const result = await query(
     `SELECT g.gorevid AS "id",
             g.baslik AS "title",
+            g.aciklama AS "description",
+            g.oncelik AS "priority",
             g.durum AS "status",
             g.bitisTarihi AS "dueDate",
+            g.tipid AS "typeId",
+            current_type.tipadi AS "typeName",
             g.olusturankullaniciid AS "creatorId",
             g.arsivlendimi AS "archived",
             CASE
@@ -298,6 +302,8 @@ const findTaskWithManagement = async (
               ELSE FALSE
             END AS "canManage"
      FROM gorevler g
+     LEFT JOIN gorevtipleri current_type
+       ON current_type.tipid = g.tipid
      WHERE g.gorevid = $1
        AND g.arsivlendimi = $4::boolean
      FOR UPDATE OF g`,
@@ -559,6 +565,10 @@ exports.listTasks = async (req, res) => {
           ...task,
           canManageLifecycle: canManage && !task.archived,
           canRestore: canManage && task.archived === true,
+          canEditTask:
+            !task.archived &&
+            !terminal &&
+            (Number(task.creatorId) === userId || canManage),
           canEditDueDate:
             !task.archived &&
             !terminal &&
@@ -725,6 +735,7 @@ exports.createTask = async (req, res) => {
             : null,
         canManageAssignment: canAssignTasks(req.user),
         canManageLifecycle: canAssignTasks(req.user),
+        canEditTask: true,
         canEditDueDate: true,
         canRestore: false,
         archived: false,
@@ -841,6 +852,248 @@ exports.updateTaskAssignment = async (req, res) => {
     });
   } catch (error) {
     return sendError(res, error, "Görev ataması güncellenemedi");
+  }
+};
+
+exports.updateTask = async (req, res) => {
+  const taskId = Number(req.params?.id);
+  const editableFields = [
+    "baslik",
+    "aciklama",
+    "tipId",
+    "oncelik",
+    "bitisTarihi",
+  ];
+  const hasField = (field) =>
+    Object.prototype.hasOwnProperty.call(req.body || {}, field);
+
+  if (!Number.isInteger(taskId) || taskId < 1) {
+    return res.status(400).json({
+      error: "Geçersiz görev id",
+    });
+  }
+
+  if (!editableFields.some(hasField)) {
+    return res.status(400).json({
+      error: "Güncellenecek en az bir görev alanı gönderilmelidir",
+    });
+  }
+
+  const requestedTitle = hasField("baslik")
+    ? normalizeText(req.body.baslik, 200)
+    : null;
+  const requestedDescription = hasField("aciklama")
+    ? normalizeText(req.body.aciklama, 5000)
+    : null;
+  const requestedPriority = hasField("oncelik")
+    ? normalizeText(req.body.oncelik, 20)
+    : null;
+  const requestedTypeId = hasField("tipId")
+    ? parseOptionalId(req.body.tipId)
+    : null;
+
+  if (hasField("baslik") && !requestedTitle) {
+    return res.status(400).json({
+      error: "Görev başlığı zorunludur",
+    });
+  }
+
+  if (
+    hasField("oncelik") &&
+    !ALLOWED_PRIORITIES.has(requestedPriority)
+  ) {
+    return res.status(400).json({
+      error: "Geçerli bir öncelik seçiniz",
+    });
+  }
+
+  if (requestedTypeId && !requestedTypeId.valid) {
+    return res.status(400).json({
+      error: "Geçerli bir görev tipi seçiniz",
+    });
+  }
+
+  let requestedDueDate = null;
+
+  if (hasField("bitisTarihi") && req.body.bitisTarihi) {
+    requestedDueDate = new Date(req.body.bitisTarihi);
+
+    if (Number.isNaN(requestedDueDate.getTime())) {
+      return res.status(400).json({
+        error: "Geçerli bir bitiş tarihi giriniz",
+      });
+    }
+  }
+
+  try {
+    const updatedTask = await db.withTransaction(
+      async (transactionQuery) => {
+        const task = await findTaskWithManagement(
+          transactionQuery,
+          req.user,
+          taskId,
+          false,
+        );
+
+        const isCreator =
+          Number(task.creatorId) === Number(req.user.id);
+
+        if (!isCreator && !task.canManage) {
+          throw createHttpError(
+            403,
+            "Bu görevi düzenleme yetkiniz bulunmuyor",
+          );
+        }
+
+        if (["Tamamlandi", "Iptal Edildi"].includes(task.status)) {
+          throw createHttpError(
+            409,
+            "Görevi düzenlemek için önce yeniden açınız",
+          );
+        }
+
+        const nextTitle = hasField("baslik")
+          ? requestedTitle
+          : task.title;
+        const nextDescription = hasField("aciklama")
+          ? requestedDescription || null
+          : task.description || null;
+        const nextPriority = hasField("oncelik")
+          ? requestedPriority
+          : task.priority;
+        const nextTypeId = hasField("tipId")
+          ? requestedTypeId.value
+          : task.typeId === null
+            ? null
+            : Number(task.typeId);
+        const nextDueDate = hasField("bitisTarihi")
+          ? requestedDueDate
+          : task.dueDate;
+        const currentDueTime = task.dueDate
+          ? new Date(task.dueDate).getTime()
+          : null;
+        const nextDueTime = nextDueDate
+          ? new Date(nextDueDate).getTime()
+          : null;
+        const typeChanged =
+          (task.typeId === null ? null : Number(task.typeId)) !==
+          nextTypeId;
+
+        if (
+          currentDueTime !== nextDueTime &&
+          nextDueTime !== null &&
+          nextDueTime <= Date.now()
+        ) {
+          throw createHttpError(
+            400,
+            "Bitiş tarihi geçmiş bir zaman olamaz",
+          );
+        }
+
+        let nextType = task.typeId
+          ? { id: Number(task.typeId), name: task.typeName }
+          : null;
+
+        if (typeChanged) {
+          nextType = await validateTaskType(
+            transactionQuery,
+            nextTypeId,
+          );
+        }
+
+        const changes = [];
+
+        if (task.title !== nextTitle) {
+          changes.push(`Başlık ("${task.title}" → "${nextTitle}")`);
+        }
+
+        if ((task.description || null) !== nextDescription) {
+          changes.push("Açıklama");
+        }
+
+        if (task.priority !== nextPriority) {
+          changes.push(
+            `Öncelik (${task.priority} → ${nextPriority})`,
+          );
+        }
+
+        if (typeChanged) {
+          changes.push(
+            `Görev tipi (${task.typeName || "Belirtilmedi"} → ` +
+              `${nextType?.name || "Belirtilmedi"})`,
+          );
+        }
+
+        if (currentDueTime !== nextDueTime) {
+          changes.push(
+            `Bitiş tarihi (${describeDueDate(task.dueDate)} → ` +
+              `${describeDueDate(nextDueDate)})`,
+          );
+        }
+
+        if (changes.length === 0) {
+          throw createHttpError(
+            409,
+            "Görev bilgilerinde değişiklik yapılmadı",
+          );
+        }
+
+        const updateResult = await transactionQuery(
+          `UPDATE gorevler
+           SET baslik = $1,
+               aciklama = $2,
+               tipid = $3,
+               oncelik = $4,
+               bitistarihi = $5,
+               guncellemetarihi = NOW()
+           WHERE gorevid = $6
+             AND arsivlendimi = FALSE
+           RETURNING gorevid AS "id",
+                     baslik AS "title",
+                     aciklama AS "description",
+                     tipid AS "typeId",
+                     oncelik AS "priority",
+                     durum AS "status",
+                     bitistarihi AS "dueDate",
+                     guncellemetarihi AS "updatedAt"`,
+          [
+            nextTitle,
+            nextDescription,
+            nextTypeId,
+            nextPriority,
+            nextDueDate,
+            taskId,
+          ],
+        );
+
+        const updated = updateResult.rows[0];
+
+        if (!updated) {
+          throw createHttpError(404, "Görev bulunamadı");
+        }
+
+        await recordActivity(transactionQuery, {
+          actor: req.user,
+          taskId,
+          action: "GorevBilgileriDegisikligi",
+          detail:
+            `${req.user.adSoyad}, "${task.title}" görevinde şu alanları ` +
+            `güncelledi: ${changes.join("; ")}.`,
+        });
+
+        return {
+          ...updated,
+          typeName: nextType?.name || null,
+        };
+      },
+    );
+
+    return res.json({
+      task: updatedTask,
+      message: "Görev bilgileri güncellendi",
+    });
+  } catch (error) {
+    return sendError(res, error, "Görev bilgileri güncellenemedi");
   }
 };
 

@@ -28,9 +28,13 @@ const ACTIVITY_LABELS = {
   DurumDegisikligi: "Durum değişikliği",
   GorevArsivleme: "Görev arşivleme",
   GorevGeriYukleme: "Görev geri yükleme",
+  GorevBilgileriDegisikligi: "Görev bilgileri değişikliği",
   BitisTarihiDegisikligi: "Bitiş tarihi değişikliği",
   KullaniciArsivleme: "Kullanıcı arşivleme",
   KullaniciGeriYukleme: "Kullanıcı geri yükleme",
+  KullaniciGrupUyelikleriDegisikligi: "Kullanıcı üyelik değişikliği",
+  GrupOlusturma: "Grup oluşturma",
+  GrupGuncelleme: "Grup güncelleme",
 };
 
 const PRIORITY_LABELS = {
@@ -99,7 +103,7 @@ const assignmentLabel = (task) => {
   return "Henüz atanmadı";
 };
 
-function TaskPanel() {
+function TaskPanel({ refreshKey = 0 }) {
   const [tasks, setTasks] = useState([]);
   const [options, setOptions] = useState({
     canAssign: false,
@@ -113,14 +117,14 @@ function TaskPanel() {
   const [taskForm, setTaskForm] = useState(EMPTY_TASK_FORM);
   const [assignmentDrafts, setAssignmentDrafts] = useState({});
   const [statusDrafts, setStatusDrafts] = useState({});
-  const [dueDateDrafts, setDueDateDrafts] = useState({});
+  const [taskEditor, setTaskEditor] = useState(null);
   const [taskListMode, setTaskListMode] = useState("active");
   const [loading, setLoading] = useState(true);
   const [loadingActivity, setLoadingActivity] = useState(false);
   const [creating, setCreating] = useState(false);
   const [assigningTaskId, setAssigningTaskId] = useState(null);
   const [updatingStatusTaskId, setUpdatingStatusTaskId] = useState(null);
-  const [updatingDueDateTaskId, setUpdatingDueDateTaskId] = useState(null);
+  const [savingTaskId, setSavingTaskId] = useState(null);
   const [archivingTaskId, setArchivingTaskId] = useState(null);
   const [restoringTaskId, setRestoringTaskId] = useState(null);
   const [error, setError] = useState("");
@@ -194,6 +198,36 @@ function TaskPanel() {
 
     loadTaskPanel();
   }, []);
+
+  useEffect(() => {
+    if (refreshKey === 0) {
+      return;
+    }
+
+    const refreshTaskPanel = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const [, loadedOptions] = await Promise.all([
+          loadTasks(taskListMode),
+          loadOptions(),
+        ]);
+
+        if (loadedOptions.canViewActivity) {
+          await loadActivity();
+        }
+      } catch (requestError) {
+        setError(
+          requestError.message || "Görev bilgileri yenilenemedi",
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    refreshTaskPanel();
+  }, [refreshKey]);
 
   const updateTaskForm = (field, value) => {
     setTaskForm((current) => ({
@@ -402,53 +436,96 @@ function TaskPanel() {
     }
   };
 
-  const handleDueDateUpdate = async (task) => {
-    const draftValue = Object.prototype.hasOwnProperty.call(
-      dueDateDrafts,
-      task.id,
-    )
-      ? dueDateDrafts[task.id]
-      : toDateTimeInputValue(task.dueDate);
+  const openTaskEditor = (task) => {
+    setError("");
+    setTaskEditor({
+      task,
+      form: {
+        baslik: task.title || "",
+        aciklama: task.description || "",
+        tipId: task.typeId ? String(task.typeId) : "",
+        oncelik: task.priority || "Orta",
+        bitisTarihi: toDateTimeInputValue(task.dueDate),
+      },
+    });
+  };
 
-    if (draftValue && new Date(draftValue).getTime() <= Date.now()) {
+  const closeTaskEditor = () => {
+    if (savingTaskId) {
+      return;
+    }
+
+    setTaskEditor(null);
+    setError("");
+  };
+
+  const updateTaskEditorForm = (field, value) => {
+    setTaskEditor((current) =>
+      current
+        ? {
+            ...current,
+            form: {
+              ...current.form,
+              [field]: value,
+            },
+          }
+        : current,
+    );
+  };
+
+  const handleTaskUpdate = async (event) => {
+    event.preventDefault();
+
+    if (!taskEditor?.task) {
+      return;
+    }
+
+    const { task, form } = taskEditor;
+    const originalDueDate = toDateTimeInputValue(task.dueDate);
+
+    if (
+      form.bitisTarihi &&
+      form.bitisTarihi !== originalDueDate &&
+      new Date(form.bitisTarihi).getTime() <= Date.now()
+    ) {
       setError("Bitiş tarihi geçmiş bir zaman olamaz");
       return;
     }
 
     setError("");
     setMessage("");
-    setUpdatingDueDateTaskId(task.id);
+    setSavingTaskId(task.id);
 
     try {
-      const response = await fetch(`/api/tasks/${task.id}/due-date`, {
+      const response = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
         body: JSON.stringify({
-          bitisTarihi: draftValue
-            ? new Date(draftValue).toISOString()
+          baslik: form.baslik.trim(),
+          aciklama: form.aciklama.trim(),
+          tipId: form.tipId ? Number(form.tipId) : null,
+          oncelik: form.oncelik,
+          bitisTarihi: form.bitisTarihi
+            ? new Date(form.bitisTarihi).toISOString()
             : null,
         }),
       });
 
       const data = await readResponse(response);
-      setMessage(data.message || "Bitiş tarihi güncellendi");
-      setDueDateDrafts((current) => {
-        const next = { ...current };
-        delete next[task.id];
-        return next;
-      });
+      setMessage(data.message || "Görev bilgileri güncellendi");
+      setTaskEditor(null);
       await loadTasks("active");
 
       if (options.canViewActivity) {
         await loadActivity();
       }
     } catch (requestError) {
-      setError(requestError.message || "Bitiş tarihi güncellenemedi");
+      setError(requestError.message || "Görev bilgileri güncellenemedi");
     } finally {
-      setUpdatingDueDateTaskId(null);
+      setSavingTaskId(null);
     }
   };
 
@@ -784,47 +861,14 @@ function TaskPanel() {
                 )}
               </dl>
 
-              {task.canEditDueDate && !task.archived && (
-                <div className="task-due-date-editor">
-                  <label htmlFor={`task-due-date-${task.id}`}>
-                    Bitiş tarihini düzenle
-                  </label>
-                  <div className="due-date-controls">
-                    <input
-                      id={`task-due-date-${task.id}`}
-                      type="datetime-local"
-                      min={minimumDueDate()}
-                      value={
-                        Object.prototype.hasOwnProperty.call(
-                          dueDateDrafts,
-                          task.id,
-                        )
-                          ? dueDateDrafts[task.id]
-                          : toDateTimeInputValue(task.dueDate)
-                      }
-                      onChange={(event) =>
-                        setDueDateDrafts((current) => ({
-                          ...current,
-                          [task.id]: event.target.value,
-                        }))
-                      }
-                      disabled={updatingDueDateTaskId === task.id}
-                    />
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => handleDueDateUpdate(task)}
-                      disabled={updatingDueDateTaskId === task.id}
-                    >
-                      {updatingDueDateTaskId === task.id
-                        ? "Kaydediliyor..."
-                        : "Tarihi kaydet"}
-                    </button>
-                  </div>
-                  <p className="editor-hint">
-                    Tarihi tamamen kaldırmak için alanı boşaltıp kaydedin.
-                  </p>
-                </div>
+              {task.canEditTask && !task.archived && (
+                <button
+                  type="button"
+                  className="secondary-button task-edit-button"
+                  onClick={() => openTaskEditor(task)}
+                >
+                  Görev bilgilerini düzenle
+                </button>
               )}
 
               {task.canManageAssignment && options.canAssign && !task.archived && (
@@ -988,6 +1032,128 @@ function TaskPanel() {
               )}
             </article>
           ))}
+        </div>
+      )}
+
+      {taskEditor && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="task-edit-dialog-title"
+        >
+          <form
+            className="confirm-card task-edit-card"
+            onSubmit={handleTaskUpdate}
+            noValidate
+          >
+            <p className="eyebrow">Görev düzenleme</p>
+            <h3 id="task-edit-dialog-title">
+              Görev #{taskEditor.task.id}
+            </h3>
+
+            <div className="task-edit-grid">
+              <label className="task-field task-field-wide">
+                <span>Başlık</span>
+                <input
+                  value={taskEditor.form.baslik}
+                  onChange={(event) =>
+                    updateTaskEditorForm("baslik", event.target.value)
+                  }
+                  maxLength={200}
+                  required
+                />
+              </label>
+
+              <label className="task-field task-field-wide">
+                <span>Açıklama</span>
+                <textarea
+                  value={taskEditor.form.aciklama}
+                  onChange={(event) =>
+                    updateTaskEditorForm("aciklama", event.target.value)
+                  }
+                  maxLength={5000}
+                  rows={4}
+                />
+              </label>
+
+              <label className="task-field">
+                <span>Görev tipi</span>
+                <select
+                  value={taskEditor.form.tipId}
+                  onChange={(event) =>
+                    updateTaskEditorForm("tipId", event.target.value)
+                  }
+                >
+                  <option value="">Tip seçilmedi</option>
+                  {options.types.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="task-field">
+                <span>Öncelik</span>
+                <select
+                  value={taskEditor.form.oncelik}
+                  onChange={(event) =>
+                    updateTaskEditorForm("oncelik", event.target.value)
+                  }
+                >
+                  <option value="Kritik">Kritik</option>
+                  <option value="Yuksek">Yüksek</option>
+                  <option value="Orta">Orta</option>
+                  <option value="Dusuk">Düşük</option>
+                </select>
+              </label>
+
+              <label className="task-field task-field-wide">
+                <span>Bitiş tarihi</span>
+                <input
+                  type="datetime-local"
+                  min={minimumDueDate()}
+                  value={taskEditor.form.bitisTarihi}
+                  onChange={(event) =>
+                    updateTaskEditorForm(
+                      "bitisTarihi",
+                      event.target.value,
+                    )
+                  }
+                />
+              </label>
+            </div>
+
+            <p className="editor-hint">
+              Bitiş tarihini kaldırmak için tarih alanını boş bırakın.
+            </p>
+
+            {error && (
+              <p className="error-message" role="alert">
+                {error}
+              </p>
+            )}
+
+            <div className="confirm-actions">
+              <button
+                type="submit"
+                disabled={savingTaskId === taskEditor.task.id}
+              >
+                {savingTaskId === taskEditor.task.id
+                  ? "Kaydediliyor..."
+                  : "Değişiklikleri kaydet"}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={closeTaskEditor}
+                disabled={savingTaskId === taskEditor.task.id}
+              >
+                Vazgeç
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

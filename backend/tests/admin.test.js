@@ -27,6 +27,7 @@ const originalWithTransaction = db.withTransaction;
 const adminEmail = "admin.test@sirket.com";
 const testPassword = "GuvenliTestSifresi123!";
 let activityActions;
+let recorded;
 
 const createAdminToken = () => {
   return jwt.sign(
@@ -53,6 +54,12 @@ before(async () => {
 
 beforeEach(() => {
   activityActions = [];
+  recorded = {
+    createdGroupParams: null,
+    updatedGroupParams: null,
+    deletedMembershipUserId: null,
+    insertedMemberships: [],
+  };
 
   db.query = async (text, params) => {
     const t = String(text || "").toLowerCase();
@@ -104,6 +111,113 @@ beforeEach(() => {
     if (t.includes("insert into aktiviteloglari")) {
       activityActions.push(params[1]);
       return { rows: [] };
+    }
+
+    if (t.includes("insert into gruplar")) {
+      recorded.createdGroupParams = params;
+      return {
+        rows: [
+          {
+            id: 3,
+            name: params[0],
+            description: params[1],
+          },
+        ],
+      };
+    }
+
+    if (
+      t.includes("from gruplar") &&
+      t.includes("lower(grupadi)")
+    ) {
+      return { rows: [] };
+    }
+
+    if (
+      t.includes("from gruplar") &&
+      t.includes("where grupid = $1") &&
+      t.includes("for update")
+    ) {
+      return {
+        rows: [
+          {
+            id: Number(params[0]),
+            name: "Uyum",
+            description: "Uyum ekibi",
+          },
+        ],
+      };
+    }
+
+    if (
+      t.startsWith("update gruplar") ||
+      t.includes("set grupadi = $1")
+    ) {
+      recorded.updatedGroupParams = params;
+      return {
+        rowCount: 1,
+        rows: [
+          {
+            id: Number(params[2]),
+            name: params[0],
+            description: params[1],
+          },
+        ],
+      };
+    }
+
+    if (
+      t.includes("from kullanicilar") &&
+      t.includes('adsoyad as "adsoyad"') &&
+      t.includes("for update")
+    ) {
+      return {
+        rows: [
+          {
+            id: Number(params[0]),
+            adSoyad: "Örnek Kullanıcı",
+            email: "ornek@sirket.com",
+            rol: "kullanici",
+          },
+        ],
+      };
+    }
+
+    if (
+      t.includes("from grupuyelikleri gu") &&
+      t.includes("order by gu.grupid")
+    ) {
+      return {
+        rows: [
+          {
+            grupId: 1,
+            grupAdi: "Uyum",
+            grupRolu: "grup_uyesi",
+          },
+        ],
+      };
+    }
+
+    if (
+      t.includes("from gruplar") &&
+      t.includes("where grupid = any")
+    ) {
+      return {
+        rows: params[0].map((groupId) => ({
+          grupId: groupId,
+          grupAdi: Number(groupId) === 1 ? "Uyum" : "KVKK",
+        })),
+      };
+    }
+
+    if (t.startsWith("delete from grupuyelikleri")) {
+      recorded.deletedMembershipUserId = params[0];
+      return { rowCount: 1, rows: [] };
+    }
+
+    if (t.includes("insert into grupuyelikleri")) {
+      recorded.insertedMemberships.push(params);
+      return { rowCount: 1, rows: [] };
     }
 
     if (
@@ -174,11 +288,15 @@ beforeEach(() => {
             id: 2,
             name: "KVKK",
             description: "KVKK ekibi",
+            memberCount: 2,
+            managerCount: 1,
           },
           {
             id: 1,
             name: "Uyum",
             description: "Uyum ekibi",
+            memberCount: 3,
+            managerCount: 1,
           },
         ],
       };
@@ -306,12 +424,118 @@ test(
         id: 2,
         name: "KVKK",
         description: "KVKK ekibi",
+        memberCount: 2,
+        managerCount: 1,
       },
       {
         id: 1,
         name: "Uyum",
         description: "Uyum ekibi",
+        memberCount: 3,
+        managerCount: 1,
       },
     ]);
   },
 );
+
+test("admin can create a group", async () => {
+  const token = createAdminToken();
+
+  const response = await request(app)
+    .post("/api/admin/groups")
+    .set(
+      "Cookie",
+      `${process.env.AUTH_COOKIE_NAME}=${token}`,
+    )
+    .send({
+      name: "Sözleşmeler",
+      description: "Sözleşme ekibi",
+    });
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.group.name, "Sözleşmeler");
+  assert.deepEqual(recorded.createdGroupParams, [
+    "Sözleşmeler",
+    "Sözleşme ekibi",
+  ]);
+  assert.deepEqual(activityActions, ["GrupOlusturma"]);
+});
+
+test("admin can update group information", async () => {
+  const token = createAdminToken();
+
+  const response = await request(app)
+    .patch("/api/admin/groups/1")
+    .set(
+      "Cookie",
+      `${process.env.AUTH_COOKIE_NAME}=${token}`,
+    )
+    .send({
+      name: "Uyum ve Denetim",
+      description: "Güncel ekip açıklaması",
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.group.name, "Uyum ve Denetim");
+  assert.deepEqual(recorded.updatedGroupParams, [
+    "Uyum ve Denetim",
+    "Güncel ekip açıklaması",
+    1,
+  ]);
+  assert.deepEqual(activityActions, ["GrupGuncelleme"]);
+});
+
+test("admin can replace user group memberships and roles", async () => {
+  const token = createAdminToken();
+
+  const response = await request(app)
+    .put("/api/admin/users/2/memberships")
+    .set(
+      "Cookie",
+      `${process.env.AUTH_COOKIE_NAME}=${token}`,
+    )
+    .send({
+      memberships: [
+        {
+          grupId: 1,
+          grupRolu: "grup_yoneticisi",
+        },
+        {
+          grupId: 2,
+          grupRolu: "grup_uyesi",
+        },
+      ],
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.user.groups.length, 2);
+  assert.equal(recorded.deletedMembershipUserId, 2);
+  assert.deepEqual(recorded.insertedMemberships, [
+    [1, 2, "grup_yoneticisi"],
+    [2, 2, "grup_uyesi"],
+  ]);
+  assert.deepEqual(activityActions, [
+    "KullaniciGrupUyelikleriDegisikligi",
+  ]);
+});
+
+test("membership update rejects duplicate groups", async () => {
+  const token = createAdminToken();
+
+  const response = await request(app)
+    .put("/api/admin/users/2/memberships")
+    .set(
+      "Cookie",
+      `${process.env.AUTH_COOKIE_NAME}=${token}`,
+    )
+    .send({
+      memberships: [
+        { grupId: 1, grupRolu: "grup_uyesi" },
+        { grupId: 1, grupRolu: "grup_yoneticisi" },
+      ],
+    });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /birden fazla kez/i);
+  assert.equal(recorded.deletedMembershipUserId, null);
+});
