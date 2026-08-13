@@ -5,6 +5,7 @@ const {
   listUsers,
   listGroups,
   deleteUser,
+  restoreUser,
   updateUserActive,
 } = require("../controllers/adminController");
 
@@ -21,6 +22,7 @@ router.use(requireSystemRole("admin"));
 router.get("/users", listUsers);
 router.get("/groups", listGroups);
 router.post("/users", createUser);
+router.patch("/users/:id/restore", restoreUser);
 router.patch("/users/:id", updateUserActive);
 router.delete("/users/:id", deleteUser);
 

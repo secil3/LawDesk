@@ -1,14 +1,7 @@
 import { useEffect, useState } from "react";
 
-const readResponse = async (response) => {
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(data.error || "İşlem tamamlanamadı");
-  }
-
-  return data;
-};
+import { readResponse } from "./api";
+import TaskPanel from "./components/TaskPanel";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -29,6 +22,10 @@ function App() {
   const [creationMessage, setCreationMessage] = useState("");
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [archivedUsers, setArchivedUsers] = useState([]);
+  const [loadingArchivedUsers, setLoadingArchivedUsers] = useState(false);
+  const [userListMode, setUserListMode] = useState("active");
+  const [restoringUserId, setRestoringUserId] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState({
     open: false,
     userId: null,
@@ -70,6 +67,25 @@ function App() {
       setError(requestError.message || "Kullanıcı listesi yüklenemedi");
     } finally {
       setLoadingUsers(false);
+    }
+  };
+
+  const loadArchivedUsers = async () => {
+    setLoadingArchivedUsers(true);
+
+    try {
+      const response = await fetch("/api/admin/users?archived=true", {
+        credentials: "include",
+      });
+
+      const data = await readResponse(response);
+      setArchivedUsers(data.users || []);
+    } catch (requestError) {
+      setError(
+        requestError.message || "Kullanıcı arşivi yüklenemedi",
+      );
+    } finally {
+      setLoadingArchivedUsers(false);
     }
   };
 
@@ -116,7 +132,11 @@ function App() {
           setUser(data.user);
 
           if (data.user?.rol === "admin") {
-            await Promise.all([loadUsers(), loadGroups()]);
+            await Promise.all([
+              loadUsers(),
+              loadArchivedUsers(),
+              loadGroups(),
+            ]);
           }
         }
       } catch (requestError) {
@@ -163,7 +183,11 @@ function App() {
       setPassword("");
 
       if (data.user?.rol === "admin") {
-        await Promise.all([loadUsers(), loadGroups()]);
+        await Promise.all([
+          loadUsers(),
+          loadArchivedUsers(),
+          loadGroups(),
+        ]);
       }
     } catch (requestError) {
       setError(
@@ -206,11 +230,38 @@ function App() {
 
       const data = await readResponse(response);
       setCreationMessage(data.message || "Kullanıcı arşivlendi");
-      await loadUsers();
+      await Promise.all([loadUsers(), loadArchivedUsers()]);
+      setUserListMode("archived");
     } catch (requestError) {
       setError(requestError.message || "Kullanıcı arşivlenemedi");
     } finally {
       closeDeleteConfirmation();
+    }
+  };
+
+  const handleRestoreUser = async (userId) => {
+    setError("");
+    setCreationMessage("");
+    setRestoringUserId(userId);
+
+    try {
+      const response = await fetch(
+        `/api/admin/users/${userId}/restore`,
+        {
+          method: "PATCH",
+          credentials: "include",
+        },
+      );
+
+      const data = await readResponse(response);
+      setCreationMessage(
+        data.message || "Kullanıcı pasif olarak geri yüklendi",
+      );
+      await Promise.all([loadUsers(), loadArchivedUsers()]);
+    } catch (requestError) {
+      setError(requestError.message || "Kullanıcı geri yüklenemedi");
+    } finally {
+      setRestoringUserId(null);
     }
   };
 
@@ -256,6 +307,8 @@ function App() {
       setPassword("");
       setCreationMessage("");
       setUsers([]);
+      setArchivedUsers([]);
+      setUserListMode("active");
       setGroupOptions([]);
     } catch (requestError) {
       setError(
@@ -339,6 +392,12 @@ function App() {
             )
             .join(", ")
         : "Grup ataması yok";
+    const displayedUsers =
+      userListMode === "archived" ? archivedUsers : users;
+    const isUserListLoading =
+      userListMode === "archived"
+        ? loadingArchivedUsers
+        : loadingUsers;
 
     return (
       <main className="auth-page">
@@ -487,15 +546,44 @@ function App() {
               </form>
 
               <div className="user-list-panel">
-                <h3>Oluşturulan kullanıcılar</h3>
+                <div className="list-heading-with-tabs">
+                  <h3>Kullanıcılar</h3>
+                  <div className="view-tabs" aria-label="Kullanıcı görünümü">
+                    <button
+                      type="button"
+                      className={userListMode === "active" ? "active" : ""}
+                      onClick={() => setUserListMode("active")}
+                    >
+                      Aktif ({users.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={userListMode === "archived" ? "active" : ""}
+                      onClick={() => setUserListMode("archived")}
+                    >
+                      Arşiv ({archivedUsers.length})
+                    </button>
+                  </div>
+                </div>
 
-                {loadingUsers ? (
+                {userListMode === "archived" && (
+                  <p className="form-hint">
+                    Geri yüklenen kullanıcı güvenlik için pasif açılır. Aktif
+                    sekmesinden ayrıca aktifleştirebilirsiniz.
+                  </p>
+                )}
+
+                {isUserListLoading ? (
                   <p>Yükleniyor...</p>
-                ) : users.length === 0 ? (
-                  <p>Henüz kullanıcı oluşturulmadı.</p>
+                ) : displayedUsers.length === 0 ? (
+                  <p>
+                    {userListMode === "archived"
+                      ? "Arşivlenmiş kullanıcı bulunmuyor."
+                      : "Henüz kullanıcı oluşturulmadı."}
+                  </p>
                 ) : (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-                {users.map((item) => (
+                {displayedUsers.map((item) => (
                   <div
                     key={item.id}
                     className="user-card-mini"
@@ -543,29 +631,35 @@ function App() {
                         ) : (
                           <span style={{ color: '#9ca3af', fontSize: 13 }}>—</span>
                         )}
+                        {userListMode === "archived" && (
+                          <span className="archive-chip">
+                            Arşivlenme: {new Date(item.archivedAt).toLocaleString("tr-TR")}
+                          </span>
+                        )}
                       </div>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={() => handleToggleActive(item.id, !item.aktifMi)}
-                        aria-pressed={item.aktifMi}
-                        style={{
-                          padding: '8px 12px',
-                          borderRadius: 8,
-                          border: 'none',
-                          cursor: 'pointer',
-                          background: item.aktifMi ? '#16a34a' : '#9ca3af',
-                          color: 'white',
-                          fontWeight: 700,
-                        }}
-                        title={item.aktifMi ? 'Kullanıcı aktif - tıklayarak pasifleştir' : 'Kullanıcı pasif - tıklayarak aktifleştir'}
-                      >
-                        {item.aktifMi ? 'Aktif' : 'Pasif'}
-                      </button>
+                      {userListMode === "active" ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleActive(item.id, !item.aktifMi)}
+                            aria-pressed={item.aktifMi}
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              border: 'none',
+                              cursor: 'pointer',
+                              background: item.aktifMi ? '#16a34a' : '#9ca3af',
+                              color: 'white',
+                              fontWeight: 700,
+                            }}
+                            title={item.aktifMi ? 'Kullanıcı aktif - tıklayarak pasifleştir' : 'Kullanıcı pasif - tıklayarak aktifleştir'}
+                          >
+                            {item.aktifMi ? 'Aktif' : 'Pasif'}
+                          </button>
 
-                      <div style={{ display: 'flex', gap: 8 }}>
                         <button
                           type="button"
                           onClick={() => openDeleteConfirmation(item.id, item.adSoyad)}
@@ -581,7 +675,19 @@ function App() {
                         >
                           Arşivle
                         </button>
-                      </div>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="restore-button"
+                          onClick={() => handleRestoreUser(item.id)}
+                          disabled={restoringUserId === item.id}
+                        >
+                          {restoringUserId === item.id
+                            ? "Geri yükleniyor..."
+                            : "Geri yükle"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -632,6 +738,8 @@ function App() {
               </ul>
             </div>
           )}
+
+          <TaskPanel />
 
           <dl className="user-details">
             <div>
