@@ -35,10 +35,7 @@ function App() {
     userName: "",
   });
 
-  const groupOptions = [
-    { id: 1, name: "Uyum" },
-    { id: 2, name: "KVKK" },
-  ];
+  const [groupOptions, setGroupOptions] = useState([]);
 
   const toggleGroupSelection = (groupId) => {
     const groupKey = String(groupId);
@@ -76,6 +73,20 @@ function App() {
     }
   };
 
+  const loadGroups = async () => {
+    try {
+      const response = await fetch("/api/admin/groups", {
+        credentials: "include",
+      });
+
+      const data = await readResponse(response);
+      setGroupOptions(data.groups || []);
+    } catch (requestError) {
+      setGroupOptions([]);
+      setError(requestError.message || "Grup listesi yüklenemedi");
+    }
+  };
+
   useEffect(() => {
     let isActive = true;
 
@@ -105,7 +116,7 @@ function App() {
           setUser(data.user);
 
           if (data.user?.rol === "admin") {
-            await loadUsers();
+            await Promise.all([loadUsers(), loadGroups()]);
           }
         }
       } catch (requestError) {
@@ -152,7 +163,7 @@ function App() {
       setPassword("");
 
       if (data.user?.rol === "admin") {
-        await loadUsers();
+        await Promise.all([loadUsers(), loadGroups()]);
       }
     } catch (requestError) {
       setError(
@@ -245,6 +256,7 @@ function App() {
       setPassword("");
       setCreationMessage("");
       setUsers([]);
+      setGroupOptions([]);
     } catch (requestError) {
       setError(
         requestError.message || "Çıkış işlemi tamamlanamadı",
