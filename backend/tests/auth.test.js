@@ -27,6 +27,7 @@ const passiveEmail = "pasif.test@sirket.com";
 
 let passwordHash;
 const originalQuery = db.query;
+const originalwithTransaction = db.withTransaction;
 
 const activeUser = () => ({
   kullaniciid: 1,
@@ -56,10 +57,7 @@ beforeEach(() => {
   db.query = async (text, params) => {
     const t = String(text || "").toLowerCase();
 
-    if (
-      t.includes("insert into kullanicilar") ||
-      t.includes('insert into "kullanicilar"')
-    ) {
+    if (t.includes("insert into kullanicilar")) {
       return {
         rows: [
           {
@@ -74,15 +72,17 @@ beforeEach(() => {
     }
 
     if (t.includes("sifrehash")) {
-      const email = String(params[0]).toLowerCase();
+      const requestedEmail = String(
+        params[0],
+      ).toLowerCase();
 
-      if (email === activeEmail) {
+      if (requestedEmail === activeEmail) {
         return {
           rows: [activeUser()],
         };
       }
 
-      if (email === passiveEmail) {
+      if (requestedEmail === passiveEmail) {
         return {
           rows: [passiveUser()],
         };
@@ -111,10 +111,14 @@ beforeEach(() => {
       };
     }
 
-    // handle gruplar name lookup when multiple groups are provided
-    if (t.includes("from gruplar") || t.includes("select grupid") || t.includes("select grupadi")) {
+    if (t.includes("from gruplar")) {
       return {
-        rows: [ { grupid: 2, grupadi: 'KVKK' } ],
+        rows: [
+          {
+            grupId: 2,
+            grupAdi: "KVKK",
+          },
+        ],
       };
     }
 
@@ -122,10 +126,15 @@ beforeEach(() => {
       "Unexpected database query in test",
     );
   };
+
+  db.withTransaction = async (callback) => {
+    return callback(db.query);
+  };
 });
 
 after(async () => {
   db.query = originalQuery;
+  db.withTransaction = originalwithTransaction;
   await db.close();
 });
 

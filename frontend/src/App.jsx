@@ -35,10 +35,7 @@ function App() {
     userName: "",
   });
 
-  const groupOptions = [
-    { id: 1, name: "Uyum" },
-    { id: 2, name: "KVKK" },
-  ];
+  const [groupOptions, setGroupOptions] = useState([]);
 
   const toggleGroupSelection = (groupId) => {
     const groupKey = String(groupId);
@@ -76,6 +73,20 @@ function App() {
     }
   };
 
+  const loadGroups = async () => {
+    try {
+      const response = await fetch("/api/admin/groups", {
+        credentials: "include",
+      });
+
+      const data = await readResponse(response);
+      setGroupOptions(data.groups || []);
+    } catch (requestError) {
+      setGroupOptions([]);
+      setError(requestError.message || "Grup listesi yüklenemedi");
+    }
+  };
+
   useEffect(() => {
     let isActive = true;
 
@@ -105,7 +116,7 @@ function App() {
           setUser(data.user);
 
           if (data.user?.rol === "admin") {
-            await loadUsers();
+            await Promise.all([loadUsers(), loadGroups()]);
           }
         }
       } catch (requestError) {
@@ -152,7 +163,7 @@ function App() {
       setPassword("");
 
       if (data.user?.rol === "admin") {
-        await loadUsers();
+        await Promise.all([loadUsers(), loadGroups()]);
       }
     } catch (requestError) {
       setError(
@@ -194,10 +205,10 @@ function App() {
       );
 
       const data = await readResponse(response);
-      setCreationMessage(data.message || "Kullanıcı silindi");
+      setCreationMessage(data.message || "Kullanıcı arşivlendi");
       await loadUsers();
     } catch (requestError) {
-      setError(requestError.message || "Kullanıcı silinemedi");
+      setError(requestError.message || "Kullanıcı arşivlenemedi");
     } finally {
       closeDeleteConfirmation();
     }
@@ -245,6 +256,7 @@ function App() {
       setPassword("");
       setCreationMessage("");
       setUsers([]);
+      setGroupOptions([]);
     } catch (requestError) {
       setError(
         requestError.message || "Çıkış işlemi tamamlanamadı",
@@ -567,7 +579,7 @@ function App() {
                             fontWeight: 700,
                           }}
                         >
-                          Sil
+                          Arşivle
                         </button>
                       </div>
                     </div>
@@ -581,13 +593,13 @@ function App() {
                 <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title">
                   <div className="confirm-card">
                     <p className="eyebrow">Onay gerektiriyor</p>
-                    <h3 id="delete-dialog-title">Kullanıcıyı silmek üzeresiniz</h3>
+                    <h3 id="delete-dialog-title">Kullanıcıyı arşivlemek üzeresiniz</h3>
                     <p>
-                      <strong>{deleteConfirmation.userName}</strong> adlı kullanıcıyı silmek istediğinizden emin misiniz?
+                      <strong>{deleteConfirmation.userName}</strong> adlı kullanıcıyı arşivlemek istediğinizden emin misiniz? Kullanıcının geçmiş kayıtları korunacaktır.
                     </p>
                     <div className="confirm-actions">
                       <button type="button" onClick={confirmDeleteUser}>
-                        Evet, sil
+                        Evet, arşivle
                       </button>
                       <button type="button" className="secondary-button" onClick={closeDeleteConfirmation}>
                         Vazgeç

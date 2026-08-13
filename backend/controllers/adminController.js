@@ -30,6 +30,28 @@ const normalizeText = (value, maxLength) => {
   return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
 };
 
+exports.listGroups = async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT grupid AS "id",
+              grupadi AS "name",
+              aciklama AS "description"
+       FROM gruplar
+       ORDER BY grupadi ASC`,
+    );
+
+    return res.json({
+      groups: result.rows,
+    });
+  } catch (error) {
+    console.error("List groups failed:", error);
+
+    return res.status(500).json({
+      error: "Grup listesi getirilemedi",
+    });
+  }
+};
+
 exports.listUsers = async (req, res) => {
   try {
     const result = await db.query(
@@ -45,14 +67,23 @@ exports.listUsers = async (req, res) => {
                     'grupAdi', g.grupadi,
                     'grupRolu', gu.gruprolu
                   )
-                ) FILTER (WHERE gu.grupid IS NOT NULL),
+                ) FILTER (
+                  WHERE gu.grupid IS NOT NULL
+                ),
                 '[]'::json
               ) AS groups
        FROM kullanicilar k
-       LEFT JOIN grupuyelikleri gu ON gu.kullaniciid = k.kullaniciid
-       LEFT JOIN gruplar g ON g.grupid = gu.grupid
+       LEFT JOIN grupuyelikleri gu
+         ON gu.kullaniciid = k.kullaniciid
+       LEFT JOIN gruplar g
+         ON g.grupid = gu.grupid
        WHERE k.rol IN ('kullanici', 'yonetici')
-       GROUP BY k.kullaniciid, k.adsoyad, k.email, k.rol, k.aktifmi
+         AND k.silindimi = FALSE
+       GROUP BY k.kullaniciid,
+                k.adsoyad,
+                k.email,
+                k.rol,
+                k.aktifmi
        ORDER BY k.kullaniciid ASC`,
     );
 
@@ -63,11 +94,14 @@ exports.listUsers = async (req, res) => {
         email: user.email,
         rol: user.rol,
         aktifMi: user.aktifMi,
-        groups: Array.isArray(user.groups) ? user.groups : [],
+        groups: Array.isArray(user.groups)
+          ? user.groups
+          : [],
       })),
     });
   } catch (error) {
     console.error("List users failed:", error);
+
     return res.status(500).json({
       error: "Kullanıcı listesi getirilemedi",
     });
@@ -84,42 +118,37 @@ exports.deleteUser = async (req, res) => {
   }
 
   try {
-    // First, remove group memberships to avoid foreign key issues
-    await db.query(
-      `DELETE FROM grupuyelikleri WHERE kullaniciid = $1`,
-      [userId],
-    );
-
-    // Then attempt to delete the user record without restricting by role so admins can delete any account
     const result = await db.query(
-      `DELETE FROM kullanicilar
+      `UPDATE kullanicilar
+       SET silindimi = TRUE,
+           silinmetarihi = NOW(),
+           aktifmi = FALSE
        WHERE kullaniciid = $1
-       RETURNING kullaniciid AS "id", email`,
+         AND rol IN ('kullanici', 'yonetici')
+         AND silindimi = FALSE
+       RETURNING kullaniciid AS "id",
+                 email,
+                 silindimi AS "silindiMi",
+                 silinmetarihi AS "silinmeTarihi"`,
       [userId],
     );
 
     if (result.rowCount === 0) {
       return res.status(404).json({
-        error: "Silinecek kullanıcı bulunamadı",
+        error:
+          "Arşivlenecek kullanıcı bulunamadı veya bu hesap arşivlenemez",
       });
     }
 
     return res.json({
-      deletedUserId: result.rows[0].id,
-      message: "Kullanıcı silindi",
+      archivedUserId: result.rows[0].id,
+      message: "Kullanıcı arşivlendi",
     });
   } catch (error) {
-    console.error("Delete user failed:", error);
-
-    // If there is a foreign key violation from some other table, give a helpful message
-    if (error && error.code === '23503') {
-      return res.status(409).json({
-        error: "Kullanıcı bazı kaynaklar tarafından referans alınıyor; önce bağlı kayıtları kaldırın veya atayın",
-      });
-    }
+    console.error("Archive user failed:", error);
 
     return res.status(500).json({
-      error: "Kullanıcı silinemedi",
+      error: "Kullanıcı arşivlenemedi",
     });
   }
 };
@@ -147,6 +176,7 @@ exports.updateUserActive = async (req, res) => {
        SET aktifmi = $1
        WHERE kullaniciid = $2
          AND rol IN ('kullanici', 'yonetici')
+         AND silindimi = FALSE
        RETURNING kullaniciid AS "id", email, aktifmi`,
       [aktifMi, userId],
     );
@@ -175,9 +205,21 @@ exports.updateUserActive = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   const adSoyad = normalizeText(req.body?.adSoyad, 150);
-  const email = normalizeText(req.body?.email, 150).toLowerCase();
-  const password = typeof req.body?.password === "string" ? req.body.password : "";
-  const roleMode = typeof req.body?.roleMode === "string" ? req.body.roleMode.trim() : "";
+  const email = normalizeText(
+    req.body?.email,
+    150,
+  ).toLowerCase();
+
+  const password =
+    typeof req.body?.password === "string"
+      ? req.body.password
+      : "";
+
+  const roleMode =
+    typeof req.body?.roleMode === "string"
+      ? req.body.roleMode.trim()
+      : "";
+
   const allowedRoleModes = [
     "kullanici",
     "grup_uyesi",
@@ -191,18 +233,40 @@ exports.createUser = async (req, res) => {
     });
   }
 
-  const rol = roleMode === "yonetici" ? "yonetici" : "kullanici";
-  const aktifMi = req.body?.aktifMi === false ? false : true;
-  const grupIdsRaw = req.body?.grupIds;
-  const grupIds = Array.isArray(grupIdsRaw)
-    ? grupIdsRaw.map((v) => Number(v)).filter(Number.isInteger)
-    : [];
-  const isGroupRole = ["grup_uyesi", "grup_yoneticisi"].includes(roleMode);
-  const grupRolu = isGroupRole ? normalizeGroupRole(roleMode) : null;
+  const rol =
+    roleMode === "yonetici"
+      ? "yonetici"
+      : "kullanici";
 
-  if (isGroupRole && (!Array.isArray(grupIdsRaw) || grupIds.length === 0)) {
+  const aktifMi = req.body?.aktifMi !== false;
+  const grupIdsRaw = req.body?.grupIds;
+
+  const grupIds = Array.isArray(grupIdsRaw)
+    ? [
+        ...new Set(
+          grupIdsRaw
+            .map((value) => Number(value))
+            .filter(
+              (value) =>
+                Number.isInteger(value) && value > 0,
+            ),
+        ),
+      ]
+    : [];
+
+  const isGroupRole = [
+    "grup_uyesi",
+    "grup_yoneticisi",
+  ].includes(roleMode);
+
+  const grupRolu = isGroupRole
+    ? normalizeGroupRole(roleMode)
+    : null;
+
+  if (isGroupRole && grupIds.length === 0) {
     return res.status(400).json({
-      error: "Grup üyeleri ve grup yöneticileri için en az bir grup seçimi zorunludur",
+      error:
+        "Grup üyeleri ve grup yöneticileri için en az bir grup seçimi zorunludur",
     });
   }
 
@@ -229,64 +293,114 @@ exports.createUser = async (req, res) => {
       type: argon2.argon2id,
     });
 
-    const insertUserResult = await db.query(
-      `INSERT INTO kullanicilar (adsoyad, email, sifrehash, rol, aktifmi)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING kullaniciid AS "kullaniciid", adsoyad AS "adsoyad", email AS "email", rol AS "rol", aktifmi AS "aktifmi"`,
-      [adSoyad, email, sifreHash, rol, aktifMi],
-    );
+    const transactionResult =
+      await db.withTransaction(
+        async (transactionQuery) => {
+          let selectedGroups = [];
 
-    const createdUser = insertUserResult?.rows?.[0];
+          if (isGroupRole) {
+            const groupsResult =
+              await transactionQuery(
+                `SELECT grupid AS "grupId",
+                        grupadi AS "grupAdi"
+                 FROM gruplar
+                 WHERE grupid = ANY($1::int[])
+                 ORDER BY grupid`,
+                [grupIds],
+              );
 
-    if (!createdUser) {
-      throw new Error("User insert did not return a created row");
-    }
+            selectedGroups = groupsResult.rows;
 
-    const userGroups = [];
+            if (
+              selectedGroups.length !== grupIds.length
+            ) {
+              const invalidGroupError = new Error(
+                "Invalid group selection",
+              );
 
-    if (grupIds.length > 0 && grupRolu) {
-      // Insert or update membership for each selected group
-      const insertPromises = grupIds.map((gid) =>
-        db.query(
-          `INSERT INTO grupuyelikleri (grupid, kullaniciid, gruprolu)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (grupid, kullaniciid) DO UPDATE SET gruprolu = EXCLUDED.gruprolu`,
-          [gid, createdUser.kullaniciid, grupRolu],
-        ),
+              invalidGroupError.statusCode = 400;
+              throw invalidGroupError;
+            }
+          }
+
+          const insertUserResult =
+            await transactionQuery(
+              `INSERT INTO kullanicilar
+                 (adsoyad, email, sifrehash, rol, aktifmi)
+               VALUES ($1, $2, $3, $4, $5)
+               RETURNING kullaniciid,
+                         adsoyad,
+                         email,
+                         rol,
+                         aktifmi`,
+              [
+                adSoyad,
+                email,
+                sifreHash,
+                rol,
+                aktifMi,
+              ],
+            );
+
+          const createdUser =
+            insertUserResult.rows[0];
+
+          if (!createdUser) {
+            throw new Error(
+              "User insert did not return a created row",
+            );
+          }
+
+          for (const group of selectedGroups) {
+            await transactionQuery(
+              `INSERT INTO grupuyelikleri
+                 (grupid, kullaniciid, gruprolu)
+               VALUES ($1, $2, $3)`,
+              [
+                group.grupId,
+                createdUser.kullaniciid,
+                grupRolu,
+              ],
+            );
+          }
+
+          return {
+            createdUser,
+            userGroups: selectedGroups.map(
+              (group) => ({
+                grupId: group.grupId,
+                grupAdi: group.grupAdi,
+                grupRolu,
+              }),
+            ),
+          };
+        },
       );
-
-      await Promise.all(insertPromises);
-
-      // Fetch group names for response
-      const groupsResult = await db.query(
-        `SELECT grupid AS "grupId", grupadi AS "grupAdi" FROM gruplar WHERE grupid = ANY($1)`,
-        [grupIds],
-      );
-
-      userGroups.push(
-        ...groupsResult.rows.map((r) => ({
-          grupId: r.grupId,
-          grupAdi: r.grupAdi,
-          grupRolu,
-        })),
-      );
-    }
 
     return res.status(201).json({
       user: publicUser({
-        ...createdUser,
-        groups: userGroups,
+        ...transactionResult.createdUser,
+        groups: transactionResult.userGroups,
       }),
       message: "Kullanıcı hesabı oluşturuldu",
     });
   } catch (error) {
+    if (error?.statusCode === 400) {
+      return res.status(400).json({
+        error:
+          "Seçilen gruplardan biri bulunamadı",
+      });
+    }
+
     if (error?.code === "23505") {
       return res.status(409).json({
-        error: "Bu e-posta adresi ile daha önce kayıt oluşturulmuş",
+        error:
+          "Bu e-posta adresi ile daha önce kayıt oluşturulmuş",
       });
     }
 
     console.error("User creation failed:", error);
+
     return res.status(500).json({
       error: "Kullanıcı oluşturulamadı",
     });
