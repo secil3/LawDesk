@@ -109,6 +109,11 @@ let manageAllowed;
 let currentTaskStatus;
 let currentTaskCreatorId;
 let currentTaskDueDate;
+let currentTaskTitle;
+let currentTaskDescription;
+let currentTaskPriority;
+let currentTaskTypeId;
+let currentTaskTypeName;
 
 beforeEach(() => {
   recorded = {
@@ -123,12 +128,18 @@ beforeEach(() => {
     statusParams: null,
     statusSql: "",
     restoreParams: null,
+    taskUpdateParams: null,
     updateCount: 0,
   };
   manageAllowed = true;
   currentTaskStatus = "Yeni Atandi";
   currentTaskCreatorId = 3;
   currentTaskDueDate = null;
+  currentTaskTitle = "Görülebilen görev";
+  currentTaskDescription = null;
+  currentTaskPriority = "Orta";
+  currentTaskTypeId = null;
+  currentTaskTypeName = null;
 
   db.query = async (text, params = []) => {
     const sql = String(text || "");
@@ -315,12 +326,45 @@ beforeEach(() => {
         rows: [
           {
             id: Number(params[0]),
-            title: "Görülebilen görev",
+            title: currentTaskTitle,
+            description: currentTaskDescription,
+            priority: currentTaskPriority,
             status: currentTaskStatus,
             dueDate: currentTaskDueDate,
+            typeId: currentTaskTypeId,
+            typeName: currentTaskTypeName,
             creatorId: currentTaskCreatorId,
             archived: params[3] === true,
             canManage: manageAllowed,
+          },
+        ],
+      };
+    }
+
+    if (
+      normalized.includes("update gorevler") &&
+      normalized.includes("set baslik = $1")
+    ) {
+      recorded.taskUpdateParams = params;
+      currentTaskTitle = params[0];
+      currentTaskDescription = params[1];
+      currentTaskTypeId = params[2];
+      currentTaskTypeName = Number(params[2]) === 1 ? "Personel" : null;
+      currentTaskPriority = params[3];
+      currentTaskDueDate = params[4];
+
+      return {
+        rowCount: 1,
+        rows: [
+          {
+            id: Number(params[5]),
+            title: params[0],
+            description: params[1],
+            typeId: params[2],
+            priority: params[3],
+            status: currentTaskStatus,
+            dueDate: params[4],
+            updatedAt: new Date("2026-08-13T10:00:00.000Z"),
           },
         ],
       };
@@ -643,6 +687,107 @@ test("group manager cannot reassign a task outside managed scope", async () => {
   assert.match(response.body.error, /yetkiniz bulunmuyor/i);
   assert.equal(recorded.updateCount, 0);
   assert.equal(recorded.historyCount, 0);
+});
+
+test("task creator can update all editable task information", async () => {
+  manageAllowed = false;
+  const nextDueDate = "2099-08-14T12:30:00.000Z";
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50"),
+    3,
+  ).send({
+    baslik: "Güncellenmiş görev",
+    aciklama: "Yeni açıklama",
+    tipId: 1,
+    oncelik: "Yuksek",
+    bitisTarihi: nextDueDate,
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.task.title, "Güncellenmiş görev");
+  assert.equal(response.body.task.typeName, "Personel");
+  assert.equal(response.body.message, "Görev bilgileri güncellendi");
+  assert.equal(recorded.taskUpdateParams[0], "Güncellenmiş görev");
+  assert.equal(recorded.taskUpdateParams[1], "Yeni açıklama");
+  assert.equal(recorded.taskUpdateParams[2], 1);
+  assert.equal(recorded.taskUpdateParams[3], "Yuksek");
+  assert.equal(recorded.taskUpdateParams[4].toISOString(), nextDueDate);
+  assert.equal(recorded.taskUpdateParams[5], 50);
+  assert.equal(recorded.activity[0].action, "GorevBilgileriDegisikligi");
+  assert.match(recorded.activity[0].detail, /Başlık/);
+  assert.match(recorded.activity[0].detail, /Görev tipi/);
+});
+
+test("group manager can update a task in managed scope", async () => {
+  currentTaskCreatorId = 4;
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50"),
+    2,
+  ).send({
+    oncelik: "Kritik",
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.task.priority, "Kritik");
+  assert.equal(recorded.taskUpdateParams[3], "Kritik");
+});
+
+test("unrelated standard user cannot edit a task", async () => {
+  manageAllowed = false;
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50"),
+    4,
+  ).send({
+    baslik: "Yetkisiz değişiklik",
+  });
+
+  assert.equal(response.status, 403);
+  assert.match(response.body.error, /düzenleme yetkiniz/i);
+  assert.equal(recorded.taskUpdateParams, null);
+});
+
+test("closed task must be reopened before editing", async () => {
+  currentTaskStatus = "Tamamlandi";
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50"),
+    3,
+  ).send({
+    baslik: "Kapalı görev değişikliği",
+  });
+
+  assert.equal(response.status, 409);
+  assert.match(response.body.error, /önce yeniden açınız/i);
+  assert.equal(recorded.taskUpdateParams, null);
+});
+
+test("task edit rejects a changed due date in the past", async () => {
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50"),
+    3,
+  ).send({
+    bitisTarihi: "2020-01-01T12:00:00.000Z",
+  });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /geçmiş bir zaman olamaz/i);
+  assert.equal(recorded.taskUpdateParams, null);
+});
+
+test("task edit rejects a request without changes", async () => {
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50"),
+    3,
+  ).send({
+    baslik: "Görülebilen görev",
+  });
+
+  assert.equal(response.status, 409);
+  assert.match(response.body.error, /değişiklik yapılmadı/i);
+  assert.equal(recorded.taskUpdateParams, null);
 });
 
 test("task creator can update the due date", async () => {

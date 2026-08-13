@@ -33,6 +33,25 @@ function App() {
   });
 
   const [groupOptions, setGroupOptions] = useState([]);
+  const [groupForm, setGroupForm] = useState({
+    name: "",
+    description: "",
+  });
+  const [groupDrafts, setGroupDrafts] = useState({});
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [savingGroupId, setSavingGroupId] = useState(null);
+  const [membershipEditor, setMembershipEditor] = useState({
+    open: false,
+    userId: null,
+    userName: "",
+    memberships: [],
+  });
+  const [savingMemberships, setSavingMemberships] = useState(false);
+  const [taskPanelRevision, setTaskPanelRevision] = useState(0);
+
+  const refreshTaskPanel = () => {
+    setTaskPanelRevision((current) => current + 1);
+  };
 
   const toggleGroupSelection = (groupId) => {
     const groupKey = String(groupId);
@@ -96,10 +115,202 @@ function App() {
       });
 
       const data = await readResponse(response);
-      setGroupOptions(data.groups || []);
+      const groups = Array.isArray(data.groups) ? data.groups : [];
+      setGroupOptions(groups);
+      setGroupDrafts(
+        Object.fromEntries(
+          groups.map((group) => [
+            group.id,
+            {
+              name: group.name || "",
+              description: group.description || "",
+            },
+          ]),
+        ),
+      );
     } catch (requestError) {
       setGroupOptions([]);
       setError(requestError.message || "Grup listesi yüklenemedi");
+    }
+  };
+
+  const handleCreateGroup = async (event) => {
+    event.preventDefault();
+    setError("");
+    setCreationMessage("");
+    setCreatingGroup(true);
+
+    try {
+      const response = await fetch("/api/admin/groups", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          name: groupForm.name.trim(),
+          description: groupForm.description.trim(),
+        }),
+      });
+
+      const data = await readResponse(response);
+      setCreationMessage(data.message || "Grup oluşturuldu");
+      setGroupForm({ name: "", description: "" });
+      await loadGroups();
+      refreshTaskPanel();
+    } catch (requestError) {
+      setError(requestError.message || "Grup oluşturulamadı");
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
+
+  const handleUpdateGroup = async (groupId) => {
+    const draft = groupDrafts[groupId];
+
+    if (!draft) {
+      return;
+    }
+
+    setError("");
+    setCreationMessage("");
+    setSavingGroupId(groupId);
+
+    try {
+      const response = await fetch(`/api/admin/groups/${groupId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          name: draft.name.trim(),
+          description: draft.description.trim(),
+        }),
+      });
+
+      const data = await readResponse(response);
+      setCreationMessage(
+        data.message || "Grup bilgileri güncellendi",
+      );
+      await Promise.all([loadGroups(), loadUsers()]);
+      refreshTaskPanel();
+    } catch (requestError) {
+      setError(
+        requestError.message || "Grup bilgileri güncellenemedi",
+      );
+    } finally {
+      setSavingGroupId(null);
+    }
+  };
+
+  const openMembershipEditor = (item) => {
+    setError("");
+    setCreationMessage("");
+    setMembershipEditor({
+      open: true,
+      userId: item.id,
+      userName: item.adSoyad,
+      memberships: (item.groups || []).map((group) => ({
+        grupId: Number(group.grupId),
+        grupRolu: group.grupRolu,
+      })),
+    });
+  };
+
+  const closeMembershipEditor = () => {
+    if (savingMemberships) {
+      return;
+    }
+
+    setMembershipEditor({
+      open: false,
+      userId: null,
+      userName: "",
+      memberships: [],
+    });
+  };
+
+  const toggleMembership = (groupId) => {
+    setMembershipEditor((current) => {
+      const exists = current.memberships.some(
+        (membership) => Number(membership.grupId) === Number(groupId),
+      );
+
+      return {
+        ...current,
+        memberships: exists
+          ? current.memberships.filter(
+              (membership) =>
+                Number(membership.grupId) !== Number(groupId),
+            )
+          : [
+              ...current.memberships,
+              {
+                grupId: Number(groupId),
+                grupRolu: "grup_uyesi",
+              },
+            ],
+      };
+    });
+  };
+
+  const updateMembershipRole = (groupId, groupRole) => {
+    setMembershipEditor((current) => ({
+      ...current,
+      memberships: current.memberships.map((membership) =>
+        Number(membership.grupId) === Number(groupId)
+          ? { ...membership, grupRolu: groupRole }
+          : membership,
+      ),
+    }));
+  };
+
+  const handleSaveMemberships = async (event) => {
+    event.preventDefault();
+
+    if (!membershipEditor.open || !membershipEditor.userId) {
+      return;
+    }
+
+    setError("");
+    setCreationMessage("");
+    setSavingMemberships(true);
+
+    try {
+      const response = await fetch(
+        `/api/admin/users/${membershipEditor.userId}/memberships`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            memberships: membershipEditor.memberships,
+          }),
+        },
+      );
+
+      const data = await readResponse(response);
+      setCreationMessage(
+        data.message || "Kullanıcının grup üyelikleri güncellendi",
+      );
+      await Promise.all([loadUsers(), loadGroups()]);
+      refreshTaskPanel();
+      setMembershipEditor({
+        open: false,
+        userId: null,
+        userName: "",
+        memberships: [],
+      });
+    } catch (requestError) {
+      setError(
+        requestError.message ||
+          "Kullanıcının grup üyelikleri güncellenemedi",
+      );
+    } finally {
+      setSavingMemberships(false);
     }
   };
 
@@ -231,6 +442,7 @@ function App() {
       const data = await readResponse(response);
       setCreationMessage(data.message || "Kullanıcı arşivlendi");
       await Promise.all([loadUsers(), loadArchivedUsers()]);
+      refreshTaskPanel();
       setUserListMode("archived");
     } catch (requestError) {
       setError(requestError.message || "Kullanıcı arşivlenemedi");
@@ -258,6 +470,7 @@ function App() {
         data.message || "Kullanıcı pasif olarak geri yüklendi",
       );
       await Promise.all([loadUsers(), loadArchivedUsers()]);
+      refreshTaskPanel();
     } catch (requestError) {
       setError(requestError.message || "Kullanıcı geri yüklenemedi");
     } finally {
@@ -285,6 +498,7 @@ function App() {
           u.id === userId ? { ...u, aktifMi: data.user?.aktifMi ?? newActive } : u,
         ),
       );
+      refreshTaskPanel();
     } catch (requestError) {
       setError(requestError.message || "Kullanıcı durumu güncellenemedi");
     }
@@ -310,6 +524,15 @@ function App() {
       setArchivedUsers([]);
       setUserListMode("active");
       setGroupOptions([]);
+      setGroupForm({ name: "", description: "" });
+      setGroupDrafts({});
+      setMembershipEditor({
+        open: false,
+        userId: null,
+        userName: "",
+        memberships: [],
+      });
+      setTaskPanelRevision(0);
     } catch (requestError) {
       setError(
         requestError.message || "Çıkış işlemi tamamlanamadı",
@@ -338,7 +561,9 @@ function App() {
           password: userForm.password,
           roleMode: userForm.roleMode,
           aktifMi: userForm.aktifMi,
-        grupIds: Array.isArray(userForm.grupIds) ? userForm.grupIds.map((g) => Number(g)) : [],
+          grupIds: Array.isArray(userForm.grupIds)
+            ? userForm.grupIds.map((groupId) => Number(groupId))
+            : [],
         }),
       });
 
@@ -356,6 +581,7 @@ function App() {
         grupIds: [],
       });
       await loadUsers();
+      refreshTaskPanel();
     } catch (requestError) {
       setError(
         requestError.message || "Kullanıcı oluşturulamadı",
@@ -409,7 +635,7 @@ function App() {
               ? "Sistem yöneticisi olarak tüm yönetim alanına erişim sağlıyorsunuz."
               : isGroupManager
                 ? "Grup yöneticisi olarak görev ve üyelik yönetimini yapabilirsiniz."
-                : "Standart kullanıcı olarak atanmış görevlerinizi görüntüleyebilirsiniz."}
+                : "Kullanıcı olarak atanmış ve oluşturduğunuz görevleri takip edebilirsiniz."}
           </p>
 
           <div className="role-badges">
@@ -426,12 +652,140 @@ function App() {
               <h2>Yönetici paneli</h2>
               <ul>
                 <li>Kullanıcı erişim yönetimi</li>
-                <li>Sistem ayarları</li>
+                <li>Grup ve üyelik yönetimi</li>
                 <li>Genel görev takibi</li>
               </ul>
 
+              {error && (
+                <p className="error-message" role="alert">
+                  {error}
+                </p>
+              )}
+
+              {creationMessage && (
+                <p className="success-message" role="status">
+                  {creationMessage}
+                </p>
+              )}
+
+              <section className="group-management-panel">
+                <div className="list-heading-with-tabs">
+                  <div>
+                    <p className="eyebrow">Erişim yapısı</p>
+                    <h3>Grup yönetimi</h3>
+                  </div>
+                  <span className="info-chip">
+                    {groupOptions.length} grup
+                  </span>
+                </div>
+
+                <form
+                  className="group-create-form"
+                  onSubmit={handleCreateGroup}
+                >
+                  <label>
+                    <span>Yeni grup adı</span>
+                    <input
+                      value={groupForm.name}
+                      onChange={(event) =>
+                        setGroupForm((current) => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
+                      }
+                      maxLength={100}
+                      required
+                    />
+                  </label>
+                  <label>
+                    <span>Açıklama</span>
+                    <input
+                      value={groupForm.description}
+                      onChange={(event) =>
+                        setGroupForm((current) => ({
+                          ...current,
+                          description: event.target.value,
+                        }))
+                      }
+                      maxLength={500}
+                    />
+                  </label>
+                  <button type="submit" disabled={creatingGroup}>
+                    {creatingGroup ? "Oluşturuluyor..." : "Grup oluştur"}
+                  </button>
+                </form>
+
+                <div className="group-management-grid">
+                  {groupOptions.map((group) => {
+                    const draft = groupDrafts[group.id] || {
+                      name: group.name || "",
+                      description: group.description || "",
+                    };
+                    const unchanged =
+                      draft.name.trim() === group.name &&
+                      draft.description.trim() ===
+                        (group.description || "");
+
+                    return (
+                      <article className="group-management-card" key={group.id}>
+                        <div className="group-stat-row">
+                          <span>{group.memberCount || 0} üye</span>
+                          <span>{group.managerCount || 0} grup yöneticisi</span>
+                        </div>
+                        <label>
+                          <span>Grup adı</span>
+                          <input
+                            value={draft.name}
+                            onChange={(event) =>
+                              setGroupDrafts((current) => ({
+                                ...current,
+                                [group.id]: {
+                                  ...draft,
+                                  name: event.target.value,
+                                },
+                              }))
+                            }
+                            maxLength={100}
+                          />
+                        </label>
+                        <label>
+                          <span>Açıklama</span>
+                          <input
+                            value={draft.description}
+                            onChange={(event) =>
+                              setGroupDrafts((current) => ({
+                                ...current,
+                                [group.id]: {
+                                  ...draft,
+                                  description: event.target.value,
+                                },
+                              }))
+                            }
+                            maxLength={500}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => handleUpdateGroup(group.id)}
+                          disabled={
+                            unchanged ||
+                            !draft.name.trim() ||
+                            savingGroupId === group.id
+                          }
+                        >
+                          {savingGroupId === group.id
+                            ? "Kaydediliyor..."
+                            : "Grubu güncelle"}
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+
               <form className="admin-form" onSubmit={handleCreateUser}>
-                <h3>Örnek kullanıcı oluştur</h3>
+                <h3>Kullanıcı oluştur</h3>
                 <p className="form-hint">
                   Admin hesabı ayrı oluşturulur. Bu form yalnızca standart kullanıcı,
                   grup üyesi, grup yöneticisi ve yönetici kayıtları için kullanılır.
@@ -526,18 +880,6 @@ function App() {
                     </div>
                     <p className="form-hint">Birden fazla grup seçebilirsiniz. Kullanıcıya hangi gruplar üzerinden erişim verileceğini buradan belirleyin.</p>
                   </>
-                )}
-
-                {error && (
-                  <p className="error-message" role="alert">
-                    {error}
-                  </p>
-                )}
-
-                {creationMessage && (
-                  <p className="success-message" role="status">
-                    {creationMessage}
-                  </p>
                 )}
 
                 <button type="submit" disabled={creatingUser}>
@@ -639,7 +981,7 @@ function App() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <div className="user-card-actions">
                       {userListMode === "active" ? (
                         <>
                           <button
@@ -660,21 +1002,29 @@ function App() {
                             {item.aktifMi ? 'Aktif' : 'Pasif'}
                           </button>
 
-                        <button
-                          type="button"
-                          onClick={() => openDeleteConfirmation(item.id, item.adSoyad)}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #1d4ed8',
-                            background: '#1d4ed8',
-                            color: 'white',
-                            cursor: 'pointer',
-                            fontWeight: 700,
-                          }}
-                        >
-                          Arşivle
-                        </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => openMembershipEditor(item)}
+                          >
+                            Grupları düzenle
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => openDeleteConfirmation(item.id, item.adSoyad)}
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #1d4ed8',
+                              background: '#1d4ed8',
+                              color: 'white',
+                              cursor: 'pointer',
+                              fontWeight: 700,
+                            }}
+                          >
+                            Arşivle
+                          </button>
                         </>
                       ) : (
                         <button
@@ -714,6 +1064,88 @@ function App() {
                   </div>
                 </div>
               )}
+
+              {membershipEditor.open && (
+                <div
+                  className="modal-overlay"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="membership-dialog-title"
+                >
+                  <form
+                    className="confirm-card membership-card"
+                    onSubmit={handleSaveMemberships}
+                  >
+                    <p className="eyebrow">Üyelik yönetimi</p>
+                    <h3 id="membership-dialog-title">
+                      {membershipEditor.userName} için gruplar
+                    </h3>
+                    <p>
+                      Kullanıcının dahil olacağı grupları ve her gruptaki
+                      rolünü seçin. Bütün seçimleri kaldırmak da mümkündür.
+                    </p>
+
+                    <div className="membership-list">
+                      {groupOptions.length === 0 ? (
+                        <p>Önce en az bir grup oluşturmalısınız.</p>
+                      ) : (
+                        groupOptions.map((group) => {
+                          const membership =
+                            membershipEditor.memberships.find(
+                              (item) =>
+                                Number(item.grupId) === Number(group.id),
+                            );
+
+                          return (
+                            <div className="membership-row" key={group.id}>
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(membership)}
+                                  onChange={() => toggleMembership(group.id)}
+                                />
+                                <span>{group.name}</span>
+                              </label>
+                              <select
+                                aria-label={`${group.name} grup rolü`}
+                                value={membership?.grupRolu || "grup_uyesi"}
+                                onChange={(event) =>
+                                  updateMembershipRole(
+                                    group.id,
+                                    event.target.value,
+                                  )
+                                }
+                                disabled={!membership}
+                              >
+                                <option value="grup_uyesi">Grup üyesi</option>
+                                <option value="grup_yoneticisi">
+                                  Grup yöneticisi
+                                </option>
+                              </select>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="confirm-actions">
+                      <button type="submit" disabled={savingMemberships}>
+                        {savingMemberships
+                          ? "Kaydediliyor..."
+                          : "Üyelikleri kaydet"}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={closeMembershipEditor}
+                        disabled={savingMemberships}
+                      >
+                        Vazgeç
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
             </div>
           )}
 
@@ -730,16 +1162,16 @@ function App() {
 
           {!isAdmin && !isGroupManager && (
             <div className="role-panel user-panel">
-              <h2>Standart kullanıcı paneli</h2>
+              <h2>Kullanıcı paneli</h2>
               <ul>
-                <li>Atanmış görevleri gör</li>
-                <li>Durum güncelle</li>
-                <li>Grup içi aksiyonları takip et</li>
+                <li>Atanmış ve oluşturduğun görevleri gör</li>
+                <li>Oluşturduğun aktif görevleri düzenle</li>
+                <li>Grup içi görevleri takip et</li>
               </ul>
             </div>
           )}
 
-          <TaskPanel />
+          <TaskPanel refreshKey={taskPanelRevision} />
 
           <dl className="user-details">
             <div>

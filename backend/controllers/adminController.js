@@ -1,6 +1,11 @@
 const argon2 = require("argon2");
 const db = require("../config/db");
 
+const ALLOWED_GROUP_ROLES = new Set([
+  "grup_uyesi",
+  "grup_yoneticisi",
+]);
+
 const publicUser = (user) => ({
   id: user.kullaniciid,
   adSoyad: user.adsoyad,
@@ -30,6 +35,57 @@ const normalizeText = (value, maxLength) => {
   return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
 };
 
+const createHttpError = (statusCode, message) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
+const parseMemberships = (value) => {
+  if (!Array.isArray(value)) {
+    throw createHttpError(400, "memberships alanı dizi olmalıdır");
+  }
+
+  const seenGroupIds = new Set();
+
+  return value.map((membership) => {
+    const groupId = Number(membership?.grupId);
+    const groupRole = normalizeGroupRole(membership?.grupRolu);
+
+    if (!Number.isInteger(groupId) || groupId < 1) {
+      throw createHttpError(400, "Geçerli bir grup seçiniz");
+    }
+
+    if (!ALLOWED_GROUP_ROLES.has(groupRole)) {
+      throw createHttpError(400, "Geçerli bir grup rolü seçiniz");
+    }
+
+    if (seenGroupIds.has(groupId)) {
+      throw createHttpError(400, "Aynı grup birden fazla kez seçilemez");
+    }
+
+    seenGroupIds.add(groupId);
+
+    return {
+      groupId,
+      groupRole,
+    };
+  });
+};
+
+const membershipSummary = (memberships) => {
+  if (!Array.isArray(memberships) || memberships.length === 0) {
+    return "grup ataması yok";
+  }
+
+  return memberships
+    .map(
+      (membership) =>
+        `${membership.grupAdi} (${membership.grupRolu})`,
+    )
+    .join(", ");
+};
+
 const recordUserActivity = async (
   query,
   { actor, action, detail },
@@ -45,11 +101,23 @@ const recordUserActivity = async (
 exports.listGroups = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT grupid AS "id",
-              grupadi AS "name",
-              aciklama AS "description"
-       FROM gruplar
-       ORDER BY grupadi ASC`,
+      `SELECT g.grupid AS "id",
+              g.grupadi AS "name",
+              g.aciklama AS "description",
+              COUNT(gu.grupuyelikid) FILTER (
+                WHERE member.silindimi = FALSE
+              )::int AS "memberCount",
+              COUNT(gu.grupuyelikid) FILTER (
+                WHERE gu.gruprolu = 'grup_yoneticisi'
+                  AND member.silindimi = FALSE
+              )::int AS "managerCount"
+       FROM gruplar g
+       LEFT JOIN grupuyelikleri gu
+         ON gu.grupid = g.grupid
+       LEFT JOIN kullanicilar member
+         ON member.kullaniciid = gu.kullaniciid
+       GROUP BY g.grupid, g.grupadi, g.aciklama
+       ORDER BY g.grupadi ASC`,
     );
 
     return res.json({
@@ -60,6 +128,183 @@ exports.listGroups = async (req, res) => {
 
     return res.status(500).json({
       error: "Grup listesi getirilemedi",
+    });
+  }
+};
+
+exports.createGroup = async (req, res) => {
+  const name = normalizeText(req.body?.name, 100);
+  const description = normalizeText(req.body?.description, 500);
+
+  if (!name) {
+    return res.status(400).json({
+      error: "Grup adı zorunludur",
+    });
+  }
+
+  try {
+    const group = await db.withTransaction(async (transactionQuery) => {
+      const duplicateResult = await transactionQuery(
+        `SELECT grupid
+         FROM gruplar
+         WHERE LOWER(grupadi) = LOWER($1)`,
+        [name],
+      );
+
+      if (duplicateResult.rows[0]) {
+        throw createHttpError(409, "Bu grup adı zaten kullanılıyor");
+      }
+
+      const insertResult = await transactionQuery(
+        `INSERT INTO gruplar (grupadi, aciklama)
+         VALUES ($1, $2)
+         RETURNING grupid AS "id",
+                   grupadi AS "name",
+                   aciklama AS "description"`,
+        [name, description || null],
+      );
+
+      const createdGroup = insertResult.rows[0];
+
+      await recordUserActivity(transactionQuery, {
+        actor: req.user,
+        action: "GrupOlusturma",
+        detail: `${req.user.adSoyad}, "${createdGroup.name}" grubunu oluşturdu.`,
+      });
+
+      return {
+        ...createdGroup,
+        memberCount: 0,
+        managerCount: 0,
+      };
+    });
+
+    return res.status(201).json({
+      group,
+      message: "Grup oluşturuldu",
+    });
+  } catch (error) {
+    if (Number.isInteger(error?.statusCode)) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+      });
+    }
+
+    if (error?.code === "23505") {
+      return res.status(409).json({
+        error: "Bu grup adı zaten kullanılıyor",
+      });
+    }
+
+    console.error("Create group failed:", error);
+
+    return res.status(500).json({
+      error: "Grup oluşturulamadı",
+    });
+  }
+};
+
+exports.updateGroup = async (req, res) => {
+  const groupId = Number(req.params?.id);
+  const name = normalizeText(req.body?.name, 100);
+  const description = normalizeText(req.body?.description, 500);
+
+  if (!Number.isInteger(groupId) || groupId < 1) {
+    return res.status(400).json({
+      error: "Geçersiz grup id",
+    });
+  }
+
+  if (!name) {
+    return res.status(400).json({
+      error: "Grup adı zorunludur",
+    });
+  }
+
+  try {
+    const group = await db.withTransaction(async (transactionQuery) => {
+      const currentResult = await transactionQuery(
+        `SELECT grupid AS "id",
+                grupadi AS "name",
+                aciklama AS "description"
+         FROM gruplar
+         WHERE grupid = $1
+         FOR UPDATE`,
+        [groupId],
+      );
+
+      const currentGroup = currentResult.rows[0];
+
+      if (!currentGroup) {
+        throw createHttpError(404, "Güncellenecek grup bulunamadı");
+      }
+
+      const nextDescription = description || null;
+
+      if (
+        currentGroup.name === name &&
+        (currentGroup.description || null) === nextDescription
+      ) {
+        throw createHttpError(409, "Grup bilgilerinde değişiklik yapılmadı");
+      }
+
+      const duplicateResult = await transactionQuery(
+        `SELECT grupid
+         FROM gruplar
+         WHERE LOWER(grupadi) = LOWER($1)
+           AND grupid <> $2`,
+        [name, groupId],
+      );
+
+      if (duplicateResult.rows[0]) {
+        throw createHttpError(409, "Bu grup adı zaten kullanılıyor");
+      }
+
+      const updateResult = await transactionQuery(
+        `UPDATE gruplar
+         SET grupadi = $1,
+             aciklama = $2
+         WHERE grupid = $3
+         RETURNING grupid AS "id",
+                   grupadi AS "name",
+                   aciklama AS "description"`,
+        [name, nextDescription, groupId],
+      );
+
+      const updatedGroup = updateResult.rows[0];
+
+      await recordUserActivity(transactionQuery, {
+        actor: req.user,
+        action: "GrupGuncelleme",
+        detail:
+          `${req.user.adSoyad}, "${currentGroup.name}" grubunun ` +
+          `bilgilerini güncelledi. Yeni adı: "${updatedGroup.name}".`,
+      });
+
+      return updatedGroup;
+    });
+
+    return res.json({
+      group,
+      message: "Grup bilgileri güncellendi",
+    });
+  } catch (error) {
+    if (Number.isInteger(error?.statusCode)) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+      });
+    }
+
+    if (error?.code === "23505") {
+      return res.status(409).json({
+        error: "Bu grup adı zaten kullanılıyor",
+      });
+    }
+
+    console.error("Update group failed:", error);
+
+    return res.status(500).json({
+      error: "Grup bilgileri güncellenemedi",
     });
   }
 };
@@ -122,6 +367,167 @@ exports.listUsers = async (req, res) => {
 
     return res.status(500).json({
       error: "Kullanıcı listesi getirilemedi",
+    });
+  }
+};
+
+exports.updateUserMemberships = async (req, res) => {
+  const userId = Number(req.params?.id);
+
+  if (!Number.isInteger(userId) || userId < 1) {
+    return res.status(400).json({
+      error: "Geçersiz kullanıcı id",
+    });
+  }
+
+  let memberships;
+
+  try {
+    memberships = parseMemberships(req.body?.memberships);
+  } catch (error) {
+    return res.status(error.statusCode || 400).json({
+      error: error.message,
+    });
+  }
+
+  try {
+    const updatedUser = await db.withTransaction(
+      async (transactionQuery) => {
+        const userResult = await transactionQuery(
+          `SELECT kullaniciid AS "id",
+                  adsoyad AS "adSoyad",
+                  email,
+                  rol
+           FROM kullanicilar
+           WHERE kullaniciid = $1
+             AND rol IN ('kullanici', 'yonetici')
+             AND silindimi = FALSE
+           FOR UPDATE`,
+          [userId],
+        );
+
+        const targetUser = userResult.rows[0];
+
+        if (!targetUser) {
+          throw createHttpError(404, "Güncellenecek kullanıcı bulunamadı");
+        }
+
+        const currentResult = await transactionQuery(
+          `SELECT gu.grupid AS "grupId",
+                  g.grupadi AS "grupAdi",
+                  gu.gruprolu AS "grupRolu"
+           FROM grupuyelikleri gu
+           JOIN gruplar g
+             ON g.grupid = gu.grupid
+           WHERE gu.kullaniciid = $1
+           ORDER BY gu.grupid`,
+          [userId],
+        );
+
+        let selectedGroups = [];
+
+        if (memberships.length > 0) {
+          const groupIds = memberships.map(
+            (membership) => membership.groupId,
+          );
+          const groupsResult = await transactionQuery(
+            `SELECT grupid AS "grupId",
+                    grupadi AS "grupAdi"
+             FROM gruplar
+             WHERE grupid = ANY($1::int[])
+             ORDER BY grupid`,
+            [groupIds],
+          );
+
+          if (groupsResult.rows.length !== groupIds.length) {
+            throw createHttpError(
+              400,
+              "Seçilen gruplardan biri bulunamadı",
+            );
+          }
+
+          const groupsById = new Map(
+            groupsResult.rows.map((group) => [
+              Number(group.grupId),
+              group,
+            ]),
+          );
+
+          selectedGroups = memberships.map((membership) => ({
+            grupId: membership.groupId,
+            grupAdi: groupsById.get(membership.groupId).grupAdi,
+            grupRolu: membership.groupRole,
+          }));
+        }
+
+        const currentKey = currentResult.rows
+          .map(
+            (membership) =>
+              `${Number(membership.grupId)}:${membership.grupRolu}`,
+          )
+          .sort()
+          .join("|");
+        const nextKey = selectedGroups
+          .map(
+            (membership) =>
+              `${Number(membership.grupId)}:${membership.grupRolu}`,
+          )
+          .sort()
+          .join("|");
+
+        if (currentKey === nextKey) {
+          throw createHttpError(
+            409,
+            "Kullanıcının grup üyeliklerinde değişiklik yapılmadı",
+          );
+        }
+
+        await transactionQuery(
+          `DELETE FROM grupuyelikleri
+           WHERE kullaniciid = $1`,
+          [userId],
+        );
+
+        for (const membership of selectedGroups) {
+          await transactionQuery(
+            `INSERT INTO grupuyelikleri
+               (grupid, kullaniciid, gruprolu)
+             VALUES ($1, $2, $3)`,
+            [membership.grupId, userId, membership.grupRolu],
+          );
+        }
+
+        await recordUserActivity(transactionQuery, {
+          actor: req.user,
+          action: "KullaniciGrupUyelikleriDegisikligi",
+          detail:
+            `${req.user.adSoyad}, ${targetUser.adSoyad} kullanıcısının ` +
+            `grup üyeliklerini "${membershipSummary(currentResult.rows)}" ` +
+            `değerinden "${membershipSummary(selectedGroups)}" değerine değiştirdi.`,
+        });
+
+        return {
+          ...targetUser,
+          groups: selectedGroups,
+        };
+      },
+    );
+
+    return res.json({
+      user: updatedUser,
+      message: "Kullanıcının grup üyelikleri güncellendi",
+    });
+  } catch (error) {
+    if (Number.isInteger(error?.statusCode)) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+      });
+    }
+
+    console.error("Update user memberships failed:", error);
+
+    return res.status(500).json({
+      error: "Kullanıcının grup üyelikleri güncellenemedi",
     });
   }
 };
