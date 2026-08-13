@@ -1,143 +1,297 @@
 # LawDesk – Görev Yönetim Sistemi
 
-LawDesk, Hukuk ve Uyum Başkanlığı için geliştirilen web tabanlı bir görev yönetim sistemidir.
+LawDesk, Hukuk ve Uyum Başkanlığı ekiplerinin kullanıcı, grup ve görev süreçlerini tek bir web uygulamasından yönetebilmesi için geliştirilen bir görev yönetim sistemidir.
 
-Proje şu anda geliştirme aşamasındadır. Temel frontend, backend ve PostgreSQL bağlantısı kurulmuştur.
+Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, arşivleme ve temel denetim izi uygulanmıştır. Üretim ortamına geçiş için güvenlik sertleştirmesi, gerçek PostgreSQL entegrasyon testleri ve kurulum/operasyon çalışmaları hâlâ gereklidir.
 
-## Kullanılan Teknolojiler
+## Mevcut özellikler
 
-- Frontend: React ve Vite
-- Backend: Node.js ve Express
-- Veritabanı: PostgreSQL
-- Veritabanı yönetimi: pgAdmin
-- Geliştirme ortamı: Docker PostgreSQL
+- Argon2id parola doğrulaması
+- JWT tabanlı oturum ve HttpOnly çerez
+- Aktif, pasif ve arşivlenmiş kullanıcı kontrolü
+- Admin, yönetici, grup yöneticisi, grup üyesi ve kullanıcı yetki seviyeleri
+- Kullanıcı oluşturma, aktif/pasif yapma, arşivleme ve geri yükleme
+- Grup oluşturma; grup adı ve açıklaması düzenleme
+- Kullanıcının birden fazla gruba eklenmesi
+- Kullanıcının grup üyeliklerini ve grup rollerini sonradan değiştirme
+- Her kullanıcının görev oluşturabilmesi
+- Görevi kullanıcıya veya gruba atama
+- Rol ve grup üyeliğine göre görev görünürlüğü
+- Görev başlığı, açıklaması, tipi, önceliği ve bitiş tarihini düzenleme
+- Geçmiş tarih ve saat için bitiş tarihi oluşturmayı engelleme
+- Görev durumunu değiştirme, kapatma ve yeniden açma
+- Görevleri arşivleme ve geri yükleme
+- Kullanıcı, grup, görev ve yaşam döngüsü işlemleri için denetim kayıtları
 
-## Proje Yapısı
+## Roller ve temel yetkiler
+
+Sistem rolleri `admin`, `yonetici` ve `kullanici` olarak saklanır. Grup yöneticisi ve grup üyesi yetkileri, kullanıcının grup üyeliği üzerinden belirlenir.
+
+| Rol | Temel yetkiler |
+| --- | --- |
+| Admin | Kullanıcı ve grup yönetimi; tüm görevleri görüntüleme, atama, düzenleme, kapatma, arşivleme ve denetim izini görüntüleme |
+| Yönetici | Tüm görevleri görüntüleme ve yönetme; görev atama, yaşam döngüsü işlemleri ve denetim izini görüntüleme |
+| Grup yöneticisi | Yönettiği grupların görevlerini ve üyelerini kapsayan görev atama, durum, kapatma, arşivleme ve geri yükleme işlemleri |
+| Grup üyesi | Kendi oluşturduğu, kendisine atanan veya grubuna görünür görevleri görüntüleme; kendi aktif görevlerini düzenleme |
+| Kullanıcı | Görev oluşturma; kendi oluşturduğu veya doğrudan kendisine görünür görevleri görüntüleme ve kendi aktif görevlerini düzenleme |
+
+Bir kullanıcı birden fazla grupta yer alabilir ve her grupta farklı bir role sahip olabilir. Tamamlanmış görevler normal kullanıcı listelerinden kaldırılır; gerekli yönetim yetkisine sahip kullanıcılar kendi yetki kapsamlarında bu görevleri görmeye devam eder.
+
+## Kullanılan teknolojiler
+
+- Frontend: React 18 ve Vite
+- Backend: Node.js, Express 5 ve CommonJS
+- Veritabanı: PostgreSQL (`pg` bağlantı havuzu)
+- Kimlik doğrulama: Argon2id, JWT ve HttpOnly çerez
+- Test: Node.js test runner ve Supertest
+
+## Proje yapısı
 
 ```text
 LawDesk/
-├── backend/       Node.js ve Express API
-├── frontend/      React kullanıcı arayüzü
-├── database/      PostgreSQL şema ve örnek verileri
-└── docs/          ER diyagramı ve proje belgeleri
+├── backend/
+│   ├── config/          Veritabanı ve kimlik doğrulama ayarları
+│   ├── controllers/     API iş kuralları
+│   ├── middleware/      Oturum ve rol kontrolleri
+│   ├── routes/          Auth, admin ve görev endpoint'leri
+│   ├── scripts/         Admin ve migration komutları
+│   └── tests/           Backend otomatik testleri
+├── frontend/
+│   └── src/             React arayüzü ve API yardımcıları
+├── database/
+│   ├── migrations/      Mevcut veritabanları için migration dosyaları
+│   └── GYS_Database_Schema_Simple.sql
+└── docs/
+    └── GYS_ER_Diagram.pdf
 ```
+
+[ER diyagramını görüntüle](docs/GYS_ER_Diagram.pdf)
 
 ## Gereksinimler
 
-Projeyi çalıştırmak için aşağıdaki yazılımlar gereklidir:
-
-- Node.js
+- Node.js 22.12 veya üzeri
 - npm
-- Docker Desktop
-- PostgreSQL Docker container
-- pgAdmin
+- PostgreSQL
 - Git
+- İsteğe bağlı olarak Docker Desktop ve pgAdmin
 
-## Veritabanı Kurulumu
+PostgreSQL yerel olarak, Docker container içinde veya kurumun sağladığı uyumlu bir sunucuda çalışabilir.
 
-1. Docker Desktop ve PostgreSQL container'ını çalıştırın.
-2. pgAdmin üzerinden `gys_lawdesk` adında yeni bir veritabanı oluşturun.
-3. `gys_lawdesk` veritabanının Query Tool ekranını açın.
-4. Aşağıdaki SQL dosyasını çalıştırın:
+## Kurulum
+
+### 1. Projeyi indirme
+
+```bash
+git clone https://github.com/secil3/LawDesk.git
+cd LawDesk
+```
+
+### 2. Veritabanını hazırlama
+
+Yeni ve boş bir PostgreSQL veritabanı oluşturun. Veritabanı adı, daha sonra `DATABASE_URL` içinde kullandığınız adla aynı olmalıdır.
+
+Temiz kurulumda aşağıdaki dosyayı pgAdmin Query Tool veya `psql` ile **bir kez** çalıştırın:
 
 ```text
 database/GYS_Database_Schema_Simple.sql
 ```
 
-SQL dosyası tabloları ve geliştirme için kullanılan örnek verileri oluşturur. Temiz bir veritabanında bir kez çalıştırılmalıdır.
+Bu dosya tabloları, temel grupları, görev tiplerini ve geliştirme amaçlı örnek kayıtları oluşturur. Örnek kullanıcıların `HASH_PLACEHOLDER` parolalarıyla giriş yapılamaz; ilk admin hesabı aşağıdaki script ile hazırlanmalıdır.
 
-## Backend Kurulumu
+Daha eski bir LawDesk veritabanını güncelliyorsanız migration komutlarını, bir sonraki adımda backend bağımlılıklarını kurduktan sonra çalıştırın. Güncel SQL şemasıyla oluşturulan temiz veritabanında migration gerekmez.
 
-Backend klasörüne geçin:
+### 3. Backend ayarları
 
-```powershell
+Backend klasöründe örnek ortam dosyasını kopyalayın:
+
+```bash
 cd backend
+cp .env.example .env
+npm install
 ```
 
-`.env.example` dosyasını `.env` adıyla kopyalayın ve kendi PostgreSQL şifrenizi girin:
+Windows Komut İstemi kullanıyorsanız kopyalama için `copy .env.example .env` komutunu kullanabilirsiniz.
+
+`.env` içindeki bütün örnek değerleri kendi ortamınıza göre değiştirin:
 
 ```env
 PORT=3001
 NODE_ENV=development
-DATABASE_URL=postgresql://postgres:SIFRENIZ@localhost:5432/gys_lawdesk
+DATABASE_URL=postgresql://postgres:PAROLANIZ@localhost:5432/gys_lawdesk
+AUTH_TOKEN_SECRET=EN_AZ_64_KARAKTERLIK_RASTGELE_BIR_DEGER
+AUTH_TOKEN_TTL_HOURS=8
+AUTH_COOKIE_NAME=lawdesk_session
+INITIAL_ADMIN_NAME=Admin Kullanici
+INITIAL_ADMIN_EMAIL=admin@sirket.com
+INITIAL_ADMIN_PASSWORD=EN_AZ_12_KARAKTERLIK_GUCLU_PAROLA
 ```
 
-Gerçek `.env` dosyası ve veritabanı şifresi GitHub'a gönderilmemelidir.
+`AUTH_TOKEN_SECRET` en az 64 karakter olmalıdır. `AUTH_TOKEN_TTL_HOURS` değeri 1–24 saat aralığında bir tam sayı olmalıdır.
 
-Paketleri yükleyin ve backend'i başlatın:
+Mac veya Linux ortamında güvenli bir token anahtarı üretmek için aşağıdaki komutun çıktısını `AUTH_TOKEN_SECRET` değeri olarak kullanabilirsiniz:
 
-```powershell
-npm.cmd install
-npm.cmd run dev
+```bash
+openssl rand -hex 64
 ```
 
-Backend aşağıdaki adreste çalışır:
+Gerçek `.env` dosyası, veritabanı parolası, token anahtarı ve kullanıcı parolaları GitHub'a gönderilmemelidir.
+
+Mevcut eski bir veritabanını güncelliyorsanız, `npm install` tamamlandıktan sonra migration'ları sırasıyla çalıştırın:
+
+```bash
+npm run migrate:task-core
+npm run migrate:task-lifecycle
+```
+
+### 4. İlk admin hesabı
+
+Veritabanı ve `.env` hazırlandıktan sonra:
+
+```bash
+npm run create-admin
+```
+
+Script, aynı e-postaya sahip `HASH_PLACEHOLDER` admin kaydını güvenli Argon2id hash'iyle günceller veya yeni bir admin oluşturur. İşlem tamamlandıktan sonra `INITIAL_ADMIN_PASSWORD` değerini `.env` dosyasından kaldırmanız önerilir.
+
+Admin parolasını daha sonra sıfırlamak için `.env` dosyasına geçici olarak `RESET_ADMIN_EMAIL` ve `RESET_ADMIN_PASSWORD` değerlerini ekleyip şu komutu çalıştırabilirsiniz:
+
+```bash
+npm run reset-admin-password
+```
+
+### 5. Uygulamayı çalıştırma
+
+Backend klasöründeki terminalde:
+
+```bash
+npm run dev
+```
+
+Backend adresi:
 
 ```text
 http://localhost:3001
 ```
 
-## Frontend Kurulumu
+İkinci terminalde frontend'i çalıştırın:
 
-İkinci bir terminal açın ve frontend klasörüne geçin:
-
-```powershell
+```bash
 cd frontend
-npm.cmd install
-npm.cmd run dev
+npm install
+npm run dev
 ```
 
-Frontend aşağıdaki adreste çalışır:
+Frontend adresi:
 
 ```text
-http://localhost:5173
+http://localhost:5175
 ```
 
-Geliştirme sırasında backend ve frontend terminalleri aynı anda açık kalmalıdır.
+Vite geliştirme sunucusu `/api` isteklerini `http://localhost:3001` adresindeki backend'e yönlendirir. Geliştirme sırasında iki terminal de açık kalmalıdır.
 
-## Bağlantı Testleri
+## Doğrulama ve test
 
-Backend testi:
+Backend otomatik testleri:
 
-```text
-http://localhost:3001
+```bash
+cd backend
+npm test
 ```
 
-Veritabanı bağlantı testi:
+Güncel test paketi 55 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi, görev görünürlüğü, atama, düzenleme, yaşam döngüsü ve arşivleme akışlarını kapsar.
 
-```text
-http://localhost:3001/api/db-test
+Frontend production build kontrolü:
+
+```bash
+cd frontend
+npm run build
 ```
 
-Frontend üzerinden bağlantı testi:
+Temel bağlantı kontrolleri:
 
-```text
-http://localhost:5173
+| Kontrol | Adres |
+| --- | --- |
+| Backend | `http://localhost:3001` |
+| Veritabanı bağlantısı | `http://localhost:3001/api/db-test` |
+| Frontend | `http://localhost:5175` |
+
+## API özeti
+
+### Kimlik doğrulama
+
+| Method | Endpoint | Açıklama |
+| --- | --- | --- |
+| POST | `/api/auth/login` | Oturum açar ve HttpOnly çerez oluşturur |
+| GET | `/api/auth/me` | Mevcut oturumu ve grup üyeliklerini döndürür |
+| POST | `/api/auth/logout` | Oturumu kapatır |
+
+### Admin işlemleri
+
+Bu endpoint'lerin tamamı `admin` sistem rolü gerektirir.
+
+| Method | Endpoint | Açıklama |
+| --- | --- | --- |
+| GET | `/api/admin/users` | Arşivlenmemiş veya `?archived=true` ile arşivlenmiş kullanıcıları listeler |
+| POST | `/api/admin/users` | Kullanıcı oluşturur |
+| PATCH | `/api/admin/users/:id` | Kullanıcıyı aktif veya pasif yapar |
+| DELETE | `/api/admin/users/:id` | Kullanıcıyı fiziksel silmeden arşivler |
+| PATCH | `/api/admin/users/:id/restore` | Kullanıcıyı pasif olarak geri yükler |
+| PUT | `/api/admin/users/:id/memberships` | Grup üyeliklerini ve grup rollerini atomik olarak günceller |
+| GET | `/api/admin/groups` | Grupları ve üye sayılarını listeler |
+| POST | `/api/admin/groups` | Grup oluşturur |
+| PATCH | `/api/admin/groups/:id` | Grup adı ve açıklamasını günceller |
+
+### Görev işlemleri
+
+Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler kullanıcının rolüne ve grup kapsamına göre sınırlandırılır.
+
+| Method | Endpoint | Açıklama |
+| --- | --- | --- |
+| GET | `/api/tasks` | Görünür aktif görevleri veya `?archived=true` ile yetkili arşiv görünümünü döndürür |
+| GET | `/api/tasks/options` | Görev tiplerini ve yetkiye uygun atama seçeneklerini döndürür |
+| POST | `/api/tasks` | Görev oluşturur |
+| PATCH | `/api/tasks/:id` | Başlık, açıklama, tip, öncelik ve bitiş tarihini günceller |
+| PATCH | `/api/tasks/:id/assignment` | Görevin atamasını günceller |
+| PATCH | `/api/tasks/:id/status` | Durumu değiştirir, kapatır veya yeniden açar |
+| DELETE | `/api/tasks/:id` | Görevi fiziksel silmeden arşivler |
+| PATCH | `/api/tasks/:id/restore` | Arşivlenmiş görevi geri yükler |
+| GET | `/api/tasks/activity` | Admin ve yöneticiler için son işlem kayıtlarını döndürür |
+
+Kapalı veya iptal edilmiş görevlerin bilgileri değiştirilemez; önce görev yeniden açılmalıdır. Arşivlenmiş görevler düzenlenmeden önce geri yüklenmelidir.
+
+## Güvenlik notları
+
+- Parolalar Argon2id ile hash'lenir ve düz metin olarak saklanmaz.
+- Oturum çerezi HttpOnly'dir; production modunda `Secure` ve `SameSite=Strict` kullanılır.
+- JWT issuer, audience, algoritma ve süre kontrolleri yapılır.
+- Olmayan kullanıcı ve yanlış parola aynı hata mesajını üretir.
+- Pasif veya arşivlenmiş kullanıcıların oturumları kabul edilmez.
+- `.env`, `node_modules`, build çıktıları ve veritabanı yedekleri Git'e eklenmemelidir.
+
+Mevcut CORS ayarı geliştirme kolaylığı için dinamiktir. Üretime geçmeden önce izin verilen kurum origin'iyle sınırlandırılmalı; HTTPS, güvenlik başlıkları, giriş deneme limiti, CSRF değerlendirmesi, yedekleme ve izleme politikaları tamamlanmalıdır.
+
+## Henüz tamamlanmayan ana alanlar
+
+- Yorum ekleme, yorum düzenleme ve yorum geçmişi
+- Dosya ve ek yükleme
+- Uygulama içi bildirimler ve e-posta hatırlatmaları
+- Arama, filtreleme, sıralama ve sayfalama
+- Etiketler, alt görevler ve dashboard/raporlar
+- Görev tipi ve sistem ayarları yönetimi
+- Kullanıcının kendi parolasını değiştirmesi
+- Gerçek PostgreSQL kullanan API entegrasyon testleri
+- Kurum sunucusu kurulum, yedekleme ve operasyon dokümanı
+
+Veritabanı şemasında bu alanların bir kısmına ait tablolar bulunsa da ilgili backend endpoint'leri ve frontend ekranları henüz tamamlanmamıştır.
+
+## Git çalışma düzeni
+
+Yeni özellikler doğrudan `main` branch'inde geliştirilmemelidir:
+
+```bash
+git switch main
+git pull --ff-only
+git switch -c feature/kisa-aciklama
 ```
 
-## Git Çalışma Düzeni
-
-Yeni özellikler doğrudan `main` dalında geliştirilmemelidir. Her özellik için ayrı bir branch kullanılmalıdır.
-
-Örnekler:
-
-```text
-feature/authentication
-feature/users-groups
-feature/tasks
-feature/frontend-login
-```
-
-Tamamlanan özellikler Pull Request ile `main` dalına eklenmelidir.
-
-## Güvenlik
-
-Aşağıdaki dosya ve klasörler GitHub'a gönderilmemelidir:
-
-- `.env`
-- `node_modules`
-- Gerçek kullanıcı şifreleri
-- Veritabanı yedekleri
-- Yüklenen özel dosyalar
-
-Şifreler veritabanında hiçbir zaman düz metin olarak saklanmamalıdır.
+Yalnızca ilgili dosyalar commit edilmeli; değişiklikler test ve build kontrollerinden sonra Pull Request ile `main` branch'ine eklenmelidir.
