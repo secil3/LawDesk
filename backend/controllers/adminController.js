@@ -172,9 +172,21 @@ exports.updateUserActive = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   const adSoyad = normalizeText(req.body?.adSoyad, 150);
-  const email = normalizeText(req.body?.email, 150).toLowerCase();
-  const password = typeof req.body?.password === "string" ? req.body.password : "";
-  const roleMode = typeof req.body?.roleMode === "string" ? req.body.roleMode.trim() : "";
+  const email = normalizeText(
+    req.body?.email,
+    150,
+  ).toLowerCase();
+
+  const password =
+    typeof req.body?.password === "string"
+      ? req.body.password
+      : "";
+
+  const roleMode =
+    typeof req.body?.roleMode === "string"
+      ? req.body.roleMode.trim()
+      : "";
+
   const allowedRoleModes = [
     "kullanici",
     "grup_uyesi",
@@ -188,18 +200,40 @@ exports.createUser = async (req, res) => {
     });
   }
 
-  const rol = roleMode === "yonetici" ? "yonetici" : "kullanici";
-  const aktifMi = req.body?.aktifMi === false ? false : true;
-  const grupIdsRaw = req.body?.grupIds;
-  const grupIds = Array.isArray(grupIdsRaw)
-    ? grupIdsRaw.map((v) => Number(v)).filter(Number.isInteger)
-    : [];
-  const isGroupRole = ["grup_uyesi", "grup_yoneticisi"].includes(roleMode);
-  const grupRolu = isGroupRole ? normalizeGroupRole(roleMode) : null;
+  const rol =
+    roleMode === "yonetici"
+      ? "yonetici"
+      : "kullanici";
 
-  if (isGroupRole && (!Array.isArray(grupIdsRaw) || grupIds.length === 0)) {
+  const aktifMi = req.body?.aktifMi !== false;
+  const grupIdsRaw = req.body?.grupIds;
+
+  const grupIds = Array.isArray(grupIdsRaw)
+    ? [
+        ...new Set(
+          grupIdsRaw
+            .map((value) => Number(value))
+            .filter(
+              (value) =>
+                Number.isInteger(value) && value > 0,
+            ),
+        ),
+      ]
+    : [];
+
+  const isGroupRole = [
+    "grup_uyesi",
+    "grup_yoneticisi",
+  ].includes(roleMode);
+
+  const grupRolu = isGroupRole
+    ? normalizeGroupRole(roleMode)
+    : null;
+
+  if (isGroupRole && grupIds.length === 0) {
     return res.status(400).json({
-      error: "Grup üyeleri ve grup yöneticileri için en az bir grup seçimi zorunludur",
+      error:
+        "Grup üyeleri ve grup yöneticileri için en az bir grup seçimi zorunludur",
     });
   }
 
@@ -226,64 +260,114 @@ exports.createUser = async (req, res) => {
       type: argon2.argon2id,
     });
 
-    const insertUserResult = await db.query(
-      `INSERT INTO kullanicilar (adsoyad, email, sifrehash, rol, aktifmi)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING kullaniciid AS "kullaniciid", adsoyad AS "adsoyad", email AS "email", rol AS "rol", aktifmi AS "aktifmi"`,
-      [adSoyad, email, sifreHash, rol, aktifMi],
-    );
+    const transactionResult =
+      await db.withTransaction(
+        async (transactionQuery) => {
+          let selectedGroups = [];
 
-    const createdUser = insertUserResult?.rows?.[0];
+          if (isGroupRole) {
+            const groupsResult =
+              await transactionQuery(
+                `SELECT grupid AS "grupId",
+                        grupadi AS "grupAdi"
+                 FROM gruplar
+                 WHERE grupid = ANY($1::int[])
+                 ORDER BY grupid`,
+                [grupIds],
+              );
 
-    if (!createdUser) {
-      throw new Error("User insert did not return a created row");
-    }
+            selectedGroups = groupsResult.rows;
 
-    const userGroups = [];
+            if (
+              selectedGroups.length !== grupIds.length
+            ) {
+              const invalidGroupError = new Error(
+                "Invalid group selection",
+              );
 
-    if (grupIds.length > 0 && grupRolu) {
-      // Insert or update membership for each selected group
-      const insertPromises = grupIds.map((gid) =>
-        db.query(
-          `INSERT INTO grupuyelikleri (grupid, kullaniciid, gruprolu)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (grupid, kullaniciid) DO UPDATE SET gruprolu = EXCLUDED.gruprolu`,
-          [gid, createdUser.kullaniciid, grupRolu],
-        ),
+              invalidGroupError.statusCode = 400;
+              throw invalidGroupError;
+            }
+          }
+
+          const insertUserResult =
+            await transactionQuery(
+              `INSERT INTO kullanicilar
+                 (adsoyad, email, sifrehash, rol, aktifmi)
+               VALUES ($1, $2, $3, $4, $5)
+               RETURNING kullaniciid,
+                         adsoyad,
+                         email,
+                         rol,
+                         aktifmi`,
+              [
+                adSoyad,
+                email,
+                sifreHash,
+                rol,
+                aktifMi,
+              ],
+            );
+
+          const createdUser =
+            insertUserResult.rows[0];
+
+          if (!createdUser) {
+            throw new Error(
+              "User insert did not return a created row",
+            );
+          }
+
+          for (const group of selectedGroups) {
+            await transactionQuery(
+              `INSERT INTO grupuyelikleri
+                 (grupid, kullaniciid, gruprolu)
+               VALUES ($1, $2, $3)`,
+              [
+                group.grupId,
+                createdUser.kullaniciid,
+                grupRolu,
+              ],
+            );
+          }
+
+          return {
+            createdUser,
+            userGroups: selectedGroups.map(
+              (group) => ({
+                grupId: group.grupId,
+                grupAdi: group.grupAdi,
+                grupRolu,
+              }),
+            ),
+          };
+        },
       );
-
-      await Promise.all(insertPromises);
-
-      // Fetch group names for response
-      const groupsResult = await db.query(
-        `SELECT grupid AS "grupId", grupadi AS "grupAdi" FROM gruplar WHERE grupid = ANY($1)`,
-        [grupIds],
-      );
-
-      userGroups.push(
-        ...groupsResult.rows.map((r) => ({
-          grupId: r.grupId,
-          grupAdi: r.grupAdi,
-          grupRolu,
-        })),
-      );
-    }
 
     return res.status(201).json({
       user: publicUser({
-        ...createdUser,
-        groups: userGroups,
+        ...transactionResult.createdUser,
+        groups: transactionResult.userGroups,
       }),
       message: "Kullanıcı hesabı oluşturuldu",
     });
   } catch (error) {
+    if (error?.statusCode === 400) {
+      return res.status(400).json({
+        error:
+          "Seçilen gruplardan biri bulunamadı",
+      });
+    }
+
     if (error?.code === "23505") {
       return res.status(409).json({
-        error: "Bu e-posta adresi ile daha önce kayıt oluşturulmuş",
+        error:
+          "Bu e-posta adresi ile daha önce kayıt oluşturulmuş",
       });
     }
 
     console.error("User creation failed:", error);
+
     return res.status(500).json({
       error: "Kullanıcı oluşturulamadı",
     });
