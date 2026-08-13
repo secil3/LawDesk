@@ -56,7 +56,8 @@ const requireAuth = async (req, res, next) => {
       `SELECT kullaniciid, adsoyad, email, rol
        FROM kullanicilar
        WHERE kullaniciid = $1
-         AND aktifmi = TRUE`,
+         AND aktifmi = TRUE
+         AND silindimi = FALSE`,
       [userId],
     );
 

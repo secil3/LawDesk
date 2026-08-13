@@ -194,10 +194,10 @@ function App() {
       );
 
       const data = await readResponse(response);
-      setCreationMessage(data.message || "Kullanıcı silindi");
+      setCreationMessage(data.message || "Kullanıcı arşivlendi");
       await loadUsers();
     } catch (requestError) {
-      setError(requestError.message || "Kullanıcı silinemedi");
+      setError(requestError.message || "Kullanıcı arşivlenemedi");
     } finally {
       closeDeleteConfirmation();
     }
@@ -567,7 +567,7 @@ function App() {
                             fontWeight: 700,
                           }}
                         >
-                          Sil
+                          Arşivle
                         </button>
                       </div>
                     </div>
@@ -581,13 +581,13 @@ function App() {
                 <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title">
                   <div className="confirm-card">
                     <p className="eyebrow">Onay gerektiriyor</p>
-                    <h3 id="delete-dialog-title">Kullanıcıyı silmek üzeresiniz</h3>
+                    <h3 id="delete-dialog-title">Kullanıcıyı arşivlemek üzeresiniz</h3>
                     <p>
-                      <strong>{deleteConfirmation.userName}</strong> adlı kullanıcıyı silmek istediğinizden emin misiniz?
+                      <strong>{deleteConfirmation.userName}</strong> adlı kullanıcıyı arşivlemek istediğinizden emin misiniz? Kullanıcının geçmiş kayıtları korunacaktır.
                     </p>
                     <div className="confirm-actions">
                       <button type="button" onClick={confirmDeleteUser}>
-                        Evet, sil
+                        Evet, arşivle
                       </button>
                       <button type="button" className="secondary-button" onClick={closeDeleteConfirmation}>
                         Vazgeç

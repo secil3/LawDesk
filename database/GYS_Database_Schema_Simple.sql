@@ -34,6 +34,8 @@ CREATE TABLE Kullanicilar (
     Rol             VARCHAR(20)     NOT NULL DEFAULT 'kullanici'
                         CHECK (Rol IN ('admin','yonetici','kullanici')),
     AktifMi         BOOLEAN         NOT NULL DEFAULT TRUE,
+    SilindiMi       BOOLEAN         NOT NULL DEFAULT FALSE,
+    SilinmeTarihi   TIMESTAMP,
     OlusturmaTarihi TIMESTAMP       NOT NULL DEFAULT NOW()
 );
 

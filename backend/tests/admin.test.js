@@ -33,15 +33,19 @@ beforeEach(() => {
     }
 
     // delete grupuyelikleri
-    if (t.includes("delete from grupuyelikleri")) {
-      return { rows: [] };
-    }
-
-    // delete user
-    if (t.includes("delete from kullanicilar")) {
-      return { rowCount: 1, rows: [ { id: params[0], email: 'zayn@gmail.com' } ] };
-    }
-
+    // archive user
+if (t.includes("set silindimi = true")) {
+  return {
+    rowCount: 1,
+    rows: [
+      {
+        id: params[0],
+        email: "zayn@gmail.com",
+        silindiMi: true,
+      },
+    ],
+  };
+}
     // update aktifmi
     if (t.startsWith("update kullanicilar") || t.includes("set aktifmi")) {
       return { rowCount: 1, rows: [ { id: params[1], email: 'zayn@gmail.com', aktifmi: params[0] } ] };
@@ -86,7 +90,7 @@ test('admin can toggle active state of a user', async () => {
   assert.equal(patchRes.body.user.aktifMi, false);
 });
 
-test('admin can delete a user', async () => {
+test('admin can archive a user', async () => {
   const token = jwt.sign({}, process.env.AUTH_TOKEN_SECRET, {
     subject: String(1),
     issuer: 'lawdesk-backend',
@@ -100,5 +104,6 @@ test('admin can delete a user', async () => {
     .set('Cookie', `${process.env.AUTH_COOKIE_NAME}=${token}`);
 
   assert.equal(delRes.status, 200);
-  assert.equal(delRes.body.deletedUserId, 2);
+  assert.equal(delRes.body.archivedUserId, 2);
+  assert.equal(delRes.body.message, "Kullanıcı arşivlendi");
 });

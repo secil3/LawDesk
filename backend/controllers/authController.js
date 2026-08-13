@@ -44,6 +44,7 @@ exports.login = async (req, res) => {
       `SELECT kullaniciid, adsoyad, email, sifrehash, rol, aktifmi
        FROM kullanicilar
        WHERE LOWER(email) = LOWER($1)
+        AND silindimi = FALSE
        LIMIT 1`,
       [email],
     );

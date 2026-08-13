@@ -52,6 +52,7 @@ exports.listUsers = async (req, res) => {
        LEFT JOIN grupuyelikleri gu ON gu.kullaniciid = k.kullaniciid
        LEFT JOIN gruplar g ON g.grupid = gu.grupid
        WHERE k.rol IN ('kullanici', 'yonetici')
+         AND k.silindimi = FALSE
        GROUP BY k.kullaniciid, k.adsoyad, k.email, k.rol, k.aktifmi
        ORDER BY k.kullaniciid ASC`,
     );
@@ -84,42 +85,37 @@ exports.deleteUser = async (req, res) => {
   }
 
   try {
-    // First, remove group memberships to avoid foreign key issues
-    await db.query(
-      `DELETE FROM grupuyelikleri WHERE kullaniciid = $1`,
-      [userId],
-    );
-
-    // Then attempt to delete the user record without restricting by role so admins can delete any account
     const result = await db.query(
-      `DELETE FROM kullanicilar
+      `UPDATE kullanicilar
+       SET silindimi = TRUE,
+           silinmetarihi = NOW(),
+           aktifmi = FALSE
        WHERE kullaniciid = $1
-       RETURNING kullaniciid AS "id", email`,
+         AND rol IN ('kullanici', 'yonetici')
+         AND silindimi = FALSE
+       RETURNING kullaniciid AS "id",
+                 email,
+                 silindimi AS "silindiMi",
+                 silinmetarihi AS "silinmeTarihi"`,
       [userId],
     );
 
     if (result.rowCount === 0) {
       return res.status(404).json({
-        error: "Silinecek kullanıcı bulunamadı",
+        error:
+          "Arşivlenecek kullanıcı bulunamadı veya bu hesap arşivlenemez",
       });
     }
 
     return res.json({
-      deletedUserId: result.rows[0].id,
-      message: "Kullanıcı silindi",
+      archivedUserId: result.rows[0].id,
+      message: "Kullanıcı arşivlendi",
     });
   } catch (error) {
-    console.error("Delete user failed:", error);
-
-    // If there is a foreign key violation from some other table, give a helpful message
-    if (error && error.code === '23503') {
-      return res.status(409).json({
-        error: "Kullanıcı bazı kaynaklar tarafından referans alınıyor; önce bağlı kayıtları kaldırın veya atayın",
-      });
-    }
+    console.error("Archive user failed:", error);
 
     return res.status(500).json({
-      error: "Kullanıcı silinemedi",
+      error: "Kullanıcı arşivlenemedi",
     });
   }
 };
@@ -147,6 +143,7 @@ exports.updateUserActive = async (req, res) => {
        SET aktifmi = $1
        WHERE kullaniciid = $2
          AND rol IN ('kullanici', 'yonetici')
+         AND silindimi = FALSE
        RETURNING kullaniciid AS "id", email, aktifmi`,
       [aktifMi, userId],
     );
