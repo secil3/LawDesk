@@ -30,6 +30,28 @@ const normalizeText = (value, maxLength) => {
   return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
 };
 
+exports.listGroups = async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT grupid AS "id",
+              grupadi AS "name",
+              aciklama AS "description"
+       FROM gruplar
+       ORDER BY grupadi ASC`,
+    );
+
+    return res.json({
+      groups: result.rows,
+    });
+  } catch (error) {
+    console.error("List groups failed:", error);
+
+    return res.status(500).json({
+      error: "Grup listesi getirilemedi",
+    });
+  }
+};
+
 exports.listUsers = async (req, res) => {
   try {
     const result = await db.query(
@@ -45,15 +67,23 @@ exports.listUsers = async (req, res) => {
                     'grupAdi', g.grupadi,
                     'grupRolu', gu.gruprolu
                   )
-                ) FILTER (WHERE gu.grupid IS NOT NULL),
+                ) FILTER (
+                  WHERE gu.grupid IS NOT NULL
+                ),
                 '[]'::json
               ) AS groups
        FROM kullanicilar k
-       LEFT JOIN grupuyelikleri gu ON gu.kullaniciid = k.kullaniciid
-       LEFT JOIN gruplar g ON g.grupid = gu.grupid
+       LEFT JOIN grupuyelikleri gu
+         ON gu.kullaniciid = k.kullaniciid
+       LEFT JOIN gruplar g
+         ON g.grupid = gu.grupid
        WHERE k.rol IN ('kullanici', 'yonetici')
          AND k.silindimi = FALSE
-       GROUP BY k.kullaniciid, k.adsoyad, k.email, k.rol, k.aktifmi
+       GROUP BY k.kullaniciid,
+                k.adsoyad,
+                k.email,
+                k.rol,
+                k.aktifmi
        ORDER BY k.kullaniciid ASC`,
     );
 
@@ -64,11 +94,14 @@ exports.listUsers = async (req, res) => {
         email: user.email,
         rol: user.rol,
         aktifMi: user.aktifMi,
-        groups: Array.isArray(user.groups) ? user.groups : [],
+        groups: Array.isArray(user.groups)
+          ? user.groups
+          : [],
       })),
     });
   } catch (error) {
     console.error("List users failed:", error);
+
     return res.status(500).json({
       error: "Kullanıcı listesi getirilemedi",
     });
