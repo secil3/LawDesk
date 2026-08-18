@@ -119,6 +119,23 @@ function TaskPanel({ refreshKey = 0 }) {
   const [statusDrafts, setStatusDrafts] = useState({});
   const [taskEditor, setTaskEditor] = useState(null);
   const [taskListMode, setTaskListMode] = useState("active");
+  const [searchInput, setSearchInput] = useState("");
+  const [queryState, setQueryState] = useState({
+    search: "",
+    status: "",
+    priority: "",
+    taskType: "",
+    sortBy: "due_date",
+    sortOrder: "asc",
+    page: 1,
+    limit: 10,
+  });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+  });
   const [loading, setLoading] = useState(true);
   const [loadingActivity, setLoadingActivity] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -130,14 +147,76 @@ function TaskPanel({ refreshKey = 0 }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const loadTasks = async (mode = taskListMode) => {
-    const url =
-      mode === "archived" ? "/api/tasks?archived=true" : "/api/tasks";
-    const response = await fetch(url, {
-      credentials: "include",
-    });
+  const buildTaskQueryString = (
+    mode = taskListMode,
+    state = queryState,
+  ) => {
+    const params = new URLSearchParams();
+
+    if (mode === "archived") {
+      params.set("archived", "true");
+    }
+
+    if (state.search && state.search.trim()) {
+      params.set("search", state.search.trim());
+    }
+
+    if (state.status) {
+      params.set("status", state.status);
+    }
+
+    if (state.priority) {
+      params.set("priority", state.priority);
+    }
+
+    if (state.taskType) {
+      params.set("taskType", state.taskType);
+    }
+
+    if (state.sortBy) {
+      params.set("sortBy", state.sortBy);
+    }
+
+    if (state.sortOrder) {
+      params.set("sortOrder", state.sortOrder);
+    }
+
+    params.set("page", String(state.page || 1));
+    params.set("limit", String(state.limit || 10));
+
+    const queryString = params.toString();
+    return queryString ? `?${queryString}` : "";
+  };
+
+  const loadTasks = async (
+    mode = taskListMode,
+    state = queryState,
+  ) => {
+    const response = await fetch(
+      `/api/tasks${buildTaskQueryString(mode, state)}`,
+      {
+        credentials: "include",
+      },
+    );
     const data = await readResponse(response);
-    setTasks(Array.isArray(data.tasks) ? data.tasks : []);
+    const nextTasks = Array.isArray(data.tasks) ? data.tasks : [];
+    const nextPagination = data.pagination || {
+      page: Number(state.page || 1),
+      limit: Number(state.limit || 10),
+      total: nextTasks.length,
+      totalPages: 1,
+    };
+
+    setTasks(nextTasks);
+    setPagination({
+      page: Number(nextPagination.page || state.page || 1),
+      limit: Number(nextPagination.limit || state.limit || 10),
+      total: Number(nextPagination.total || nextTasks.length || 0),
+      totalPages: Number(
+        nextPagination.totalPages ||
+          Math.max(1, Math.ceil((nextPagination.total || nextTasks.length || 0) / (nextPagination.limit || state.limit || 10))),
+      ),
+    });
   };
 
   const loadOptions = async () => {
@@ -174,15 +253,17 @@ function TaskPanel({ refreshKey = 0 }) {
   };
 
   useEffect(() => {
+    setSearchInput(queryState.search);
+  }, [queryState.search]);
+
+  useEffect(() => {
     const loadTaskPanel = async () => {
       setLoading(true);
       setError("");
 
       try {
-        const [, loadedOptions] = await Promise.all([
-          loadTasks("active"),
-          loadOptions(),
-        ]);
+        const loadedOptions = await loadOptions();
+        await loadTasks(taskListMode, queryState);
 
         if (loadedOptions.canViewActivity) {
           await loadActivity();
@@ -197,7 +278,17 @@ function TaskPanel({ refreshKey = 0 }) {
     };
 
     loadTaskPanel();
-  }, []);
+  }, [
+    taskListMode,
+    queryState.search,
+    queryState.status,
+    queryState.priority,
+    queryState.taskType,
+    queryState.sortBy,
+    queryState.sortOrder,
+    queryState.page,
+    queryState.limit,
+  ]);
 
   useEffect(() => {
     if (refreshKey === 0) {
@@ -209,10 +300,8 @@ function TaskPanel({ refreshKey = 0 }) {
       setError("");
 
       try {
-        const [, loadedOptions] = await Promise.all([
-          loadTasks(taskListMode),
-          loadOptions(),
-        ]);
+        const loadedOptions = await loadOptions();
+        await loadTasks(taskListMode, queryState);
 
         if (loadedOptions.canViewActivity) {
           await loadActivity();
@@ -560,16 +649,61 @@ function TaskPanel({ refreshKey = 0 }) {
     }
 
     setTaskListMode(mode);
+    setQueryState((current) => ({
+      ...current,
+      page: 1,
+    }));
     setLoading(true);
     setError("");
+  };
 
-    try {
-      await loadTasks(mode);
-    } catch (requestError) {
-      setError(requestError.message || "Görev listesi yüklenemedi");
-    } finally {
-      setLoading(false);
+  const updateQueryState = (field, value) => {
+    setQueryState((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === "search" || field === "status" || field === "priority" || field === "taskType" || field === "sortBy" || field === "sortOrder"
+        ? { page: 1 }
+        : {}),
+    }));
+  };
+
+  const handleSearchSubmit = (event) => {
+    event.preventDefault();
+
+    const trimmedSearch = searchInput.trim();
+    setQueryState((current) => ({
+      ...current,
+      search: trimmedSearch,
+      page: 1,
+    }));
+  };
+
+  const getVisiblePageNumbers = (currentPage, totalPages) => {
+    if (totalPages <= 1) {
+      return [1];
     }
+
+    const pages = new Set([1, totalPages, currentPage]);
+    const window = [currentPage - 1, currentPage, currentPage + 1];
+
+    window.forEach((page) => {
+      if (page > 1 && page < totalPages) {
+        pages.add(page);
+      }
+    });
+
+    const sortedPages = [...pages].sort((a, b) => a - b);
+    const visiblePages = [];
+
+    sortedPages.forEach((page, index) => {
+      if (index > 0 && page - sortedPages[index - 1] > 1) {
+        visiblePages.push("...");
+      }
+
+      visiblePages.push(page);
+    });
+
+    return visiblePages;
   };
 
   return (
@@ -783,7 +917,7 @@ function TaskPanel({ refreshKey = 0 }) {
             setError("");
 
             try {
-              await loadTasks();
+              await loadTasks(taskListMode, queryState);
             } catch (requestError) {
               setError(
                 requestError.message || "Görev listesi yenilenemedi",
@@ -797,6 +931,169 @@ function TaskPanel({ refreshKey = 0 }) {
           Yenile
         </button>
       </div>
+
+      <form className="task-toolbar" onSubmit={handleSearchSubmit}>
+        <label className="task-field task-field-wide">
+          <span>Arama</span>
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Görevlerde ara..."
+          />
+        </label>
+
+        <label className="task-field">
+          <span>Durum</span>
+          <select
+            value={queryState.status}
+            onChange={(event) =>
+              updateQueryState("status", event.target.value)
+            }
+          >
+            <option value="">Tümü</option>
+            {STATUS_OPTIONS.map((status) => (
+              <option key={status} value={status}>
+                {STATUS_LABELS[status] || status}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="task-field">
+          <span>Öncelik</span>
+          <select
+            value={queryState.priority}
+            onChange={(event) =>
+              updateQueryState("priority", event.target.value)
+            }
+          >
+            <option value="">Tümü</option>
+            <option value="Kritik">Kritik</option>
+            <option value="Yuksek">Yüksek</option>
+            <option value="Orta">Orta</option>
+            <option value="Dusuk">Düşük</option>
+          </select>
+        </label>
+
+        <label className="task-field">
+          <span>Görev tipi</span>
+          <select
+            value={queryState.taskType}
+            onChange={(event) =>
+              updateQueryState("taskType", event.target.value)
+            }
+          >
+            <option value="">Tümü</option>
+            {options.types.map((type) => (
+              <option key={type.id} value={type.name}>
+                {type.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="task-field">
+          <span>Sırala</span>
+          <select
+            value={queryState.sortBy}
+            onChange={(event) =>
+              updateQueryState("sortBy", event.target.value)
+            }
+          >
+            <option value="due_date">Son tarih</option>
+            <option value="priority">Öncelik</option>
+            <option value="created_at">Oluşturulma</option>
+            <option value="title">Başlık</option>
+          </select>
+        </label>
+
+        <label className="task-field">
+          <span>Yön</span>
+          <select
+            value={queryState.sortOrder}
+            onChange={(event) =>
+              updateQueryState("sortOrder", event.target.value)
+            }
+          >
+            <option value="asc">Artan</option>
+            <option value="desc">Azalan</option>
+          </select>
+        </label>
+      </form>
+
+      {pagination.totalPages > 1 && (
+        <div className="task-pagination" aria-label="Görev sayfalama">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() =>
+              setQueryState((current) => ({
+                ...current,
+                page: Math.max(1, current.page - 1),
+              }))
+            }
+            disabled={queryState.page <= 1 || loading}
+          >
+            Önceki
+          </button>
+
+          {getVisiblePageNumbers(
+            queryState.page,
+            pagination.totalPages,
+          ).map((page, index) => {
+            if (page === "...") {
+              return (
+                <span key={`ellipsis-${index}`} className="pagination-ellipsis">
+                  ...
+                </span>
+              );
+            }
+
+            const pageNumber = Number(page);
+
+            return (
+              <button
+                key={`page-${pageNumber}`}
+                type="button"
+                className={
+                  pageNumber === queryState.page
+                    ? "pagination-page active"
+                    : "pagination-page"
+                }
+                onClick={() =>
+                  setQueryState((current) => ({
+                    ...current,
+                    page: pageNumber,
+                  }))
+                }
+                disabled={loading || pageNumber === queryState.page}
+              >
+                {pageNumber}
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() =>
+              setQueryState((current) => ({
+                ...current,
+                page: Math.min(
+                  pagination.totalPages,
+                  current.page + 1,
+                ),
+              }))
+            }
+            disabled={
+              queryState.page >= pagination.totalPages || loading
+            }
+          >
+            Sonraki
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p className="task-empty-state">Görevler yükleniyor...</p>

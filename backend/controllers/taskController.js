@@ -372,6 +372,128 @@ const describeDueDate = (value) => {
   });
 };
 
+const normalizeTaskStatusFilter = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  const lower = normalized.toLowerCase();
+
+  if (["open", "active", "acik"].includes(lower)) {
+    return ["Yeni Atandi", "Devam Ediyor", "Beklemede"];
+  }
+
+  if (["closed", "done", "kapali", "tamamlandi"].includes(lower)) {
+    return ["Tamamlandi", "Iptal Edildi"];
+  }
+
+  const directMatch = [...ALLOWED_STATUSES].find(
+    (status) => status.toLowerCase() === lower,
+  );
+
+  if (directMatch) {
+    return [directMatch];
+  }
+
+  return null;
+};
+
+const normalizeTaskPriorityFilter = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  const lower = normalized.toLowerCase();
+
+  const aliasMap = {
+    critical: "Kritik",
+    kritik: "Kritik",
+    high: "Yuksek",
+    yuksek: "Yuksek",
+    medium: "Orta",
+    orta: "Orta",
+    low: "Dusuk",
+    dusuk: "Dusuk",
+  };
+
+  if (aliasMap[lower]) {
+    return aliasMap[lower];
+  }
+
+  const directMatch = [...ALLOWED_PRIORITIES].find(
+    (priority) => priority.toLowerCase() === lower,
+  );
+
+  return directMatch || null;
+};
+
+const normalizeTaskTypeFilter = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  return `%${normalized}%`;
+};
+
+const normalizeTaskSort = (sortBy, sortOrder) => {
+  if (typeof sortBy !== "string") {
+    return null;
+  }
+
+  const allowedSortFields = {
+    due_date: "g.bitisTarihi",
+    priority: "g.oncelik",
+    created_at: "g.olusturmaTarihi",
+    title: "LOWER(g.baslik)",
+  };
+
+  const field = sortBy.trim();
+  if (!allowedSortFields[field]) {
+    return null;
+  }
+
+  const direction = typeof sortOrder === "string"
+    ? sortOrder.trim().toLowerCase()
+    : "";
+
+  if (direction !== "asc" && direction !== "desc") {
+    return null;
+  }
+
+  return {
+    field: allowedSortFields[field],
+    direction,
+  };
+};
+
+const normalizePagination = (value, fallback) => {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return fallback;
+  }
+
+  return parsed;
+};
+
 exports.getTaskOptions = async (req, res) => {
   const systemAssigner = isSystemAssigner(req.user);
   const managedGroupIds = managedGroupIdsFor(req.user);
@@ -451,6 +573,27 @@ exports.listTasks = async (req, res) => {
   const privilegedViewer = systemViewer || managedGroupIds.length > 0;
   const archived = req.query?.archived === "true";
 
+  const searchTerm = typeof req.query?.search === "string"
+    ? req.query.search.trim()
+    : "";
+  const searchPattern = searchTerm ? `%${searchTerm}%` : null;
+
+  const statusFilter = normalizeTaskStatusFilter(req.query?.status);
+  const priorityFilter = normalizeTaskPriorityFilter(req.query?.priority);
+  const taskTypeFilter = normalizeTaskTypeFilter(req.query?.taskType);
+  const sortSpec = normalizeTaskSort(
+    req.query?.sortBy,
+    req.query?.sortOrder,
+  );
+  const hasPagination =
+    req.query?.page !== undefined || req.query?.limit !== undefined;
+  const requestedPage = normalizePagination(req.query?.page, 1);
+  const requestedLimit = normalizePagination(req.query?.limit, 10);
+  const maxLimit = 100;
+  const limit = Math.min(requestedLimit, maxLimit);
+  const page = requestedPage;
+  const offset = (page - 1) * limit;
+
   if (archived && !privilegedViewer) {
     return res.status(403).json({
       error: "Görev arşivini görüntüleme yetkiniz bulunmuyor",
@@ -458,6 +601,220 @@ exports.listTasks = async (req, res) => {
   }
 
   try {
+    const clauseParts = [];
+    const queryParams = [
+      userId,
+      systemViewer,
+      groupIds,
+      managedGroupIds,
+      privilegedViewer,
+      archived,
+    ];
+
+    if (searchPattern) {
+      clauseParts.push(
+        `AND (
+           LOWER(COALESCE(g.baslik, '')) LIKE LOWER($${queryParams.length + 1})
+           OR LOWER(COALESCE(g.aciklama, '')) LIKE LOWER($${queryParams.length + 1})
+         )`,
+      );
+      queryParams.push(searchPattern);
+    }
+
+    if (statusFilter && statusFilter.length > 0) {
+      if (statusFilter.length === 1) {
+        clauseParts.push(
+          `AND g.durum = $${queryParams.length + 1}`,
+        );
+        queryParams.push(statusFilter[0]);
+      } else {
+        const placeholders = statusFilter
+          .map((_, index) => `$${queryParams.length + index + 1}`)
+          .join(", ");
+        clauseParts.push(`AND g.durum IN (${placeholders})`);
+        queryParams.push(...statusFilter);
+      }
+    }
+
+    if (priorityFilter) {
+      clauseParts.push(
+        `AND g.oncelik = $${queryParams.length + 1}`,
+      );
+      queryParams.push(priorityFilter);
+    }
+
+    if (taskTypeFilter) {
+      clauseParts.push(
+        `AND LOWER(COALESCE(gt.tipadi, '')) LIKE LOWER($${queryParams.length + 1})`,
+      );
+      queryParams.push(taskTypeFilter);
+    }
+
+    const whereClause = clauseParts.join(" ");
+
+    const orderByClause = sortSpec
+      ? `ORDER BY ${sortSpec.field} ${sortSpec.direction.toUpperCase()},
+         CASE WHEN $6::boolean THEN g.arsivlenmetarihi END DESC NULLS LAST,
+         g.olusturmaTarihi DESC,
+         g.gorevid DESC`
+      : `ORDER BY
+         CASE WHEN $6::boolean THEN g.arsivlenmetarihi END DESC NULLS LAST,
+         g.olusturmaTarihi DESC,
+         g.gorevid DESC`;
+
+    if (!hasPagination) {
+      const result = await db.query(
+        `SELECT g.gorevid AS "id",
+                g.baslik AS "title",
+                g.aciklama AS "description",
+                g.oncelik AS "priority",
+                g.durum AS "status",
+                g.bitisTarihi AS "dueDate",
+                g.olusturmaTarihi AS "createdAt",
+                g.arsivlendimi AS "archived",
+                g.arsivlenmetarihi AS "archivedAt",
+                gt.tipid AS "typeId",
+                gt.tipadi AS "typeName",
+                creator.kullaniciid AS "creatorId",
+                creator.adsoyad AS "creatorName",
+                assigned_user.kullaniciid AS "assignedUserId",
+                assigned_user.adsoyad AS "assignedUserName",
+                assigned_group.grupid AS "assignedGroupId",
+                assigned_group.grupadi AS "assignedGroupName",
+                CASE
+                  WHEN $2::boolean THEN TRUE
+                  WHEN cardinality($4::int[]) > 0 AND (
+                    g.atanangrupid = ANY($4::int[])
+                    OR g.gorunurlukgrupid = ANY($4::int[])
+                    OR EXISTS (
+                      SELECT 1
+                      FROM grupuyelikleri assigned_membership
+                      WHERE assigned_membership.kullaniciid = g.atanankullaniciid
+                        AND assigned_membership.grupid = ANY($4::int[])
+                    )
+                    OR (
+                      g.atanankullaniciid IS NULL
+                      AND g.atanangrupid IS NULL
+                      AND EXISTS (
+                        SELECT 1
+                        FROM grupuyelikleri creator_membership
+                        WHERE creator_membership.kullaniciid = g.olusturankullaniciid
+                          AND creator_membership.grupid = ANY($4::int[])
+                      )
+                    )
+                  ) THEN TRUE
+                  ELSE FALSE
+                END AS "canManageAssignment"
+         FROM gorevler g
+         LEFT JOIN gorevtipleri gt
+           ON gt.tipid = g.tipid
+         JOIN kullanicilar creator
+           ON creator.kullaniciid = g.olusturankullaniciid
+         LEFT JOIN kullanicilar assigned_user
+           ON assigned_user.kullaniciid = g.atanankullaniciid
+         LEFT JOIN gruplar assigned_group
+           ON assigned_group.grupid = g.atanangrupid
+         WHERE (
+           $2::boolean
+           OR g.olusturankullaniciid = $1
+           OR g.atanankullaniciid = $1
+           OR g.gorunurlukkullaniciid = $1
+           OR g.atanangrupid = ANY($3::int[])
+           OR g.gorunurlukgrupid = ANY($3::int[])
+           OR (
+             cardinality($4::int[]) > 0
+             AND (
+               EXISTS (
+                 SELECT 1
+                 FROM grupuyelikleri assigned_membership
+                 WHERE assigned_membership.kullaniciid = g.atanankullaniciid
+                   AND assigned_membership.grupid = ANY($4::int[])
+               )
+               OR (
+                 g.atanankullaniciid IS NULL
+                 AND g.atanangrupid IS NULL
+                 AND EXISTS (
+                   SELECT 1
+                   FROM grupuyelikleri creator_membership
+                   WHERE creator_membership.kullaniciid = g.olusturankullaniciid
+                     AND creator_membership.grupid = ANY($4::int[])
+                 )
+               )
+             )
+           )
+         )
+         AND ($5::boolean OR g.durum <> 'Tamamlandi')
+         AND g.arsivlendimi = $6::boolean
+         ${whereClause}
+         ${orderByClause}`,
+        queryParams,
+      );
+
+      return res.json({
+        tasks: result.rows.map((task) => {
+          const canManage = task.canManageAssignment === true;
+          const terminal = ["Tamamlandi", "Iptal Edildi"].includes(
+            task.status,
+          );
+
+          return {
+            ...task,
+            canManageLifecycle: canManage && !task.archived,
+            canRestore: canManage && task.archived === true,
+            canEditTask:
+              !task.archived &&
+              !terminal &&
+              (Number(task.creatorId) === userId || canManage),
+            canEditDueDate:
+              !task.archived &&
+              !terminal &&
+              (Number(task.creatorId) === userId || canManage),
+          };
+        }),
+      });
+    }
+
+    const countQuery = `SELECT COUNT(*) AS "total"
+       FROM gorevler g
+       LEFT JOIN gorevtipleri gt
+         ON gt.tipid = g.tipid
+       WHERE (
+         $2::boolean
+         OR g.olusturankullaniciid = $1
+         OR g.atanankullaniciid = $1
+         OR g.gorunurlukkullaniciid = $1
+         OR g.atanangrupid = ANY($3::int[])
+         OR g.gorunurlukgrupid = ANY($3::int[])
+         OR (
+           cardinality($4::int[]) > 0
+           AND (
+             EXISTS (
+               SELECT 1
+               FROM grupuyelikleri assigned_membership
+               WHERE assigned_membership.kullaniciid = g.atanankullaniciid
+                 AND assigned_membership.grupid = ANY($4::int[])
+             )
+             OR (
+               g.atanankullaniciid IS NULL
+               AND g.atanangrupid IS NULL
+               AND EXISTS (
+                 SELECT 1
+                 FROM grupuyelikleri creator_membership
+                 WHERE creator_membership.kullaniciid = g.olusturankullaniciid
+                   AND creator_membership.grupid = ANY($4::int[])
+               )
+             )
+           )
+         )
+       )
+       AND ($5::boolean OR g.durum <> 'Tamamlandi')
+       AND g.arsivlendimi = $6::boolean
+       ${whereClause}`;
+
+    const countResult = await db.query(countQuery, queryParams);
+    const total = Number(countResult.rows[0]?.total || 0);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
     const result = await db.query(
       `SELECT g.gorevid AS "id",
               g.baslik AS "title",
@@ -540,18 +897,11 @@ exports.listTasks = async (req, res) => {
        )
        AND ($5::boolean OR g.durum <> 'Tamamlandi')
        AND g.arsivlendimi = $6::boolean
-       ORDER BY
-         CASE WHEN $6::boolean THEN g.arsivlenmetarihi END DESC NULLS LAST,
-         g.olusturmaTarihi DESC,
-         g.gorevid DESC`,
-      [
-        userId,
-        systemViewer,
-        groupIds,
-        managedGroupIds,
-        privilegedViewer,
-        archived,
-      ],
+       ${whereClause}
+       ${orderByClause}
+       LIMIT $${queryParams.length + 1}
+       OFFSET $${queryParams.length + 2}`,
+      [...queryParams, limit, offset],
     );
 
     return res.json({
@@ -575,6 +925,12 @@ exports.listTasks = async (req, res) => {
             (Number(task.creatorId) === userId || canManage),
         };
       }),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
     });
   } catch (error) {
     return sendError(res, error, "Görev listesi getirilemedi");
