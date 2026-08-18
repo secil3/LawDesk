@@ -445,6 +445,15 @@ beforeEach(() => {
     }
 
     if (
+      normalized.includes("select count(*)") &&
+      normalized.includes("from gorevler g")
+    ) {
+      return {
+        rows: [{ total: 47 }],
+      };
+    }
+
+    if (
       normalized.includes('end as "canmanageassignment"') &&
       normalized.includes("from gorevler g")
     ) {
@@ -616,6 +625,126 @@ test("task list passes visibility context to database", async () => {
   assert.match(recorded.listSql, /g\.atanankullaniciid is null/);
   assert.match(recorded.listSql, /g\.durum <> 'tamamlandi'/);
   assert.match(recorded.listSql, /g\.arsivlendimi = \$6::boolean/);
+});
+
+test("task list filters results by search term", async () => {
+  const response = await authenticated(
+    request(app).get("/api/tasks?search=dava"),
+    3,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.tasks.length, 1);
+  assert.deepEqual(recorded.listParams, [
+    3,
+    false,
+    [2],
+    [],
+    false,
+    false,
+    "%dava%",
+  ]);
+  assert.match(recorded.listSql, /lower\(coalesce\(g\.baslik, ''\)\).*like lower\(\$7\)/i);
+  assert.match(recorded.listSql, /lower\(coalesce\(g\.aciklama, ''\)\).*like lower\(\$7\)/i);
+});
+
+test("task list filters by status and priority", async () => {
+  const response = await authenticated(
+    request(app).get("/api/tasks?status=open&priority=high"),
+    3,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.tasks.length, 1);
+  assert.deepEqual(recorded.listParams, [
+    3,
+    false,
+    [2],
+    [],
+    false,
+    false,
+    "Yeni Atandi",
+    "Devam Ediyor",
+    "Beklemede",
+    "Yuksek",
+  ]);
+  assert.match(recorded.listSql, /g\.durum in \(\$7, \$8, \$9\)/i);
+  assert.match(recorded.listSql, /g\.oncelik = \$10/i);
+});
+
+test("task list filters by task type and combines with search", async () => {
+  const response = await authenticated(
+    request(app).get("/api/tasks?search=dava&status=open&priority=high&taskType=personel"),
+    3,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.tasks.length, 1);
+  assert.deepEqual(recorded.listParams, [
+    3,
+    false,
+    [2],
+    [],
+    false,
+    false,
+    "%dava%",
+    "Yeni Atandi",
+    "Devam Ediyor",
+    "Beklemede",
+    "Yuksek",
+    "%personel%",
+  ]);
+  assert.match(recorded.listSql, /lower\(coalesce\(gt\.tipadi, ''\)\).*like lower\(\$12\)/i);
+});
+
+test("task list sorts by due date ascending and combines with search and filters", async () => {
+  const response = await authenticated(
+    request(app).get("/api/tasks?search=dava&status=open&priority=high&sortBy=due_date&sortOrder=asc"),
+    3,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.tasks.length, 1);
+  assert.deepEqual(recorded.listParams, [
+    3,
+    false,
+    [2],
+    [],
+    false,
+    false,
+    "%dava%",
+    "Yeni Atandi",
+    "Devam Ediyor",
+    "Beklemede",
+    "Yuksek",
+  ]);
+  assert.match(recorded.listSql, /order by g\.bitistarihi asc/i);
+});
+
+test("task list ignores invalid sort values and keeps default ordering", async () => {
+  const response = await authenticated(
+    request(app).get("/api/tasks?sortBy=unknown&sortOrder=sideways"),
+    3,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.tasks.length, 1);
+  assert.match(recorded.listSql, /order by\s+case when \$6::boolean then g\.arsivlenmetarihi end desc nulls last/i);
+});
+
+test("task list paginates database results and returns metadata", async () => {
+  const response = await authenticated(
+    request(app).get("/api/tasks?search=dava&status=open&sortBy=due_date&sortOrder=asc&page=2&limit=10"),
+    3,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.tasks.length, 1);
+  assert.equal(response.body.pagination.page, 2);
+  assert.equal(response.body.pagination.limit, 10);
+  assert.equal(response.body.pagination.total, 47);
+  assert.equal(response.body.pagination.totalPages, 5);
+  assert.match(recorded.listSql, /limit\s+\$11\s+offset\s+\$12/i);
 });
 
 test("group manager can list archived tasks in managed scope", async () => {

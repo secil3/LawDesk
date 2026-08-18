@@ -17,6 +17,7 @@ body {
   min-height: 100vh;
   margin: 0;
 }
+/* Keep sensible defaults for form buttons; navigation buttons are overridden below */
 
 button,
 input,
@@ -25,18 +26,364 @@ textarea {
   font: inherit;
 }
 
+/* Button design system - base styles */
+button {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  height: 40px;
+  border-radius: 10px;
+  transition: background 160ms ease, transform 120ms ease, box-shadow 160ms ease;
+}
+
+button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.18);
+  outline-offset: 3px;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Primary: apply to submit buttons and explicit .btn-primary */
+button[type="submit"],
+.btn-primary {
+  background: #1d4ed8;
+  color: white;
+  box-shadow: 0 6px 18px rgba(29,78,216,0.08);
+}
+
+button[type="submit"]:hover:not(:disabled),
+.btn-primary:hover:not(:disabled) {
+  background: #1e40af;
+  transform: translateY(-1px);
+}
+
+/* Secondary */
+.btn-secondary,
+.secondary-button {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.btn-secondary:hover:not(:disabled),
+.secondary-button:hover:not(:disabled) {
+  background: #cbd5e1;
+}
+
+/* Danger */
+.btn-danger,
+.danger-button {
+  background: #dc2626;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled),
+.danger-button:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+/* Ghost / link-like */
+.btn-ghost {
+  background: transparent;
+  color: #1d4ed8;
+  padding: 6px 8px;
+  height: auto;
+}
+
+/* Icon-only */
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  border-radius: 10px;
+  display: inline-grid;
+  place-items: center;
+}
+
+/* Restore mapping for existing utility classes */
+.restore-button {
+  background: #0f766e;
+  color: white;
+}
+
+.restore-button:hover:not(:disabled) {
+  background: #115e59;
+}
+
+/* Ensure auth forms keep full-width buttons when intended */
+.auth-page button {
+  width: 100%;
+}
+
 .auth-page {
   display: grid;
   min-height: 100vh;
   place-items: center;
   padding: 24px;
   background:
+/* Public navbar (top) */
     radial-gradient(
       circle at top left,
       rgba(37, 99, 235, 0.14),
       transparent 34%
     ),
     linear-gradient(145deg, #f8fafc, #e8eef7);
+}
+
+.public-navbar {
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 20px;
+  background: transparent;
+}
+
+.public-navbar .nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.public-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.public-nav .nav-link {
+  background: transparent;
+  color: inherit;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.public-nav .nav-link:hover {
+  background: rgba(37,99,235,0.08);
+}
+
+.public-nav .nav-link.active {
+  color: #1d4ed8;
+  background: rgba(37,99,235,0.08);
+}
+
+/* Header nav links use subtle button appearance */
+.public-nav .nav-link {
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+/* App shell and sidebar for authenticated area */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--background, #f8fafc);
+}
+
+.sidebar {
+  width: 250px;
+  min-width: 220px;
+  max-width: 280px;
+  background: #ffffff;
+  border-right: 1px solid #e6eef7;
+  padding: 20px;
+  box-shadow: 0 6px 20px rgba(15,23,42,0.04);
+  box-sizing: border-box;
+  position: fixed;
+  inset: 0 auto 0 0;
+}
+
+.app-content {
+  margin-left: 250px;
+  padding: 28px;
+  width: calc(100% - 250px);
+}
+
+.sidebar .sidebar-brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.sidebar-link {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.sidebar-link.active {
+  background: rgba(37,99,235,0.06);
+  color: #1d4ed8;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.user-pill {
+  background: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 12px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.logout-button {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: #0f172a;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.logout-button:hover {
+  background: #feeaea00;
+  border-color: #1d4ed8;
+  color: #1d4ed8;
+}
+
+/* Page shell container for consistent spacing */
+.page-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Landing / Home */
+.landing-page .hero-section {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 24px;
+  align-items: center;
+  margin: 28px 0 40px;
+}
+
+.hero-copy h1 {
+  font-size: clamp(1.8rem, 3.2vw, 2.6rem);
+  margin: 8px 0 12px;
+}
+
+.hero-copy p {
+  color: #475569;
+  max-width: 58ch;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.hero-panel .mini-panel {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.04);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.feature-card {
+  padding: 18px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(15,23,42,0.04);
+}
+
+/* Dashboard stats */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.stat-card {
+  padding: 16px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(15,23,42,0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .landing-page .hero-section {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    border-right: none;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 12px;
+  }
+
+  .app-content {
+    margin-left: 0;
+    width: 100%;
+    padding: 16px;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+  }
 }
 
 .auth-card {
@@ -157,7 +504,8 @@ h1 {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
-button {
+/* Limit full-width primary buttons to auth pages only */
+.auth-page button {
   width: 100%;
   margin-top: 12px;
   padding: 12px 16px;
@@ -1082,4 +1430,89 @@ button:disabled {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Additional public-facing styles */
+.public-nav {
+  /* keep compact and allow horizontal scroll on very small screens */
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.public-nav .nav-link {
+  white-space: nowrap;
+}
+
+.feature-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 160px;
+}
+
+.feature-card h3 {
+  margin-top: 8px;
+}
+
+.feature-card p {
+  margin-top: 8px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.step-card {
+  background: #ffffff;
+  padding: 18px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(15,23,42,0.04);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.step-number {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #eaf2ff;
+  color: #1d4ed8;
+  font-weight: 800;
+  font-size: 1rem;
+  flex: 0 0 auto;
+}
+
+.site-footer {
+  margin-top: 32px;
+  padding: 28px 0;
+}
+
+.site-footer .footer-inner {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.site-footer .footer-nav button {
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  color: #475569;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.site-footer .footer-nav button:hover {
+  color: #1d4ed8;
 }

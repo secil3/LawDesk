@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { readResponse } from "./api";
-import TaskPanel from "./components/TaskPanel";
+import AppRouter from "./router/AppRouter";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -31,6 +31,9 @@ function App() {
     userId: null,
     userName: "",
   });
+  const [currentPath, setCurrentPath] = useState(
+    typeof window !== "undefined" ? window.location.pathname : "/",
+  );
 
   const [groupOptions, setGroupOptions] = useState([]);
   const [groupForm, setGroupForm] = useState({
@@ -370,6 +373,23 @@ function App() {
     };
   }, []);
 
+  const navigate = (path) => {
+    const nextPath = path || "/";
+    setCurrentPath(nextPath);
+    if (typeof window !== "undefined") {
+      window.history.pushState({}, "", nextPath);
+    }
+  };
+
+  useEffect(() => {
+    const onPopState = () => {
+      setCurrentPath(window.location.pathname || "/");
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
   const handleLogin = async (event) => {
     event.preventDefault();
     setError("");
@@ -392,6 +412,7 @@ function App() {
 
       setUser(data.user);
       setPassword("");
+      navigate("/dashboard");
 
       if (data.user?.rol === "admin") {
         await Promise.all([
@@ -533,6 +554,7 @@ function App() {
         memberships: [],
       });
       setTaskPanelRevision(0);
+      navigate("/");
     } catch (requestError) {
       setError(
         requestError.message || "Çıkış işlemi tamamlanamadı",
@@ -591,6 +613,523 @@ function App() {
     }
   };
 
+  const renderGroupsPage = () => {
+    const isAdmin = user?.rol === "admin";
+    const isGroupManager =
+      Array.isArray(user?.groups) &&
+      user.groups.some(
+        (group) => group.grupRolu === "grup_yoneticisi",
+      );
+
+    const displayedUsers =
+      userListMode === "archived" ? archivedUsers : users;
+    const isUserListLoading =
+      userListMode === "archived"
+        ? loadingArchivedUsers
+        : loadingUsers;
+
+    return (
+      <>
+        {isAdmin && (
+          <div className="role-panel admin-panel">
+            <h2>Yönetici paneli</h2>
+            <ul>
+              <li>Kullanıcı erişim yönetimi</li>
+              <li>Grup ve üyelik yönetimi</li>
+              <li>Genel görev takibi</li>
+            </ul>
+
+            {error && (
+              <p className="error-message" role="alert">
+                {error}
+              </p>
+            )}
+
+            {creationMessage && (
+              <p className="success-message" role="status">
+                {creationMessage}
+              </p>
+            )}
+
+            <section className="group-management-panel">
+              <div className="list-heading-with-tabs">
+                <div>
+                  <p className="eyebrow">Erişim yapısı</p>
+                  <h3>Grup yönetimi</h3>
+                </div>
+                <span className="info-chip">
+                  {groupOptions.length} grup
+                </span>
+              </div>
+
+              <form className="group-create-form" onSubmit={handleCreateGroup}>
+                <label>
+                  <span>Yeni grup adı</span>
+                  <input
+                    value={groupForm.name}
+                    onChange={(event) =>
+                      setGroupForm((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                    maxLength={100}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Açıklama</span>
+                  <input
+                    value={groupForm.description}
+                    onChange={(event) =>
+                      setGroupForm((current) => ({
+                        ...current,
+                        description: event.target.value,
+                      }))
+                    }
+                    maxLength={500}
+                  />
+                </label>
+                <button type="submit" disabled={creatingGroup}>
+                  {creatingGroup ? "Oluşturuluyor..." : "Grup oluştur"}
+                </button>
+              </form>
+
+              <div className="group-management-grid">
+                {groupOptions.map((group) => {
+                  const draft = groupDrafts[group.id] || {
+                    name: group.name || "",
+                    description: group.description || "",
+                  };
+                  const unchanged =
+                    draft.name.trim() === group.name &&
+                    draft.description.trim() ===
+                      (group.description || "");
+
+                  return (
+                    <article className="group-management-card" key={group.id}>
+                      <div className="group-stat-row">
+                        <span>{group.memberCount || 0} üye</span>
+                        <span>{group.managerCount || 0} grup yöneticisi</span>
+                      </div>
+                      <label>
+                        <span>Grup adı</span>
+                        <input
+                          value={draft.name}
+                          onChange={(event) =>
+                            setGroupDrafts((current) => ({
+                              ...current,
+                              [group.id]: {
+                                ...draft,
+                                name: event.target.value,
+                              },
+                            }))
+                          }
+                          maxLength={100}
+                        />
+                      </label>
+                      <label>
+                        <span>Açıklama</span>
+                        <input
+                          value={draft.description}
+                          onChange={(event) =>
+                            setGroupDrafts((current) => ({
+                              ...current,
+                              [group.id]: {
+                                ...draft,
+                                description: event.target.value,
+                              },
+                            }))
+                          }
+                          maxLength={500}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => handleUpdateGroup(group.id)}
+                        disabled={
+                          unchanged ||
+                          !draft.name.trim() ||
+                          savingGroupId === group.id
+                        }
+                      >
+                        {savingGroupId === group.id
+                          ? "Kaydediliyor..."
+                          : "Grubu güncelle"}
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+
+            <form className="admin-form" onSubmit={handleCreateUser}>
+              <h3>Kullanıcı oluştur</h3>
+              <p className="form-hint">
+                Admin hesabı ayrı oluşturulur. Bu form yalnızca standart kullanıcı,
+                grup üyesi, grup yöneticisi ve yönetici kayıtları için kullanılır.
+              </p>
+
+              <label htmlFor="admin-user-name">Ad soyad</label>
+              <input
+                id="admin-user-name"
+                value={userForm.adSoyad}
+                onChange={(event) =>
+                  setUserForm((current) => ({
+                    ...current,
+                    adSoyad: event.target.value,
+                  }))
+                }
+                maxLength={150}
+                required
+              />
+
+              <label htmlFor="admin-user-email">E-posta</label>
+              <input
+                id="admin-user-email"
+                type="email"
+                value={userForm.email}
+                onChange={(event) =>
+                  setUserForm((current) => ({
+                    ...current,
+                    email: event.target.value,
+                  }))
+                }
+                maxLength={150}
+                required
+              />
+
+              <label htmlFor="admin-user-password">Şifre</label>
+              <input
+                id="admin-user-password"
+                type="password"
+                value={userForm.password}
+                onChange={(event) =>
+                  setUserForm((current) => ({
+                    ...current,
+                    password: event.target.value,
+                  }))
+                }
+                minLength={8}
+                maxLength={256}
+                required
+              />
+
+              <label htmlFor="admin-user-role">Kayıt tipi</label>
+              <select
+                id="admin-user-role"
+                value={userForm.roleMode}
+                onChange={(event) =>
+                  setUserForm((current) => ({
+                    ...current,
+                    roleMode: event.target.value,
+                  }))
+                }
+              >
+                <option value="kullanici">Standart kullanıcı</option>
+                <option value="grup_uyesi">Grup üyesi</option>
+                <option value="grup_yoneticisi">Grup yöneticisi</option>
+                <option value="yonetici">Yönetici</option>
+              </select>
+
+              {(userForm.roleMode === "grup_uyesi" || userForm.roleMode === "grup_yoneticisi") && (
+                <>
+                  <label>Grup seçimi</label>
+                  <div className="group-toggle" role="group" aria-label="Grup seçimi">
+                    {groupOptions.map((group) => {
+                      const isSelected = Array.isArray(userForm.grupIds)
+                        ? userForm.grupIds.map(String).includes(String(group.id))
+                        : false;
+
+                      return (
+                        <label
+                          key={group.id}
+                          className={`group-chip ${isSelected ? "selected" : ""}`}
+                        >
+                          <input
+                            type="checkbox"
+                            value={group.id}
+                            checked={isSelected}
+                            onChange={() => toggleGroupSelection(group.id)}
+                          />
+                          {group.name}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="form-hint">Birden fazla grup seçebilirsiniz. Kullanıcıya hangi gruplar üzerinden erişim verileceğini buradan belirleyin.</p>
+                </>
+              )}
+
+              <button type="submit" disabled={creatingUser}>
+                {creatingUser ? "Oluşturuluyor..." : "Kullanıcı oluştur"}
+              </button>
+            </form>
+
+            <div className="user-list-panel">
+              <div className="list-heading-with-tabs">
+                <h3>Kullanıcılar</h3>
+                <div className="view-tabs" aria-label="Kullanıcı görünümü">
+                  <button
+                    type="button"
+                    className={userListMode === "active" ? "active" : ""}
+                    onClick={() => setUserListMode("active")}
+                  >
+                    Aktif ({users.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={userListMode === "archived" ? "active" : ""}
+                    onClick={() => setUserListMode("archived")}
+                  >
+                    Arşiv ({archivedUsers.length})
+                  </button>
+                </div>
+              </div>
+
+              {userListMode === "archived" && (
+                <p className="form-hint">
+                  Geri yüklenen kullanıcı güvenlik için pasif açılır. Aktif
+                  sekmesinden ayrıca aktifleştirebilirsiniz.
+                </p>
+              )}
+
+              {isUserListLoading ? (
+                <p>Yükleniyor...</p>
+              ) : displayedUsers.length === 0 ? (
+                <p>
+                  {userListMode === "archived"
+                    ? "Arşivlenmiş kullanıcı bulunmuyor."
+                    : "Henüz kullanıcı oluşturulmadı."}
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+                  {displayedUsers.map((item) => (
+                    <div
+                      key={item.id}
+                      className="user-card-mini"
+                      style={{
+                        background: "white",
+                        borderRadius: 12,
+                        boxShadow: "0 6px 18px rgba(15,23,42,0.06)",
+                        padding: 16,
+                        width: 320,
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        minHeight: 140,
+                        gap: 12,
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                          <div>
+                            <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                              {item.adSoyad}
+                            </div>
+                            <div style={{ color: "#374151", fontSize: 13 }}>{item.email}</div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>
+                              {item.rol === "yonetici" ? "Yönetici" : item.rol === "kullanici" ? "Kullanıcı" : item.rol}
+                            </div>
+                            <div style={{ fontSize: 12, color: "#6b7280" }}>{item.groups && item.groups.length > 0 ? item.groups.map((g) => g.grupAdi).join(", ") : "Grup ataması yok"}</div>
+                          </div>
+                        </div>
+
+                        <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {item.groups && item.groups.length > 0 ? (
+                            item.groups.map((g, idx) => (
+                              <span key={idx} style={{
+                                background: "#eef2ff",
+                                color: "#3730a3",
+                                padding: "4px 8px",
+                                borderRadius: 9999,
+                                fontSize: 12,
+                                fontWeight: 600,
+                              }}>{g.grupAdi} ({g.grupRolu})</span>
+                            ))
+                          ) : (
+                            <span style={{ color: "#9ca3af", fontSize: 13 }}>—</span>
+                          )}
+                          {userListMode === "archived" && (
+                            <span className="archive-chip">
+                              Arşivlenme: {new Date(item.archivedAt).toLocaleString("tr-TR")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="user-card-actions">
+                        {userListMode === "active" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleActive(item.id, !item.aktifMi)}
+                              aria-pressed={item.aktifMi}
+                              style={{
+                                padding: "8px 12px",
+                                borderRadius: 8,
+                                border: "none",
+                                cursor: "pointer",
+                                background: item.aktifMi ? "#16a34a" : "#9ca3af",
+                                color: "white",
+                                fontWeight: 700,
+                              }}
+                              title={item.aktifMi ? "Kullanıcı aktif - tıklayarak pasifleştir" : "Kullanıcı pasif - tıklayarak aktifleştir"}
+                            >
+                              {item.aktifMi ? "Aktif" : "Pasif"}
+                            </button>
+
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => openMembershipEditor(item)}
+                            >
+                              Grupları düzenle
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => openDeleteConfirmation(item.id, item.adSoyad)}
+                              style={{
+                                padding: "8px 12px",
+                                borderRadius: 8,
+                                border: "1px solid #1d4ed8",
+                                background: "#1d4ed8",
+                                color: "white",
+                                cursor: "pointer",
+                                fontWeight: 700,
+                              }}
+                            >
+                              Arşivle
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            className="restore-button"
+                            onClick={() => handleRestoreUser(item.id)}
+                            disabled={restoringUserId === item.id}
+                          >
+                            {restoringUserId === item.id
+                              ? "Geri yükleniyor..."
+                              : "Geri yükle"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {deleteConfirmation.open && (
+              <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title">
+                <div className="confirm-card">
+                  <p className="eyebrow">Onay gerektiriyor</p>
+                  <h3 id="delete-dialog-title">Kullanıcıyı arşivlemek üzeresiniz</h3>
+                  <p>
+                    <strong>{deleteConfirmation.userName}</strong> adlı kullanıcıyı arşivlemek istediğinizden emin misiniz? Kullanıcının geçmiş kayıtları korunacaktır.
+                  </p>
+                  <div className="confirm-actions">
+                    <button type="button" onClick={confirmDeleteUser}>Evet, arşivle</button>
+                    <button type="button" className="secondary-button" onClick={closeDeleteConfirmation}>Vazgeç</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {membershipEditor.open && (
+              <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="membership-dialog-title">
+                <form className="confirm-card membership-card" onSubmit={handleSaveMemberships}>
+                  <p className="eyebrow">Üyelik yönetimi</p>
+                  <h3 id="membership-dialog-title">{membershipEditor.userName} için gruplar</h3>
+                  <p>
+                    Kullanıcının dahil olacağı grupları ve her gruptaki rolünü seçin. Bütün seçimleri kaldırmak da mümkündür.
+                  </p>
+
+                  <div className="membership-list">
+                    {groupOptions.length === 0 ? (
+                      <p>Önce en az bir grup oluşturmalısınız.</p>
+                    ) : (
+                      groupOptions.map((group) => {
+                        const membership = membershipEditor.memberships.find(
+                          (item) => Number(item.grupId) === Number(group.id),
+                        );
+
+                        return (
+                          <div className="membership-row" key={group.id}>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={Boolean(membership)}
+                                onChange={() => toggleMembership(group.id)}
+                              />
+                              <span>{group.name}</span>
+                            </label>
+                            <select
+                              aria-label={`${group.name} grup rolü`}
+                              value={membership?.grupRolu || "grup_uyesi"}
+                              onChange={(event) =>
+                                updateMembershipRole(group.id, event.target.value)
+                              }
+                              disabled={!membership}
+                            >
+                              <option value="grup_uyesi">Grup üyesi</option>
+                              <option value="grup_yoneticisi">Grup yöneticisi</option>
+                            </select>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="confirm-actions">
+                    <button type="submit" disabled={savingMemberships}>
+                      {savingMemberships ? "Kaydediliyor..." : "Üyelikleri kaydet"}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={closeMembershipEditor}
+                      disabled={savingMemberships}
+                    >
+                      Vazgeç
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isAdmin && isGroupManager && (
+          <div className="role-panel manager-panel">
+            <h2>Grup yöneticisi paneli</h2>
+            <ul>
+              <li>Grup üyelerini görüntüle</li>
+              <li>Görev atama ve izleme</li>
+              <li>Grup içi işlemleri yönet</li>
+            </ul>
+          </div>
+        )}
+
+        {!isAdmin && !isGroupManager && (
+          <div className="role-panel user-panel">
+            <h2>Kullanıcı paneli</h2>
+            <ul>
+              <li>Atanmış ve oluşturduğun görevleri gör</li>
+              <li>Oluşturduğun aktif görevleri düzenle</li>
+              <li>Grup içi görevleri takip et</li>
+            </ul>
+          </div>
+        )}
+      </>
+    );
+  };
+
   if (checkingSession) {
     return (
       <main className="auth-page">
@@ -602,684 +1141,23 @@ function App() {
     );
   }
 
-  if (user) {
-    const isAdmin = user.rol === "admin";
-    const isGroupManager =
-      Array.isArray(user.groups) &&
-      user.groups.some(
-        (group) => group.grupRolu === "grup_yoneticisi",
-      );
-    const groupedRoles =
-      Array.isArray(user.groups) && user.groups.length > 0
-        ? user.groups
-            .map(
-              (group) =>
-                `${group.grupAdi} (${group.grupRolu})`,
-            )
-            .join(", ")
-        : "Grup ataması yok";
-    const displayedUsers =
-      userListMode === "archived" ? archivedUsers : users;
-    const isUserListLoading =
-      userListMode === "archived"
-        ? loadingArchivedUsers
-        : loadingUsers;
-
-    return (
-      <main className="auth-page">
-        <section className="auth-card user-card">
-          <p className="eyebrow success">Oturum açık</p>
-          <h1>Hoş geldiniz, {user.adSoyad}</h1>
-          <p>
-            {isAdmin
-              ? "Sistem yöneticisi olarak tüm yönetim alanına erişim sağlıyorsunuz."
-              : isGroupManager
-                ? "Grup yöneticisi olarak görev ve üyelik yönetimini yapabilirsiniz."
-                : "Kullanıcı olarak atanmış ve oluşturduğunuz görevleri takip edebilirsiniz."}
-          </p>
-
-          <div className="role-badges">
-            <span className="info-chip">
-              Sistem rolü: {user.rol}
-            </span>
-            <span className="info-chip">
-              Grup rolleri: {groupedRoles}
-            </span>
-          </div>
-
-          {isAdmin && (
-            <div className="role-panel admin-panel">
-              <h2>Yönetici paneli</h2>
-              <ul>
-                <li>Kullanıcı erişim yönetimi</li>
-                <li>Grup ve üyelik yönetimi</li>
-                <li>Genel görev takibi</li>
-              </ul>
-
-              {error && (
-                <p className="error-message" role="alert">
-                  {error}
-                </p>
-              )}
-
-              {creationMessage && (
-                <p className="success-message" role="status">
-                  {creationMessage}
-                </p>
-              )}
-
-              <section className="group-management-panel">
-                <div className="list-heading-with-tabs">
-                  <div>
-                    <p className="eyebrow">Erişim yapısı</p>
-                    <h3>Grup yönetimi</h3>
-                  </div>
-                  <span className="info-chip">
-                    {groupOptions.length} grup
-                  </span>
-                </div>
-
-                <form
-                  className="group-create-form"
-                  onSubmit={handleCreateGroup}
-                >
-                  <label>
-                    <span>Yeni grup adı</span>
-                    <input
-                      value={groupForm.name}
-                      onChange={(event) =>
-                        setGroupForm((current) => ({
-                          ...current,
-                          name: event.target.value,
-                        }))
-                      }
-                      maxLength={100}
-                      required
-                    />
-                  </label>
-                  <label>
-                    <span>Açıklama</span>
-                    <input
-                      value={groupForm.description}
-                      onChange={(event) =>
-                        setGroupForm((current) => ({
-                          ...current,
-                          description: event.target.value,
-                        }))
-                      }
-                      maxLength={500}
-                    />
-                  </label>
-                  <button type="submit" disabled={creatingGroup}>
-                    {creatingGroup ? "Oluşturuluyor..." : "Grup oluştur"}
-                  </button>
-                </form>
-
-                <div className="group-management-grid">
-                  {groupOptions.map((group) => {
-                    const draft = groupDrafts[group.id] || {
-                      name: group.name || "",
-                      description: group.description || "",
-                    };
-                    const unchanged =
-                      draft.name.trim() === group.name &&
-                      draft.description.trim() ===
-                        (group.description || "");
-
-                    return (
-                      <article className="group-management-card" key={group.id}>
-                        <div className="group-stat-row">
-                          <span>{group.memberCount || 0} üye</span>
-                          <span>{group.managerCount || 0} grup yöneticisi</span>
-                        </div>
-                        <label>
-                          <span>Grup adı</span>
-                          <input
-                            value={draft.name}
-                            onChange={(event) =>
-                              setGroupDrafts((current) => ({
-                                ...current,
-                                [group.id]: {
-                                  ...draft,
-                                  name: event.target.value,
-                                },
-                              }))
-                            }
-                            maxLength={100}
-                          />
-                        </label>
-                        <label>
-                          <span>Açıklama</span>
-                          <input
-                            value={draft.description}
-                            onChange={(event) =>
-                              setGroupDrafts((current) => ({
-                                ...current,
-                                [group.id]: {
-                                  ...draft,
-                                  description: event.target.value,
-                                },
-                              }))
-                            }
-                            maxLength={500}
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => handleUpdateGroup(group.id)}
-                          disabled={
-                            unchanged ||
-                            !draft.name.trim() ||
-                            savingGroupId === group.id
-                          }
-                        >
-                          {savingGroupId === group.id
-                            ? "Kaydediliyor..."
-                            : "Grubu güncelle"}
-                        </button>
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <form className="admin-form" onSubmit={handleCreateUser}>
-                <h3>Kullanıcı oluştur</h3>
-                <p className="form-hint">
-                  Admin hesabı ayrı oluşturulur. Bu form yalnızca standart kullanıcı,
-                  grup üyesi, grup yöneticisi ve yönetici kayıtları için kullanılır.
-                </p>
-
-                <label htmlFor="admin-user-name">Ad soyad</label>
-                <input
-                  id="admin-user-name"
-                  value={userForm.adSoyad}
-                  onChange={(event) =>
-                    setUserForm((current) => ({
-                      ...current,
-                      adSoyad: event.target.value,
-                    }))
-                  }
-                  maxLength={150}
-                  required
-                />
-
-                <label htmlFor="admin-user-email">E-posta</label>
-                <input
-                  id="admin-user-email"
-                  type="email"
-                  value={userForm.email}
-                  onChange={(event) =>
-                    setUserForm((current) => ({
-                      ...current,
-                      email: event.target.value,
-                    }))
-                  }
-                  maxLength={150}
-                  required
-                />
-
-                <label htmlFor="admin-user-password">Şifre</label>
-                <input
-                  id="admin-user-password"
-                  type="password"
-                  value={userForm.password}
-                  onChange={(event) =>
-                    setUserForm((current) => ({
-                      ...current,
-                      password: event.target.value,
-                    }))
-                  }
-                  minLength={8}
-                  maxLength={256}
-                  required
-                />
-
-                <label htmlFor="admin-user-role">Kayıt tipi</label>
-                <select
-                  id="admin-user-role"
-                  value={userForm.roleMode}
-                  onChange={(event) =>
-                    setUserForm((current) => ({
-                      ...current,
-                      roleMode: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="kullanici">Standart kullanıcı</option>
-                  <option value="grup_uyesi">Grup üyesi</option>
-                  <option value="grup_yoneticisi">Grup yöneticisi</option>
-                  <option value="yonetici">Yönetici</option>
-                </select>
-
-                {(userForm.roleMode === "grup_uyesi" || userForm.roleMode === "grup_yoneticisi") && (
-                  <>
-                    <label>Grup seçimi</label>
-                    <div className="group-toggle" role="group" aria-label="Grup seçimi">
-                      {groupOptions.map((group) => {
-                        const isSelected = Array.isArray(userForm.grupIds)
-                          ? userForm.grupIds.map(String).includes(String(group.id))
-                          : false;
-
-                        return (
-                          <label
-                            key={group.id}
-                            className={`group-chip ${isSelected ? "selected" : ""}`}
-                          >
-                            <input
-                              type="checkbox"
-                              value={group.id}
-                              checked={isSelected}
-                              onChange={() => toggleGroupSelection(group.id)}
-                            />
-                            {group.name}
-                          </label>
-                        );
-                      })}
-                    </div>
-                    <p className="form-hint">Birden fazla grup seçebilirsiniz. Kullanıcıya hangi gruplar üzerinden erişim verileceğini buradan belirleyin.</p>
-                  </>
-                )}
-
-                <button type="submit" disabled={creatingUser}>
-                  {creatingUser ? "Oluşturuluyor..." : "Kullanıcı oluştur"}
-                </button>
-              </form>
-
-              <div className="user-list-panel">
-                <div className="list-heading-with-tabs">
-                  <h3>Kullanıcılar</h3>
-                  <div className="view-tabs" aria-label="Kullanıcı görünümü">
-                    <button
-                      type="button"
-                      className={userListMode === "active" ? "active" : ""}
-                      onClick={() => setUserListMode("active")}
-                    >
-                      Aktif ({users.length})
-                    </button>
-                    <button
-                      type="button"
-                      className={userListMode === "archived" ? "active" : ""}
-                      onClick={() => setUserListMode("archived")}
-                    >
-                      Arşiv ({archivedUsers.length})
-                    </button>
-                  </div>
-                </div>
-
-                {userListMode === "archived" && (
-                  <p className="form-hint">
-                    Geri yüklenen kullanıcı güvenlik için pasif açılır. Aktif
-                    sekmesinden ayrıca aktifleştirebilirsiniz.
-                  </p>
-                )}
-
-                {isUserListLoading ? (
-                  <p>Yükleniyor...</p>
-                ) : displayedUsers.length === 0 ? (
-                  <p>
-                    {userListMode === "archived"
-                      ? "Arşivlenmiş kullanıcı bulunmuyor."
-                      : "Henüz kullanıcı oluşturulmadı."}
-                  </p>
-                ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-                {displayedUsers.map((item) => (
-                  <div
-                    key={item.id}
-                    className="user-card-mini"
-                    style={{
-                      background: 'white',
-                      borderRadius: 12,
-                      boxShadow: '0 6px 18px rgba(15,23,42,0.06)',
-                      padding: 16,
-                      width: 320,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      minHeight: 140,
-                      gap: 12,
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                        <div>
-                          <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                            {item.adSoyad}
-                          </div>
-                          <div style={{ color: '#374151', fontSize: 13 }}>{item.email}</div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 13, color: '#111827', fontWeight: 600 }}>
-                            {item.rol === 'yonetici' ? 'Yönetici' : item.rol === 'kullanici' ? 'Kullanıcı' : item.rol}
-                          </div>
-                          <div style={{ fontSize: 12, color: '#6b7280' }}>{item.groups && item.groups.length > 0 ? item.groups.map((g) => g.grupAdi).join(', ') : 'Grup ataması yok'}</div>
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        {item.groups && item.groups.length > 0 ? (
-                          item.groups.map((g, idx) => (
-                            <span key={idx} style={{
-                              background: '#eef2ff',
-                              color: '#3730a3',
-                              padding: '4px 8px',
-                              borderRadius: 9999,
-                              fontSize: 12,
-                              fontWeight: 600,
-                            }}>{g.grupAdi} ({g.grupRolu})</span>
-                          ))
-                        ) : (
-                          <span style={{ color: '#9ca3af', fontSize: 13 }}>—</span>
-                        )}
-                        {userListMode === "archived" && (
-                          <span className="archive-chip">
-                            Arşivlenme: {new Date(item.archivedAt).toLocaleString("tr-TR")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="user-card-actions">
-                      {userListMode === "active" ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleActive(item.id, !item.aktifMi)}
-                            aria-pressed={item.aktifMi}
-                            style={{
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              border: 'none',
-                              cursor: 'pointer',
-                              background: item.aktifMi ? '#16a34a' : '#9ca3af',
-                              color: 'white',
-                              fontWeight: 700,
-                            }}
-                            title={item.aktifMi ? 'Kullanıcı aktif - tıklayarak pasifleştir' : 'Kullanıcı pasif - tıklayarak aktifleştir'}
-                          >
-                            {item.aktifMi ? 'Aktif' : 'Pasif'}
-                          </button>
-
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            onClick={() => openMembershipEditor(item)}
-                          >
-                            Grupları düzenle
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => openDeleteConfirmation(item.id, item.adSoyad)}
-                            style={{
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              border: '1px solid #1d4ed8',
-                              background: '#1d4ed8',
-                              color: 'white',
-                              cursor: 'pointer',
-                              fontWeight: 700,
-                            }}
-                          >
-                            Arşivle
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          className="restore-button"
-                          onClick={() => handleRestoreUser(item.id)}
-                          disabled={restoringUserId === item.id}
-                        >
-                          {restoringUserId === item.id
-                            ? "Geri yükleniyor..."
-                            : "Geri yükle"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                </div>
-                )}
-              </div>
-
-              {deleteConfirmation.open && (
-                <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title">
-                  <div className="confirm-card">
-                    <p className="eyebrow">Onay gerektiriyor</p>
-                    <h3 id="delete-dialog-title">Kullanıcıyı arşivlemek üzeresiniz</h3>
-                    <p>
-                      <strong>{deleteConfirmation.userName}</strong> adlı kullanıcıyı arşivlemek istediğinizden emin misiniz? Kullanıcının geçmiş kayıtları korunacaktır.
-                    </p>
-                    <div className="confirm-actions">
-                      <button type="button" onClick={confirmDeleteUser}>
-                        Evet, arşivle
-                      </button>
-                      <button type="button" className="secondary-button" onClick={closeDeleteConfirmation}>
-                        Vazgeç
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {membershipEditor.open && (
-                <div
-                  className="modal-overlay"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="membership-dialog-title"
-                >
-                  <form
-                    className="confirm-card membership-card"
-                    onSubmit={handleSaveMemberships}
-                  >
-                    <p className="eyebrow">Üyelik yönetimi</p>
-                    <h3 id="membership-dialog-title">
-                      {membershipEditor.userName} için gruplar
-                    </h3>
-                    <p>
-                      Kullanıcının dahil olacağı grupları ve her gruptaki
-                      rolünü seçin. Bütün seçimleri kaldırmak da mümkündür.
-                    </p>
-
-                    <div className="membership-list">
-                      {groupOptions.length === 0 ? (
-                        <p>Önce en az bir grup oluşturmalısınız.</p>
-                      ) : (
-                        groupOptions.map((group) => {
-                          const membership =
-                            membershipEditor.memberships.find(
-                              (item) =>
-                                Number(item.grupId) === Number(group.id),
-                            );
-
-                          return (
-                            <div className="membership-row" key={group.id}>
-                              <label>
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(membership)}
-                                  onChange={() => toggleMembership(group.id)}
-                                />
-                                <span>{group.name}</span>
-                              </label>
-                              <select
-                                aria-label={`${group.name} grup rolü`}
-                                value={membership?.grupRolu || "grup_uyesi"}
-                                onChange={(event) =>
-                                  updateMembershipRole(
-                                    group.id,
-                                    event.target.value,
-                                  )
-                                }
-                                disabled={!membership}
-                              >
-                                <option value="grup_uyesi">Grup üyesi</option>
-                                <option value="grup_yoneticisi">
-                                  Grup yöneticisi
-                                </option>
-                              </select>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    <div className="confirm-actions">
-                      <button type="submit" disabled={savingMemberships}>
-                        {savingMemberships
-                          ? "Kaydediliyor..."
-                          : "Üyelikleri kaydet"}
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={closeMembershipEditor}
-                        disabled={savingMemberships}
-                      >
-                        Vazgeç
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-            </div>
-          )}
-
-          {!isAdmin && isGroupManager && (
-            <div className="role-panel manager-panel">
-              <h2>Grup yöneticisi paneli</h2>
-              <ul>
-                <li>Grup üyelerini görüntüle</li>
-                <li>Görev atama ve izleme</li>
-                <li>Grup içi işlemleri yönet</li>
-              </ul>
-            </div>
-          )}
-
-          {!isAdmin && !isGroupManager && (
-            <div className="role-panel user-panel">
-              <h2>Kullanıcı paneli</h2>
-              <ul>
-                <li>Atanmış ve oluşturduğun görevleri gör</li>
-                <li>Oluşturduğun aktif görevleri düzenle</li>
-                <li>Grup içi görevleri takip et</li>
-              </ul>
-            </div>
-          )}
-
-          <TaskPanel refreshKey={taskPanelRevision} />
-
-          <dl className="user-details">
-            <div>
-              <dt>E-posta</dt>
-              <dd>{user.email}</dd>
-            </div>
-
-            <div>
-              <dt>Sistem rolü</dt>
-              <dd>{user.rol}</dd>
-            </div>
-          </dl>
-
-          {error && (
-            <p className="error-message" role="alert">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={submitting}
-          >
-            {submitting
-              ? "Çıkış yapılıyor..."
-              : "Çıkış yap"}
-          </button>
-        </section>
-      </main>
-    );
-  }
-
   return (
-    <main className="auth-page">
-      <section
-        className="auth-card"
-        aria-labelledby="login-title"
-      >
-        <header className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            L
-          </span>
-
-          <div>
-            <p className="brand-name">LawDesk</p>
-            <p className="brand-subtitle">
-              Görev Yönetim Sistemi
-            </p>
-          </div>
-        </header>
-
-        <div className="auth-heading">
-          <p className="eyebrow">Güvenli giriş</p>
-          <h1 id="login-title">
-            Hesabınıza giriş yapın
-          </h1>
-          <p>
-            Devam etmek için kurum hesabınızı kullanın.
-          </p>
-        </div>
-
-        <form
-          className="login-form"
-          onSubmit={handleLogin}
-        >
-          <label htmlFor="email">E-posta</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="username"
-            value={email}
-            onChange={(event) =>
-              setEmail(event.target.value)
-            }
-            maxLength={150}
-            required
-          />
-
-          <label htmlFor="password">Şifre</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) =>
-              setPassword(event.target.value)
-            }
-            maxLength={256}
-            required
-          />
-
-          {error && (
-            <p className="error-message" role="alert">
-              {error}
-            </p>
-          )}
-
-          <button type="submit" disabled={submitting}>
-            {submitting
-              ? "Giriş yapılıyor..."
-              : "Giriş yap"}
-          </button>
-        </form>
-      </section>
-    </main>
+    <AppRouter
+      user={user}
+      checkingSession={checkingSession}
+      currentPath={currentPath}
+      navigate={navigate}
+      onLogout={handleLogout}
+      email={email}
+      setEmail={setEmail}
+      password={password}
+      setPassword={setPassword}
+      error={error}
+      submitting={submitting}
+      handleLogin={handleLogin}
+      taskPanelRevision={taskPanelRevision}
+      renderGroupsPage={renderGroupsPage}
+    />
   );
 }
 
