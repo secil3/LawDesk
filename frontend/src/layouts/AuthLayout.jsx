@@ -1,4 +1,10 @@
-function AuthLayout({ user, children, currentPath, onNavigate, onLogout }) {
+function AuthLayout({
+  user,
+  children,
+  currentPath,
+  onNavigate,
+  onLogout,
+}) {
   const menuItems = [
     { label: "Ana Sayfa", path: "/dashboard" },
     { label: "Görevler", path: "/tasks" },
@@ -18,12 +24,19 @@ function AuthLayout({ user, children, currentPath, onNavigate, onLogout }) {
           </div>
         </div>
 
-        <nav className="sidebar-nav" aria-label="Uygulama menüsü">
+        <nav
+          className="sidebar-nav"
+          aria-label="Uygulama menüsü"
+        >
           {menuItems.map((item) => (
             <button
               key={item.path}
               type="button"
-              className={currentPath === item.path ? "sidebar-link active" : "sidebar-link"}
+              className={
+                currentPath === item.path
+                  ? "sidebar-link active"
+                  : "sidebar-link"
+              }
               onClick={() => onNavigate(item.path)}
             >
               {item.label}
@@ -33,23 +46,24 @@ function AuthLayout({ user, children, currentPath, onNavigate, onLogout }) {
 
         <div className="sidebar-footer">
           <div className="user-pill">
-            <span>{user?.adSoyad || user?.email || "Kullanıcı"}</span>
+            <span>
+              {user?.adSoyad ||
+                user?.email ||
+                "Kullanıcı"}
+            </span>
           </div>
-          <button type="button" className="logout-button" onClick={onLogout}>
+
+          <button
+            type="button"
+            className="logout-button"
+            onClick={onLogout}
+          >
             Çıkış Yap
           </button>
         </div>
       </aside>
 
-      <div className="app-content">
-        <header className="app-header">
-          <div>
-            <p className="eyebrow">LawDesk</p>
-            <h1>Uygulama kontrol paneli</h1>
-          </div>
-        </header>
-        {children}
-      </div>
+      <div className="app-content">{children}</div>
     </div>
   );
 }
