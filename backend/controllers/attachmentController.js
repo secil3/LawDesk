@@ -201,7 +201,7 @@ exports.listTaskAttachments = async (req, res) => {
       `SELECT e.ekid AS "id",
               e.dosyaadi AS "fileName",
               e.dosyaboyutubyte AS "size",
-              e.mimeturu AS "mimeType",
+              NULL::text AS "mimeType",
               e.yukleyenkullaniciid AS "uploaderId",
               uploader.adsoyad AS "uploaderName",
               e.yuklenmetarihi AS "uploadedAt"
@@ -209,7 +209,6 @@ exports.listTaskAttachments = async (req, res) => {
        JOIN kullanicilar uploader
          ON uploader.kullaniciid = e.yukleyenkullaniciid
        WHERE e.gorevid = $1
-         AND e.silindimi = FALSE
        ORDER BY e.yuklenmetarihi DESC, e.ekid DESC`,
       [taskId],
     );
@@ -253,6 +252,7 @@ exports.createTaskAttachment = async (req, res) => {
     }
 
     const originalName = normalizeOriginalName(req.file.originalname);
+    const fileBytes = await fs.readFile(req.file.path);
 
     const result = await db.withTransaction(async (transactionQuery) => {
       const task = await findVisibleTask(
@@ -265,8 +265,7 @@ exports.createTaskAttachment = async (req, res) => {
       const countResult = await transactionQuery(
         `SELECT COUNT(*) AS "count"
          FROM ekler
-         WHERE gorevid = $1
-           AND silindimi = FALSE`,
+         WHERE gorevid = $1`,
         [taskId],
       );
 
@@ -282,22 +281,22 @@ exports.createTaskAttachment = async (req, res) => {
            (gorevid,
             dosyaadi,
             dosyayolu,
+            dosyaverisi,
             dosyaboyutubyte,
-            mimeturu,
             yukleyenkullaniciid)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING ekid AS "id",
                    dosyaadi AS "fileName",
                    dosyaboyutubyte AS "size",
-                   mimeturu AS "mimeType",
+                   NULL::text AS "mimeType",
                    yukleyenkullaniciid AS "uploaderId",
                    yuklenmetarihi AS "uploadedAt"`,
         [
           taskId,
           originalName,
           req.file.filename,
+          fileBytes,
           req.file.size,
-          req.file.mimetype,
           req.user.id,
         ],
       );
@@ -351,45 +350,63 @@ exports.downloadTaskAttachment = async (req, res) => {
       `SELECT ekid AS "id",
               dosyaadi AS "fileName",
               dosyayolu AS "storedName",
-              mimeturu AS "mimeType"
+              dosyaverisi AS "fileBytes"
        FROM ekler
        WHERE ekid = $1
-         AND gorevid = $2
-         AND silindimi = FALSE`,
+         AND gorevid = $2`,
       [attachmentId, taskId],
     );
 
     const attachment = result.rows[0];
 
-    if (!attachment?.storedName) {
+    if (!attachment) {
       throw createHttpError(404, "Ek dosyası bulunamadı");
     }
 
-    const filePath = resolveStoredFile(attachment.storedName);
+    if (attachment.storedName) {
+      try {
+        const filePath = resolveStoredFile(attachment.storedName);
 
-    try {
-      await fs.access(filePath);
-    } catch (_error) {
-      throw createHttpError(404, "Ek dosyası bulunamadı");
-    }
-
-    return res.download(
-      filePath,
-      attachment.fileName,
-      {
-        headers: {
-          "Cache-Control": "private, no-store",
-          "Content-Type":
-            attachment.mimeType || "application/octet-stream",
-          "X-Content-Type-Options": "nosniff",
-        },
-      },
-      (error) => {
-        if (error && !res.headersSent) {
-          sendError(res, error, "Ek dosyası indirilemedi");
+        try {
+          await fs.access(filePath);
+        } catch (_error) {
+          if (!attachment.fileBytes) {
+            throw createHttpError(404, "Ek dosyası bulunamadı");
+          }
         }
-      },
-    );
+
+        return res.download(
+          filePath,
+          attachment.fileName,
+          {
+            headers: {
+              "Cache-Control": "private, no-store",
+              "Content-Type": "application/octet-stream",
+              "X-Content-Type-Options": "nosniff",
+            },
+          },
+          (error) => {
+            if (error && !res.headersSent) {
+              sendError(res, error, "Ek dosyası indirilemedi");
+            }
+          },
+        );
+      } catch (_error) {
+        if (!attachment.fileBytes) {
+          throw createHttpError(404, "Ek dosyası bulunamadı");
+        }
+      }
+    }
+
+    if (!attachment.fileBytes) {
+      throw createHttpError(404, "Ek dosyası bulunamadı");
+    }
+
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.attachment(attachment.fileName);
+    return res.send(attachment.fileBytes);
   } catch (error) {
     return sendError(res, error, "Ek dosyası indirilemedi");
   }
@@ -403,7 +420,7 @@ exports.removeTaskAttachment = async (req, res) => {
       "Geçersiz ek id",
     );
 
-    await db.withTransaction(async (transactionQuery) => {
+    const deletedAttachment = await db.withTransaction(async (transactionQuery) => {
       const task = await findVisibleTask(
         transactionQuery,
         req.user,
@@ -414,11 +431,11 @@ exports.removeTaskAttachment = async (req, res) => {
       const attachmentResult = await transactionQuery(
         `SELECT ekid AS "id",
                 dosyaadi AS "fileName",
+                dosyayolu AS "storedName",
                 yukleyenkullaniciid AS "uploaderId"
          FROM ekler
          WHERE ekid = $1
            AND gorevid = $2
-           AND silindimi = FALSE
          FOR UPDATE`,
         [attachmentId, taskId],
       );
@@ -436,17 +453,15 @@ exports.removeTaskAttachment = async (req, res) => {
         );
       }
 
-      const updateResult = await transactionQuery(
-        `UPDATE ekler
-         SET silindimi = TRUE,
-             silinmetarihi = NOW(),
-             silenkullaniciid = $1
-         WHERE ekid = $2
-           AND silindimi = FALSE`,
-        [req.user.id, attachmentId],
+      const deleteResult = await transactionQuery(
+        `DELETE FROM ekler
+         WHERE ekid = $1
+           AND gorevid = $2
+         RETURNING dosyayolu AS "storedName"`,
+        [attachmentId, taskId],
       );
 
-      if (updateResult.rowCount !== 1) {
+      if (deleteResult.rowCount !== 1) {
         throw createHttpError(404, "Ek dosyası bulunamadı");
       }
 
@@ -456,7 +471,20 @@ exports.removeTaskAttachment = async (req, res) => {
         action: "EkKaldirma",
         detail: `${req.user.adSoyad}, "${task.title}" görevindeki "${attachment.fileName}" ekini kaldırdı.`,
       });
+
+      return {
+        storedName: deleteResult.rows[0]?.storedName || attachment.storedName || null,
+      };
     });
+
+    if (deletedAttachment?.storedName) {
+      try {
+        const deletedPath = resolveStoredFile(deletedAttachment.storedName);
+        await removeStoredFile(deletedPath);
+      } catch (cleanupError) {
+        console.error("Silinen ek dosyası diskten temizlenemedi", cleanupError);
+      }
+    }
 
     return res.json({ message: "Ek görevden kaldırıldı" });
   } catch (error) {
