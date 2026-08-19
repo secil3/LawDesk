@@ -27,6 +27,14 @@ const PRIORITY_LABELS = {
   Dusuk: "Düşük",
 };
 
+const STATUS_CLASS_MAP = {
+  "Yeni Atandi": "status-badge status-new",
+  "Devam Ediyor": "status-badge status-progress",
+  Beklemede: "status-badge status-pending",
+  Tamamlandi: "status-badge status-done",
+  "Iptal Edildi": "status-badge status-cancelled",
+};
+
 const formatDate = (value) => {
   if (!value) {
     return "Bitiş tarihi yok";
@@ -55,6 +63,11 @@ function DashboardPage({ user }) {
       : user?.groups?.length
         ? "Grup rolleriniz ve görev kapsamınız doğrultusunda işlem yapabilirsiniz."
         : "Oluşturduğunuz ve doğrudan size atanan görevleri takip edebilirsiniz.";
+
+  const statusBadgeClass = (status) => {
+    const label = STATUS_LABELS[status] || status;
+    return STATUS_CLASS_MAP[label] || "status-badge status-default";
+  };
 
   useEffect(() => {
     let isActive = true;
@@ -117,17 +130,21 @@ function DashboardPage({ user }) {
 
   return (
     <section className="page-shell dashboard-page">
-      <div className="section-header">
-        <div>
+      <header className="dashboard-hero">
+        <div className="dashboard-hero-copy">
           <p className="eyebrow">LawDesk</p>
           <h2>Uygulama kontrol paneli</h2>
           <p className="form-hint">
-            Hoş geldiniz,{" "}
-            {user?.adSoyad || user?.email || "Kullanıcı"}.{" "}
-            {roleText}
+            Hoş geldiniz, {user?.adSoyad || user?.email || "Kullanıcı"}. {roleText}
           </p>
         </div>
-      </div>
+
+        <div className="dashboard-hero-summary">
+          <span className="summary-label">Bu hafta</span>
+          <strong>{summary.activeTasks}</strong>
+          <small>aktif görev</small>
+        </div>
+      </header>
 
       {loading ? (
         <p>Dashboard yükleniyor...</p>
@@ -137,64 +154,40 @@ function DashboardPage({ user }) {
         </p>
       ) : (
         <>
-          <div
-            style={{
-              display: "flex",
-              gap: 16,
-              marginTop: 18,
-              flexWrap: "wrap",
-            }}
-          >
-            <div className="stat-card">
+          <div className="stats-grid dashboard-stats">
+            <div className="stat-card metric-card">
               <span>Toplam görünür görev</span>
-              <strong style={{ fontSize: 28 }}>
-                {summary.totalTasks}
-              </strong>
+              <strong>{summary.totalTasks}</strong>
             </div>
 
-            <div className="stat-card">
+            <div className="stat-card metric-card accent-card">
               <span>Aktif görevler</span>
-              <strong style={{ fontSize: 28 }}>
-                {summary.activeTasks}
-              </strong>
+              <strong>{summary.activeTasks}</strong>
             </div>
 
             {summary.canViewArchive && (
-              <div className="stat-card">
+              <div className="stat-card metric-card soft-card">
                 <span>Arşivlenmiş görevler</span>
-                <strong style={{ fontSize: 28 }}>
-                  {summary.archivedTasks}
-                </strong>
+                <strong>{summary.archivedTasks}</strong>
               </div>
             )}
 
-            <div className="stat-card">
+            <div className="stat-card metric-card muted-card">
               <span>İlgili grup sayısı</span>
-              <strong style={{ fontSize: 28 }}>
-                {summary.groupCount}
-              </strong>
+              <strong>{summary.groupCount}</strong>
             </div>
           </div>
 
-          <section style={{ marginTop: 20 }}>
-            <h3>Görev özeti</h3>
+          <section className="dashboard-section">
+            <div className="section-heading-row">
+              <h3>Görev özeti</h3>
+            </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: 12,
-                marginTop: 12,
-                flexWrap: "wrap",
-              }}
-            >
+            <div className="status-summary-list">
               {Object.entries(summary.statusCounts).map(
                 ([status, count]) => (
-                  <div
-                    key={status}
-                    className="stat-card"
-                    style={{ minWidth: 180 }}
-                  >
-                    <span>
+                  <div key={status} className="status-summary-item">
+                    <span className={statusBadgeClass(status)}>
                       {STATUS_LABELS[status] || status}
                     </span>
                     <strong>{Number(count) || 0}</strong>
@@ -204,83 +197,45 @@ function DashboardPage({ user }) {
             </div>
           </section>
 
-          <section style={{ marginTop: 22 }}>
-            <h3>Aktif görev görünümü</h3>
+          <section className="dashboard-section">
+            <div className="section-heading-row">
+              <h3>Aktif görev görünümü</h3>
+            </div>
 
             {summary.recentTasks.length === 0 ? (
               <div className="task-empty-state">
                 Henüz gösterilecek görev yok.
               </div>
             ) : (
-              <div
-                style={{
-                  marginTop: 12,
-                  display: "grid",
-                  gap: 12,
-                }}
-              >
+              <div className="recent-task-list">
                 {summary.recentTasks.map((task) => (
-                  <article
-                    key={task.id}
-                    className="task-card"
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 12,
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 800 }}>
-                          {task.title}
+                  <article key={task.id} className="task-card recent-task-card">
+                    <div className="recent-task-top">
+                      <div className="recent-task-main">
+                        <div className="recent-task-title-row">
+                          <span className="task-number">Görev #{task.id}</span>
+                          <span className={`priority-badge ${String(task.priority || "Orta").toLowerCase()}`}>
+                            {PRIORITY_LABELS[task.priority] || task.priority || "-"}
+                          </span>
                         </div>
+
+                        <h4>{task.title}</h4>
 
                         {task.description && (
-                          <div
-                            style={{
-                              color: "#475569",
-                              marginTop: 6,
-                            }}
-                          >
+                          <p className="task-description">
                             {task.description}
-                          </div>
+                          </p>
                         )}
                       </div>
+                    </div>
 
-                      <div
-                        style={{
-                          minWidth: 140,
-                          textAlign: "right",
-                        }}
-                      >
-                        <div style={{ fontWeight: 700 }}>
-                          {PRIORITY_LABELS[task.priority] ||
-                            task.priority ||
-                            "-"}
-                        </div>
-
-                        <div
-                          style={{
-                            color: "#64748b",
-                            fontSize: 13,
-                          }}
-                        >
-                          {STATUS_LABELS[task.status] ||
-                            task.status ||
-                            "-"}
-                        </div>
-
-                        <div
-                          style={{
-                            color: "#6b7280",
-                            fontSize: 12,
-                            marginTop: 8,
-                          }}
-                        >
-                          {formatDate(task.dueDate)}
-                        </div>
-                      </div>
+                    <div className="recent-task-footer">
+                      <span className={statusBadgeClass(task.status)}>
+                        {STATUS_LABELS[task.status] || task.status || "-"}
+                      </span>
+                      <span className="task-date">
+                        {formatDate(task.dueDate)}
+                      </span>
                     </div>
                   </article>
                 ))}

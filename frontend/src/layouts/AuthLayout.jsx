@@ -9,6 +9,7 @@ function AuthLayout({
     { label: "Ana Sayfa", path: "/dashboard" },
     { label: "Görevler", path: "/tasks" },
     { label: "Gruplar", path: "/groups" },
+    { label: "Kullanıcılar", path: "/users/create" },
     { label: "Bildirimler", path: "/notifications" },
     { label: "Ayarlar", path: "/settings" },
   ];
@@ -16,13 +17,18 @@ function AuthLayout({
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="sidebar-brand">
+        <button
+          type="button"
+          className="sidebar-brand-button"
+          onClick={() => onNavigate("/dashboard")}
+          aria-label="Ana sayfaya git"
+        >
           <span className="brand-mark">L</span>
-          <div>
+          <div className="brand-meta">
             <strong>LawDesk</strong>
             <small>Panel</small>
           </div>
-        </div>
+        </button>
 
         <nav
           className="sidebar-nav"
