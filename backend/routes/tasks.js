@@ -18,6 +18,18 @@ const {
 } = require("../controllers/dashboardController");
 
 const {
+  authorizeAttachmentUpload,
+  createTaskAttachment,
+  downloadTaskAttachment,
+  listTaskAttachments,
+  removeTaskAttachment,
+} = require("../controllers/attachmentController");
+
+const {
+  uploadSingleAttachment,
+} = require("../middleware/taskAttachmentUpload");
+
+const {
   requireAuth,
   requireSystemRole,
 } = require("../middleware/auth");
@@ -35,6 +47,21 @@ router.get(
 );
 router.get("/", listTasks);
 router.post("/", createTask);
+router.get("/:id/attachments", listTaskAttachments);
+router.post(
+  "/:id/attachments",
+  authorizeAttachmentUpload,
+  uploadSingleAttachment,
+  createTaskAttachment,
+);
+router.get(
+  "/:id/attachments/:attachmentId/download",
+  downloadTaskAttachment,
+);
+router.delete(
+  "/:id/attachments/:attachmentId",
+  removeTaskAttachment,
+);
 router.patch("/:id", updateTask);
 router.patch("/:id/assignment", updateTaskAssignment);
 router.patch("/:id/due-date", updateTaskDueDate);
