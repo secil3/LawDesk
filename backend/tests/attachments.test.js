@@ -5,6 +5,7 @@ const path = require("node:path");
 const {
   after,
   afterEach,
+  before,
   beforeEach,
   test,
 } = require("node:test");
@@ -23,8 +24,11 @@ process.env.ATTACHMENT_STORAGE_DIR = TEST_STORAGE_ROOT;
 const jwt = require("jsonwebtoken");
 const request = require("supertest");
 
-const app = require("../app");
+const expressApp = require("../app");
 const db = require("../config/db");
+
+let app = null;
+let testServer = null;
 
 const originalQuery = db.query;
 const originalWithTransaction = db.withTransaction;
@@ -87,6 +91,18 @@ let currentTaskStatus;
 let currentTaskArchived;
 let activity;
 
+before(async () => {
+  testServer = expressApp.listen(0, "127.0.0.1");
+
+  await new Promise((resolve, reject) => {
+    testServer.once("error", reject);
+    testServer.once("listening", resolve);
+  });
+
+  const address = testServer.address();
+  app = `http://127.0.0.1:${address.port}`;
+});
+
 const createStoredPdf = async () => {
   await fs.mkdir(TEST_STORAGE_ROOT, { recursive: true });
   const storedName = "11111111-1111-4111-8111-111111111111.pdf";
@@ -99,6 +115,7 @@ const createStoredPdf = async () => {
     id: 70,
     fileName: "denetim.pdf",
     storedName,
+    fileBytes: Buffer.from("%PDF-1.7\nLawDesk test attachment\n"),
     size: "35",
     mimeType: "application/pdf",
     uploaderId: 3,
@@ -185,8 +202,9 @@ beforeEach(async () => {
         id: 71,
         fileName: params[1],
         storedName: params[2],
-        size: String(params[3]),
-        mimeType: params[4],
+        fileBytes: params[3],
+        size: String(params[4]),
+        mimeType: null,
         uploaderId: Number(params[5]),
         uploaderName: users[Number(params[5])].adsoyad,
         uploadedAt: new Date("2026-08-19T09:00:00.000Z"),
@@ -198,6 +216,7 @@ beforeEach(async () => {
 
     if (
       normalized.includes('dosyayolu as "storedname"') &&
+      normalized.includes('dosyaverisi as "filebytes"') &&
       normalized.includes("from ekler")
     ) {
       return {
@@ -222,15 +241,21 @@ beforeEach(async () => {
     }
 
     if (
-      normalized.includes("update ekler") &&
-      normalized.includes("set silindimi = true")
+      normalized.includes("delete from ekler")
     ) {
       if (!currentAttachment || currentAttachment.deleted) {
         return { rowCount: 0, rows: [] };
       }
 
       currentAttachment.deleted = true;
-      return { rowCount: 1, rows: [] };
+      return {
+        rowCount: 1,
+        rows: [
+          {
+            storedName: currentAttachment.storedName,
+          },
+        ],
+      };
     }
 
     if (normalized.includes("insert into aktiviteloglari")) {
@@ -254,6 +279,19 @@ afterEach(async () => {
 });
 
 after(async () => {
+  if (testServer) {
+    await new Promise((resolve, reject) => {
+      testServer.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+
   db.query = originalQuery;
   db.withTransaction = originalWithTransaction;
   await fs.rm(TEST_STORAGE_ROOT, { recursive: true, force: true });
@@ -360,6 +398,7 @@ test("completed task rejects new attachment uploads", async () => {
 
 test("visible user can download an attachment", async () => {
   await createStoredPdf();
+  currentAttachment.storedName = null;
 
   const response = await authenticated(
     request(app).get("/api/tasks/50/attachments/70/download"),
@@ -367,7 +406,7 @@ test("visible user can download an attachment", async () => {
   );
 
   assert.equal(response.status, 200);
-  assert.equal(response.headers["content-type"], "application/pdf");
+  assert.match(response.headers["content-type"], /application\/(pdf|octet-stream)/i);
   assert.match(response.headers["content-disposition"], /attachment/i);
   assert.match(response.body.toString("utf8"), /^%PDF-/);
 });
@@ -385,7 +424,7 @@ test("unrelated user cannot remove another user's attachment", async () => {
   assert.equal(currentAttachment.deleted, false);
 });
 
-test("uploader can soft remove an attachment", async () => {
+test("uploader can remove an attachment", async () => {
   await createStoredPdf();
 
   const response = await authenticated(

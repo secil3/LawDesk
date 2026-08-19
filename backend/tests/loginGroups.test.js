@@ -14,8 +14,11 @@ process.env.AUTH_COOKIE_NAME = "lawdesk_test_session";
 const argon2 = require("argon2");
 const request = require("supertest");
 
-const app = require("../app");
+const expressApp = require("../app");
 const db = require("../config/db");
+
+let app = null;
+let testServer = null;
 
 const originalQuery = db.query;
 const testPassword = "GuvenliTestSifresi123!";
@@ -24,6 +27,16 @@ let passwordHash;
 let loginSql;
 
 before(async () => {
+  testServer = expressApp.listen(0, "127.0.0.1");
+
+  await new Promise((resolve, reject) => {
+    testServer.once("error", reject);
+    testServer.once("listening", resolve);
+  });
+
+  const address = testServer.address();
+  app = `http://127.0.0.1:${address.port}`;
+
   passwordHash = await argon2.hash(testPassword, {
     type: argon2.argon2id,
   });
@@ -58,6 +71,19 @@ beforeEach(() => {
 });
 
 after(async () => {
+  if (testServer) {
+    await new Promise((resolve, reject) => {
+      testServer.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+
   db.query = originalQuery;
   await db.close();
 });
