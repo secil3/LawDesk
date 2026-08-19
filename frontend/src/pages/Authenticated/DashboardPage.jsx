@@ -1,21 +1,60 @@
 import { useEffect, useState } from "react";
+
 import { readResponse } from "../../api";
 
+const EMPTY_SUMMARY = {
+  totalTasks: 0,
+  activeTasks: 0,
+  archivedTasks: 0,
+  groupCount: 0,
+  canViewArchive: false,
+  statusCounts: {},
+  recentTasks: [],
+};
+
+const STATUS_LABELS = {
+  "Yeni Atandi": "Yeni Atandı",
+  "Devam Ediyor": "Devam Ediyor",
+  Beklemede: "Beklemede",
+  Tamamlandi: "Tamamlandı",
+  "Iptal Edildi": "İptal Edildi",
+};
+
+const PRIORITY_LABELS = {
+  Kritik: "Kritik",
+  Yuksek: "Yüksek",
+  Orta: "Orta",
+  Dusuk: "Düşük",
+};
+
+const formatDate = (value) => {
+  if (!value) {
+    return "Bitiş tarihi yok";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Bitiş tarihi yok";
+  }
+
+  return date.toLocaleString("tr-TR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+};
+
 function DashboardPage({ user }) {
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [totalTasks, setTotalTasks] = useState(0);
-  const [activeTasks, setActiveTasks] = useState(0);
-  const [archivedTasks, setArchivedTasks] = useState(0);
-  const [groupCount, setGroupCount] = useState(0);
-  const [statusCounts, setStatusCounts] = useState({});
-  const [recentTasks, setRecentTasks] = useState([]);
 
-  const roleText = user?.rol === "admin"
-    ? "Sistem yöneticisi olarak tüm yönetim alanına erişim sağlıyorsunuz."
-    : user?.groups?.length
-      ? "Grup rolleri ve görev takibi alanını kullanabilirsiniz."
-      : "Kullanıcı olarak atanmış ve oluşturduğunuz görevleri takip edebilirsiniz.";
+  const roleText =
+    user?.rol === "admin"
+      ? "Sistem yöneticisi olarak tüm yönetim alanına erişim sağlıyorsunuz."
+      : user?.groups?.length
+        ? "Grup rolleriniz ve görev kapsamınız doğrultusunda işlem yapabilirsiniz."
+        : "Oluşturduğunuz ve doğrudan size atanan görevleri takip edebilirsiniz.";
 
   useEffect(() => {
     let isActive = true;
@@ -25,125 +64,222 @@ function DashboardPage({ user }) {
       setError("");
 
       try {
-        // Active tasks (not archived)
-        const respActive = await fetch("/api/tasks?limit=1", { credentials: "include" });
-        const dataActive = await readResponse(respActive);
-        const activeTotal = Number(dataActive.pagination?.total ?? (Array.isArray(dataActive.tasks) ? dataActive.tasks.length : 0));
+        const response = await fetch(
+          "/api/tasks/dashboard-summary",
+          {
+            credentials: "include",
+          },
+        );
 
-        // Archived tasks
-        const respArchived = await fetch("/api/tasks?archived=true&limit=1", { credentials: "include" });
-        const dataArchived = await readResponse(respArchived);
-        const archivedTotal = Number(dataArchived.pagination?.total ?? (Array.isArray(dataArchived.tasks) ? dataArchived.tasks.length : 0));
+        const data = await readResponse(response);
 
-        // Groups
-        const respGroups = await fetch("/api/admin/groups", { credentials: "include" });
-        const dataGroups = await readResponse(respGroups);
-        const groups = Array.isArray(dataGroups.groups) ? dataGroups.groups : [];
+        if (!isActive) {
+          return;
+        }
 
-        // Status counts - common statuses
-        const statuses = ["Yeni Atandi", "Devam Ediyor", "Beklemede", "Tamamlandi"];
-        const counts = {};
-
-        await Promise.all(statuses.map(async (status) => {
-          try {
-            const r = await fetch(`/api/tasks?status=${encodeURIComponent(status)}&limit=1`, { credentials: "include" });
-            const d = await readResponse(r);
-            counts[status] = Number(d.pagination?.total ?? (Array.isArray(d.tasks) ? d.tasks.length : 0));
-          } catch (e) {
-            counts[status] = 0;
-          }
-        }));
-
-        // Recent tasks (active)
-        const respRecent = await fetch("/api/tasks?limit=6&sortBy=due_date&sortOrder=asc", { credentials: "include" });
-        const dataRecent = await readResponse(respRecent);
-        const recent = Array.isArray(dataRecent.tasks) ? dataRecent.tasks : [];
-
-        if (!isActive) return;
-
-        setActiveTasks(activeTotal);
-        setArchivedTasks(archivedTotal);
-        setTotalTasks(activeTotal + archivedTotal);
-        setGroupCount(groups.length);
-        setStatusCounts(counts);
-        setRecentTasks(recent);
+        setSummary({
+          totalTasks: Number(data.totalTasks) || 0,
+          activeTasks: Number(data.activeTasks) || 0,
+          archivedTasks: Number(data.archivedTasks) || 0,
+          groupCount: Number(data.groupCount) || 0,
+          canViewArchive: data.canViewArchive === true,
+          statusCounts:
+            data.statusCounts &&
+            typeof data.statusCounts === "object"
+              ? data.statusCounts
+              : {},
+          recentTasks: Array.isArray(data.recentTasks)
+            ? data.recentTasks
+            : [],
+        });
       } catch (requestError) {
-        if (!isActive) return;
-        setError(requestError.message || "Panel verileri yüklenemedi");
+        if (!isActive) {
+          return;
+        }
+
+        setError(
+          requestError.message ||
+            "Dashboard bilgileri yüklenemedi",
+        );
       } finally {
-        if (isActive) setLoading(false);
+        if (isActive) {
+          setLoading(false);
+        }
       }
     };
 
     loadDashboard();
 
-    return () => { isActive = false; };
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   return (
     <section className="page-shell dashboard-page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">LAWDesk</p>
+          <p className="eyebrow">LawDesk</p>
           <h2>Uygulama kontrol paneli</h2>
-          <p className="form-hint">Hoş geldiniz, {user?.adSoyad || user?.email || "Kullanıcı"}. {roleText}</p>
+          <p className="form-hint">
+            Hoş geldiniz,{" "}
+            {user?.adSoyad || user?.email || "Kullanıcı"}.{" "}
+            {roleText}
+          </p>
         </div>
       </div>
 
       {loading ? (
-        <p>Yükleniyor...</p>
+        <p>Dashboard yükleniyor...</p>
       ) : error ? (
-        <p className="error-message">{error}</p>
+        <p className="error-message" role="alert">
+          {error}
+        </p>
       ) : (
         <>
-          <div style={{ display: 'flex', gap: 16, marginTop: 18, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 16,
+              marginTop: 18,
+              flexWrap: "wrap",
+            }}
+          >
             <div className="stat-card">
-              <span>Toplam görev</span>
-              <strong style={{ fontSize: 28 }}>{totalTasks}</strong>
+              <span>Toplam görünür görev</span>
+              <strong style={{ fontSize: 28 }}>
+                {summary.totalTasks}
+              </strong>
             </div>
+
             <div className="stat-card">
               <span>Aktif görevler</span>
-              <strong style={{ fontSize: 28 }}>{activeTasks}</strong>
+              <strong style={{ fontSize: 28 }}>
+                {summary.activeTasks}
+              </strong>
             </div>
+
+            {summary.canViewArchive && (
+              <div className="stat-card">
+                <span>Arşivlenmiş görevler</span>
+                <strong style={{ fontSize: 28 }}>
+                  {summary.archivedTasks}
+                </strong>
+              </div>
+            )}
+
             <div className="stat-card">
-              <span>Grup sayısı</span>
-              <strong style={{ fontSize: 28 }}>{groupCount}</strong>
+              <span>İlgili grup sayısı</span>
+              <strong style={{ fontSize: 28 }}>
+                {summary.groupCount}
+              </strong>
             </div>
           </div>
 
           <section style={{ marginTop: 20 }}>
-            <h3>Görev Özeti</h3>
-            <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-              {Object.keys(statusCounts).length === 0 ? (
-                <p>Durum bilgisi bulunmuyor.</p>
-              ) : (
-                Object.entries(statusCounts).map(([status, count]) => (
-                  <div key={status} className="stat-card" style={{ minWidth: 180 }}>
-                    <span>{status}</span>
-                    <strong>{count}</strong>
+            <h3>Görev özeti</h3>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                marginTop: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              {Object.entries(summary.statusCounts).map(
+                ([status, count]) => (
+                  <div
+                    key={status}
+                    className="stat-card"
+                    style={{ minWidth: 180 }}
+                  >
+                    <span>
+                      {STATUS_LABELS[status] || status}
+                    </span>
+                    <strong>{Number(count) || 0}</strong>
                   </div>
-                ))
+                ),
               )}
             </div>
           </section>
 
           <section style={{ marginTop: 22 }}>
-            <h3>Son görevler</h3>
-            {recentTasks.length === 0 ? (
-              <div className="task-empty-state">Henüz gösterilecek görev yok.</div>
+            <h3>Aktif görev görünümü</h3>
+
+            {summary.recentTasks.length === 0 ? (
+              <div className="task-empty-state">
+                Henüz gösterilecek görev yok.
+              </div>
             ) : (
-              <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
-                {recentTasks.map((t) => (
-                  <article key={t.id} className="task-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <div
+                style={{
+                  marginTop: 12,
+                  display: "grid",
+                  gap: 12,
+                }}
+              >
+                {summary.recentTasks.map((task) => (
+                  <article
+                    key={task.id}
+                    className="task-card"
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                      }}
+                    >
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 800 }}>{t.title || t.baslik}</div>
-                        <div style={{ color: '#475569', marginTop: 6 }}>{t.description || t.aciklama || ''}</div>
+                        <div style={{ fontWeight: 800 }}>
+                          {task.title}
+                        </div>
+
+                        {task.description && (
+                          <div
+                            style={{
+                              color: "#475569",
+                              marginTop: 6,
+                            }}
+                          >
+                            {task.description}
+                          </div>
+                        )}
                       </div>
-                      <div style={{ minWidth: 140, textAlign: 'right' }}>
-                        <div style={{ fontWeight: 700 }}>{t.priority || t.oncelik || '-'}</div>
-                        <div style={{ color: '#64748b', fontSize: 13 }}>{t.status || t.durum || '-'}</div>
-                        <div style={{ color: '#6b7280', fontSize: 12, marginTop: 8 }}>{t.dueDate ? new Date(t.dueDate).toLocaleString('tr-TR') : (t.bitisTarihi ? new Date(t.bitisTarihi).toLocaleString('tr-TR') : 'Bitiş tarihi yok')}</div>
+
+                      <div
+                        style={{
+                          minWidth: 140,
+                          textAlign: "right",
+                        }}
+                      >
+                        <div style={{ fontWeight: 700 }}>
+                          {PRIORITY_LABELS[task.priority] ||
+                            task.priority ||
+                            "-"}
+                        </div>
+
+                        <div
+                          style={{
+                            color: "#64748b",
+                            fontSize: 13,
+                          }}
+                        >
+                          {STATUS_LABELS[task.status] ||
+                            task.status ||
+                            "-"}
+                        </div>
+
+                        <div
+                          style={{
+                            color: "#6b7280",
+                            fontSize: 12,
+                            marginTop: 8,
+                          }}
+                        >
+                          {formatDate(task.dueDate)}
+                        </div>
                       </div>
                     </div>
                   </article>

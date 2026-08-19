@@ -15,6 +15,16 @@ import GroupsPage from "../pages/Authenticated/GroupsPage";
 import SettingsPage from "../pages/Authenticated/SettingsPage";
 import NotificationsPage from "../pages/Authenticated/NotificationsPage";
 
+const PUBLIC_ROUTES = ["/", "/features", "/login", "/register"];
+
+const AUTHENTICATED_ROUTES = [
+  "/dashboard",
+  "/tasks",
+  "/groups",
+  "/notifications",
+  "/settings",
+];
+
 function AppRouter({
   user,
   checkingSession,
@@ -31,14 +41,15 @@ function AppRouter({
   taskPanelRevision,
   renderGroupsPage,
 }) {
-  const publicRoutes = ["/", "/features", "/login", "/register"];
-  const authenticatedRoutes = [
-    "/dashboard",
-    "/tasks",
-    "/groups",
-    "/notifications",
-    "/settings",
-  ];
+  useEffect(() => {
+    if (
+      !checkingSession &&
+      user &&
+      PUBLIC_ROUTES.includes(currentPath)
+    ) {
+      navigate("/dashboard");
+    }
+  }, [checkingSession, currentPath, navigate, user]);
 
   const renderPublicPage = () => {
     switch (currentPath) {
@@ -69,12 +80,14 @@ function AppRouter({
     switch (currentPath) {
       case "/tasks":
         return (
-          <TasksPage
-            taskPanelRevision={taskPanelRevision}
-          />
+          <TasksPage taskPanelRevision={taskPanelRevision} />
         );
       case "/groups":
-        return <GroupsPage>{renderGroupsPage && renderGroupsPage()}</GroupsPage>;
+        return (
+          <GroupsPage>
+            {renderGroupsPage && renderGroupsPage()}
+          </GroupsPage>
+        );
       case "/notifications":
         return <NotificationsPage />;
       case "/settings":
@@ -85,7 +98,18 @@ function AppRouter({
     }
   };
 
-  if (!user && authenticatedRoutes.includes(currentPath)) {
+  if (checkingSession) {
+    return (
+      <main className="auth-page">
+        <section className="auth-card status-card">
+          <div className="spinner" aria-hidden="true" />
+          <p>Oturum kontrol ediliyor...</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (!user && AUTHENTICATED_ROUTES.includes(currentPath)) {
     return (
       <PublicLayout currentPath={currentPath} onNavigate={navigate}>
         <LoginPage
@@ -110,12 +134,6 @@ function AppRouter({
     );
   }
 
-  useEffect(() => {
-    if (user && publicRoutes.includes(currentPath)) {
-      navigate("/dashboard");
-    }
-  }, [currentPath, navigate, user]);
-
   return (
     <AuthLayout
       user={user}
@@ -126,7 +144,6 @@ function AppRouter({
       <ProtectedRoute
         user={user}
         checkingSession={checkingSession}
-        onNavigate={navigate}
       >
         {renderAuthenticatedPage()}
       </ProtectedRoute>

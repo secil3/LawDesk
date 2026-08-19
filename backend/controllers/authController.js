@@ -1,5 +1,6 @@
 const argon2 = require("argon2");
 const jwt = require("jsonwebtoken");
+
 const db = require("../config/db");
 const { getAuthConfig } = require("../config/auth");
 
@@ -41,10 +42,38 @@ exports.login = async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT kullaniciid, adsoyad, email, sifrehash, rol, aktifmi
-       FROM kullanicilar
-       WHERE LOWER(email) = LOWER($1)
-        AND silindimi = FALSE
+      `SELECT
+         k.kullaniciid,
+         k.adsoyad,
+         k.email,
+         k.sifrehash,
+         k.rol,
+         k.aktifmi,
+         COALESCE(
+           (
+             SELECT json_agg(
+               json_build_object(
+                 'grupId', gu.grupid,
+                 'grupAdi', g.grupadi,
+                 'grupRolu',
+                 CASE gu.gruprolu
+                   WHEN 'uye' THEN 'grup_uyesi'
+                   WHEN 'yonetici' THEN 'grup_yoneticisi'
+                   ELSE gu.gruprolu
+                 END
+               )
+               ORDER BY g.grupadi
+             )
+             FROM grupuyelikleri gu
+             JOIN gruplar g
+               ON g.grupid = gu.grupid
+             WHERE gu.kullaniciid = k.kullaniciid
+           ),
+           '[]'::json
+         ) AS "groups"
+       FROM kullanicilar k
+       WHERE LOWER(k.email) = LOWER($1)
+         AND k.silindimi = FALSE
        LIMIT 1`,
       [email],
     );

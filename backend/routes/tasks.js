@@ -12,6 +12,11 @@ const {
   updateTaskDueDate,
   updateTaskStatus,
 } = require("../controllers/taskController");
+
+const {
+  getDashboardSummary,
+} = require("../controllers/dashboardController");
+
 const {
   requireAuth,
   requireSystemRole,
@@ -21,6 +26,7 @@ const router = express.Router();
 
 router.use(requireAuth);
 
+router.get("/dashboard-summary", getDashboardSummary);
 router.get("/options", getTaskOptions);
 router.get(
   "/activity",

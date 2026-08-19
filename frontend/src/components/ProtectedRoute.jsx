@@ -1,4 +1,4 @@
-function ProtectedRoute({ user, checkingSession, children, onNavigate, redirectTo = "/login" }) {
+function ProtectedRoute({ user, checkingSession, children }) {
   if (checkingSession) {
     return (
       <main className="auth-page">
@@ -11,9 +11,6 @@ function ProtectedRoute({ user, checkingSession, children, onNavigate, redirectT
   }
 
   if (!user) {
-    if (typeof onNavigate === "function") {
-      onNavigate(redirectTo);
-    }
     return null;
   }
 
