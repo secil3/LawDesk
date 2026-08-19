@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const {
   after,
+  before,
   beforeEach,
   test,
 } = require("node:test");
@@ -13,8 +14,11 @@ process.env.AUTH_COOKIE_NAME = "lawdesk_test_session";
 const jwt = require("jsonwebtoken");
 const request = require("supertest");
 
-const app = require("../app");
+const expressApp = require("../app");
 const db = require("../config/db");
+
+let app = null;
+let testServer = null;
 
 const originalQuery = db.query;
 const originalWithTransaction = db.withTransaction;
@@ -114,6 +118,18 @@ let currentTaskDescription;
 let currentTaskPriority;
 let currentTaskTypeId;
 let currentTaskTypeName;
+
+before(async () => {
+  testServer = expressApp.listen(0, "127.0.0.1");
+
+  await new Promise((resolve, reject) => {
+    testServer.once("error", reject);
+    testServer.once("listening", resolve);
+  });
+
+  const address = testServer.address();
+  app = `http://127.0.0.1:${address.port}`;
+});
 
 beforeEach(() => {
   recorded = {
@@ -495,6 +511,19 @@ beforeEach(() => {
 });
 
 after(async () => {
+  if (testServer) {
+    await new Promise((resolve, reject) => {
+      testServer.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+
   db.query = originalQuery;
   db.withTransaction = originalWithTransaction;
   await db.close();

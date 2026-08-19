@@ -1384,6 +1384,11 @@ button:disabled {
   gap: 22px;
 }
 
+.dashboard-page .form-hint {
+  margin: 0;
+  max-width: 62ch;
+}
+
 .dashboard-hero {
   display: flex;
   align-items: flex-end;
@@ -1400,6 +1405,25 @@ button:disabled {
   margin: 8px 0 10px;
   color: #0f172a;
   font-size: clamp(1.8rem, 2vw, 2.5rem);
+}
+
+.dashboard-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.dashboard-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(248, 250, 252, 0.86);
+  color: #334155;
+  font-size: 0.77rem;
+  font-weight: 700;
 }
 
 .dashboard-hero-summary {
@@ -1429,6 +1453,31 @@ button:disabled {
 
 .dashboard-hero-summary small {
   color: rgba(255,255,255,0.72);
+}
+
+.dashboard-state-card {
+  padding: 20px 22px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.03);
+}
+
+.dashboard-state-title {
+  margin: 0;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.dashboard-state-text {
+  margin: 8px 0 0;
+  color: #475569;
+  font-size: 0.92rem;
+}
+
+.dashboard-state-error {
+  border-color: #fecaca;
+  background: #fff7f7;
 }
 
 .dashboard-section {
@@ -1480,9 +1529,54 @@ button:disabled {
   color: #0f172a;
 }
 
+.metric-card small {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
 .accent-card { background: linear-gradient(135deg, rgba(37,99,235,0.08), rgba(191,219,254,0.2)); }
 .soft-card { background: linear-gradient(135deg, rgba(14,165,233,0.06), rgba(125,211,252,0.12)); }
 .muted-card { background: linear-gradient(135deg, rgba(148,163,184,0.08), rgba(226,232,240,0.18)); }
+
+.dashboard-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dashboard-info-card {
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.dashboard-info-card h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.dashboard-info-card p {
+  margin: 10px 0 0;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.dashboard-info-card small {
+  display: block;
+  margin-top: 6px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.dashboard-inline-empty {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+}
 
 .status-summary-list {
   display: grid;
@@ -1585,6 +1679,12 @@ button:disabled {
   margin: 0;
   font-size: 1.08rem;
   color: #0f172a;
+}
+
+.recent-task-card .task-description {
+  margin-top: 8px;
+  color: #475569;
+  line-height: 1.55;
 }
 
 .recent-task-footer {
@@ -2305,6 +2405,10 @@ button:disabled {
 
   .dashboard-hero-summary {
     align-items: flex-start;
+  }
+
+  .dashboard-info-grid {
+    grid-template-columns: 1fr;
   }
 
   .task-panel,

@@ -17,8 +17,11 @@ const argon2 = require("argon2");
 const jwt = require("jsonwebtoken");
 const request = require("supertest");
 
-const app = require("../app");
+const expressApp = require("../app");
 const db = require("../config/db");
+
+let app = null;
+let testServer = null;
 
 let passwordHash;
 
@@ -44,6 +47,16 @@ const createAdminToken = () => {
 };
 
 before(async () => {
+  testServer = expressApp.listen(0, "127.0.0.1");
+
+  await new Promise((resolve, reject) => {
+    testServer.once("error", reject);
+    testServer.once("listening", resolve);
+  });
+
+  const address = testServer.address();
+  app = `http://127.0.0.1:${address.port}`;
+
   passwordHash = await argon2.hash(
     testPassword,
     {
@@ -311,6 +324,19 @@ beforeEach(() => {
 });
 
 after(async () => {
+  if (testServer) {
+    await new Promise((resolve, reject) => {
+      testServer.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+
   db.query = originalQuery;
   db.withTransaction = originalWithTransaction;
   await db.close();

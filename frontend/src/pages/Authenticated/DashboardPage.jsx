@@ -69,6 +69,16 @@ function DashboardPage({ user }) {
     return STATUS_CLASS_MAP[label] || "status-badge status-default";
   };
 
+  const statusItems = Object.entries(summary.statusCounts || {});
+  const hasStatusData = statusItems.length > 0;
+
+  const normalizedRole =
+    user?.rol === "admin"
+      ? "Sistem Yöneticisi"
+      : user?.rol === "yonetici"
+        ? "Yönetici"
+        : "Kullanıcı";
+
   useEffect(() => {
     let isActive = true;
 
@@ -137,64 +147,98 @@ function DashboardPage({ user }) {
           <p className="form-hint">
             Hoş geldiniz, {user?.adSoyad || user?.email || "Kullanıcı"}. {roleText}
           </p>
+          <div className="dashboard-hero-meta">
+            <span className="dashboard-chip">Rol: {normalizedRole}</span>
+            <span className="dashboard-chip">Grup: {summary.groupCount}</span>
+          </div>
         </div>
 
         <div className="dashboard-hero-summary">
-          <span className="summary-label">Bu hafta</span>
+          <span className="summary-label">Aktif görev</span>
           <strong>{summary.activeTasks}</strong>
-          <small>aktif görev</small>
+          <small>güncel takipte</small>
         </div>
       </header>
 
       {loading ? (
-        <p>Dashboard yükleniyor...</p>
+        <section className="dashboard-state-card" aria-live="polite">
+          <p className="dashboard-state-title">Dashboard yükleniyor...</p>
+          <p className="dashboard-state-text">Görev özetleri hazırlanıyor.</p>
+        </section>
       ) : error ? (
-        <p className="error-message" role="alert">
-          {error}
-        </p>
+        <section className="dashboard-state-card dashboard-state-error" role="alert">
+          <p className="dashboard-state-title">Dashboard bilgileri alınamadı</p>
+          <p className="dashboard-state-text">{error}</p>
+        </section>
       ) : (
         <>
           <div className="stats-grid dashboard-stats">
             <div className="stat-card metric-card">
               <span>Toplam görünür görev</span>
               <strong>{summary.totalTasks}</strong>
+              <small>Kapsamınızdaki tüm kayıtlar</small>
             </div>
 
             <div className="stat-card metric-card accent-card">
               <span>Aktif görevler</span>
               <strong>{summary.activeTasks}</strong>
+              <small>İşlem bekleyen görevler</small>
             </div>
 
             {summary.canViewArchive && (
               <div className="stat-card metric-card soft-card">
                 <span>Arşivlenmiş görevler</span>
                 <strong>{summary.archivedTasks}</strong>
+                <small>Geçmiş kayıtlar</small>
               </div>
             )}
 
             <div className="stat-card metric-card muted-card">
               <span>İlgili grup sayısı</span>
               <strong>{summary.groupCount}</strong>
+              <small>Yetki kapsamındaki gruplar</small>
             </div>
           </div>
+
+          <section className="dashboard-section dashboard-info-grid">
+            <article className="dashboard-info-card">
+              <h3>Kullanıcı bilgisi</h3>
+              <p>{user?.adSoyad || "-"}</p>
+              <small>{user?.email || "-"}</small>
+            </article>
+
+            <article className="dashboard-info-card">
+              <h3>Grup kapsamı</h3>
+              <p>{summary.groupCount} grup ile ilişkili</p>
+              <small>Görev görünürlüğü ve yetkiler grup rollerine göre belirlenir.</small>
+            </article>
+
+            <article className="dashboard-info-card">
+              <h3>Bildirim durumu</h3>
+              <p>Güncel bildirim özeti yok</p>
+              <small>Yeni bildirimler oluştuğunda bu alanda listelenir.</small>
+            </article>
+          </section>
 
           <section className="dashboard-section">
             <div className="section-heading-row">
               <h3>Görev özeti</h3>
             </div>
 
-            <div className="status-summary-list">
-              {Object.entries(summary.statusCounts).map(
-                ([status, count]) => (
+            {!hasStatusData ? (
+              <div className="dashboard-inline-empty">Durum bazlı görev özeti bulunamadı.</div>
+            ) : (
+              <div className="status-summary-list">
+                {statusItems.map(([status, count]) => (
                   <div key={status} className="status-summary-item">
                     <span className={statusBadgeClass(status)}>
                       {STATUS_LABELS[status] || status}
                     </span>
                     <strong>{Number(count) || 0}</strong>
                   </div>
-                ),
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="dashboard-section">

@@ -166,7 +166,6 @@ function App() {
       const successMessage = data.message || "Grup başarıyla oluşturuldu";
       setCreationMessage(successMessage);
       setGroupForm({ name: "", description: "" });
-      showToast(successMessage, "success");
       await loadGroups();
       refreshTaskPanel();
     } catch (requestError) {
@@ -203,7 +202,6 @@ function App() {
       const data = await readResponse(response);
       const successMessage = data.message || "Grup güncellendi";
       setCreationMessage(successMessage);
-      showToast(successMessage, "success");
       await Promise.all([loadGroups(), loadUsers()]);
       refreshTaskPanel();
     } catch (requestError) {
@@ -248,7 +246,6 @@ function App() {
       const data = await readResponse(response);
       const successMessage = data.message || "Grup silindi";
       setCreationMessage(successMessage);
-      showToast(successMessage, "success");
       await Promise.all([loadGroups(), loadUsers()]);
       refreshTaskPanel();
     } catch (requestError) {
@@ -360,7 +357,6 @@ function App() {
 
     if (memberships.some((membership) => Number(membership.grupId) === Number(groupId))) {
       setCreationMessage(`${targetUser.adSoyad} kullanıcısı bu gruba zaten atanmış.`);
-      showToast("Kullanıcı bu gruba zaten atanmış", "info");
       return;
     }
 
@@ -389,7 +385,6 @@ function App() {
       const successMessage =
         data.message || `${targetUser.adSoyad} kullanıcısı gruba eklendi`;
       setCreationMessage(successMessage);
-      showToast(successMessage, "success");
       setGroupAssignmentDrafts((current) => ({
         ...current,
         [groupId]: {
@@ -436,7 +431,6 @@ function App() {
       const successMessage =
         data.message || "Grup üyelikleri güncellendi";
       setCreationMessage(successMessage);
-      showToast(successMessage, "success");
       await Promise.all([loadUsers(), loadGroups()]);
       refreshTaskPanel();
       setMembershipEditor({
@@ -601,7 +595,6 @@ function App() {
       const data = await readResponse(response);
       const successMessage = data.message || "Kullanıcı arşivlendi";
       setCreationMessage(successMessage);
-      showToast(successMessage, "success");
       await Promise.all([loadUsers(), loadArchivedUsers()]);
       refreshTaskPanel();
       setUserListMode("archived");
@@ -629,7 +622,6 @@ function App() {
       const data = await readResponse(response);
       const successMessage = data.message || "Kullanıcı geri yüklendi";
       setCreationMessage(successMessage);
-      showToast(successMessage, "success");
       await Promise.all([loadUsers(), loadArchivedUsers()]);
       refreshTaskPanel();
     } catch (requestError) {
@@ -653,7 +645,6 @@ function App() {
       const successMessage = data.message || "Kullanıcı durumu güncellendi";
 
       setCreationMessage(successMessage);
-      showToast(successMessage, "success");
 
       // Update local users state to reflect change without reloading whole list
       setUsers((current) =>
@@ -735,7 +726,6 @@ function App() {
       const successMessage = `Kullanıcı oluşturuldu: ${data.user.email}`;
 
       setCreationMessage(successMessage);
-      showToast(successMessage, "success");
       setUserForm({
         adSoyad: "",
         email: "",
