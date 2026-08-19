@@ -12,6 +12,7 @@ import RegisterPage from "../pages/Public/RegisterPage";
 import DashboardPage from "../pages/Authenticated/DashboardPage";
 import TasksPage from "../pages/Authenticated/TasksPage";
 import GroupsPage from "../pages/Authenticated/GroupsPage";
+import UserCreatePage from "../pages/Authenticated/UserCreatePage";
 import SettingsPage from "../pages/Authenticated/SettingsPage";
 import NotificationsPage from "../pages/Authenticated/NotificationsPage";
 
@@ -21,6 +22,7 @@ const AUTHENTICATED_ROUTES = [
   "/dashboard",
   "/tasks",
   "/groups",
+  "/users/create",
   "/notifications",
   "/settings",
 ];
@@ -40,6 +42,33 @@ function AppRouter({
   handleLogin,
   taskPanelRevision,
   renderGroupsPage,
+  userForm,
+  setUserForm,
+  groupOptions,
+  toggleGroupSelection,
+  creatingUser,
+  handleCreateUser,
+  users,
+  archivedUsers,
+  loadingUsers,
+  loadingArchivedUsers,
+  userListMode,
+  setUserListMode,
+  openMembershipEditor,
+  handleToggleActive,
+  openDeleteConfirmation,
+  handleRestoreUser,
+  restoringUserId,
+  deleteConfirmation,
+  closeDeleteConfirmation,
+  confirmDeleteUser,
+  membershipEditor,
+  closeMembershipEditor,
+  toggleMembership,
+  updateMembershipRole,
+  handleSaveMemberships,
+  savingMemberships,
+  creationMessage,
 }) {
   useEffect(() => {
     if (
@@ -87,6 +116,40 @@ function AppRouter({
           <GroupsPage>
             {renderGroupsPage && renderGroupsPage()}
           </GroupsPage>
+        );
+      case "/users/create":
+        return (
+          <UserCreatePage
+            user={user}
+            userForm={userForm}
+            setUserForm={setUserForm}
+            groupOptions={groupOptions}
+            toggleGroupSelection={toggleGroupSelection}
+            creatingUser={creatingUser}
+            handleCreateUser={handleCreateUser}
+            users={users}
+            archivedUsers={archivedUsers}
+            loadingUsers={loadingUsers}
+            loadingArchivedUsers={loadingArchivedUsers}
+            userListMode={userListMode}
+            setUserListMode={setUserListMode}
+            openMembershipEditor={openMembershipEditor}
+            handleToggleActive={handleToggleActive}
+            openDeleteConfirmation={openDeleteConfirmation}
+            handleRestoreUser={handleRestoreUser}
+            restoringUserId={restoringUserId}
+            deleteConfirmation={deleteConfirmation}
+            closeDeleteConfirmation={closeDeleteConfirmation}
+            confirmDeleteUser={confirmDeleteUser}
+            membershipEditor={membershipEditor}
+            closeMembershipEditor={closeMembershipEditor}
+            toggleMembership={toggleMembership}
+            updateMembershipRole={updateMembershipRole}
+            handleSaveMemberships={handleSaveMemberships}
+            savingMemberships={savingMemberships}
+            error={error}
+            creationMessage={creationMessage}
+          />
         );
       case "/notifications":
         return <NotificationsPage />;

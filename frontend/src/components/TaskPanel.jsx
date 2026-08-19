@@ -22,26 +22,19 @@ const STATUS_LABELS = {
 
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 
-const ACTIVITY_LABELS = {
-  GorevOlusturma: "Görev oluşturma",
-  GorevAtama: "Görev atama",
-  DurumDegisikligi: "Durum değişikliği",
-  GorevArsivleme: "Görev arşivleme",
-  GorevGeriYukleme: "Görev geri yükleme",
-  GorevBilgileriDegisikligi: "Görev bilgileri değişikliği",
-  BitisTarihiDegisikligi: "Bitiş tarihi değişikliği",
-  KullaniciArsivleme: "Kullanıcı arşivleme",
-  KullaniciGeriYukleme: "Kullanıcı geri yükleme",
-  KullaniciGrupUyelikleriDegisikligi: "Kullanıcı üyelik değişikliği",
-  GrupOlusturma: "Grup oluşturma",
-  GrupGuncelleme: "Grup güncelleme",
-};
-
 const PRIORITY_LABELS = {
   Kritik: "Kritik",
   Yuksek: "Yüksek",
   Orta: "Orta",
   Dusuk: "Düşük",
+};
+
+const STATUS_CLASSNAMES = {
+  "Yeni Atandi": "status-badge status-new",
+  "Devam Ediyor": "status-badge status-progress",
+  Beklemede: "status-badge status-pending",
+  Tamamlandi: "status-badge status-done",
+  "Iptal Edildi": "status-badge status-cancelled",
 };
 
 const formatDate = (value) => {
@@ -96,10 +89,6 @@ const assignmentLabel = (task) => {
     return `Kullanıcı: ${task.assignedUserName}`;
   }
 
-  if (task.assignedGroupName) {
-    return `Grup: ${task.assignedGroupName}`;
-  }
-
   return "Henüz atanmadı";
 };
 
@@ -113,7 +102,6 @@ function TaskPanel({ refreshKey = 0 }) {
     groups: [],
     users: [],
   });
-  const [activity, setActivity] = useState([]);
   const [taskForm, setTaskForm] = useState(EMPTY_TASK_FORM);
   const [assignmentDrafts, setAssignmentDrafts] = useState({});
   const [statusDrafts, setStatusDrafts] = useState({});
@@ -137,7 +125,7 @@ function TaskPanel({ refreshKey = 0 }) {
     totalPages: 1,
   });
   const [loading, setLoading] = useState(true);
-  const [loadingActivity, setLoadingActivity] = useState(false);
+  const [toast, setToast] = useState(null);
   const [creating, setCreating] = useState(false);
   const [assigningTaskId, setAssigningTaskId] = useState(null);
   const [updatingStatusTaskId, setUpdatingStatusTaskId] = useState(null);
@@ -238,23 +226,25 @@ function TaskPanel({ refreshKey = 0 }) {
     return normalizedOptions;
   };
 
-  const loadActivity = async () => {
-    setLoadingActivity(true);
-
-    try {
-      const response = await fetch("/api/tasks/activity?limit=50", {
-        credentials: "include",
-      });
-      const data = await readResponse(response);
-      setActivity(Array.isArray(data.activity) ? data.activity : []);
-    } finally {
-      setLoadingActivity(false);
-    }
-  };
-
   useEffect(() => {
     setSearchInput(queryState.search);
   }, [queryState.search]);
+
+  useEffect(() => {
+    if (!toast) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setToast(null);
+    }, 3200);
+
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+  };
 
   useEffect(() => {
     const loadTaskPanel = async () => {
@@ -337,7 +327,7 @@ function TaskPanel({ refreshKey = 0 }) {
       taskForm.assignmentType !== "none" &&
       !taskForm.assignmentId
     ) {
-      setError("Atama için bir kullanıcı veya grup seçiniz");
+      setError("Atama için bir kullanıcı seçiniz");
       return;
     }
 
@@ -364,22 +354,17 @@ function TaskPanel({ refreshKey = 0 }) {
             taskForm.assignmentType === "user"
               ? Number(taskForm.assignmentId)
               : null,
-          atananGrupId:
-            taskForm.assignmentType === "group"
-              ? Number(taskForm.assignmentId)
-              : null,
+          atananGrupId: null,
         }),
       });
 
       const data = await readResponse(response);
-      setMessage(data.message || "Görev oluşturuldu");
+      const successMessage = data.message || "Görev başarıyla oluşturuldu";
+      setMessage(successMessage);
+      showToast(successMessage, "success");
       setTaskForm(EMPTY_TASK_FORM);
       setTaskListMode("active");
       await loadTasks("active");
-
-      if (options.canViewActivity) {
-        await loadActivity();
-      }
     } catch (requestError) {
       setError(requestError.message || "Görev oluşturulamadı");
     } finally {
@@ -393,11 +378,11 @@ function TaskPanel({ refreshKey = 0 }) {
     const targetId = Number(rawTargetId);
 
     if (
-      !["user", "group"].includes(targetType) ||
+      targetType !== "user" ||
       !Number.isInteger(targetId) ||
       targetId < 1
     ) {
-      setError("Atama için bir kullanıcı veya grup seçiniz");
+      setError("Atama için bir kullanıcı seçiniz");
       return;
     }
 
@@ -415,25 +400,21 @@ function TaskPanel({ refreshKey = 0 }) {
           },
           credentials: "include",
           body: JSON.stringify({
-            atananKullaniciId:
-              targetType === "user" ? targetId : null,
-            atananGrupId:
-              targetType === "group" ? targetId : null,
+            atananKullaniciId: targetId,
+            atananGrupId: null,
           }),
         },
       );
 
       const data = await readResponse(response);
-      setMessage(data.message || "Görev ataması güncellendi");
+      const successMessage = data.message || "Görev ataması güncellendi";
+      setMessage(successMessage);
+      showToast(successMessage, "success");
       setAssignmentDrafts((current) => ({
         ...current,
         [taskId]: "",
       }));
       await loadTasks();
-
-      if (options.canViewActivity) {
-        await loadActivity();
-      }
     } catch (requestError) {
       setError(
         requestError.message || "Görev ataması güncellenemedi",
@@ -472,16 +453,14 @@ function TaskPanel({ refreshKey = 0 }) {
       });
 
       const data = await readResponse(response);
-      setMessage(data.message || "Görev durumu güncellendi");
+      const successMessage = data.message || "Görev durumu güncellendi";
+      setMessage(successMessage);
+      showToast(successMessage, "success");
       setStatusDrafts((current) => ({
         ...current,
         [task.id]: "",
       }));
       await loadTasks();
-
-      if (options.canViewActivity) {
-        await loadActivity();
-      }
     } catch (requestError) {
       setError(
         requestError.message || "Görev durumu güncellenemedi",
@@ -511,13 +490,11 @@ function TaskPanel({ refreshKey = 0 }) {
       });
 
       const data = await readResponse(response);
-      setMessage(data.message || "Görev arşivlendi");
+      const successMessage = data.message || "Görev arşivlendi";
+      setMessage(successMessage);
+      showToast(successMessage, "success");
       setTaskListMode("archived");
       await loadTasks("archived");
-
-      if (options.canViewActivity) {
-        await loadActivity();
-      }
     } catch (requestError) {
       setError(requestError.message || "Görev arşivlenemedi");
     } finally {
@@ -604,13 +581,11 @@ function TaskPanel({ refreshKey = 0 }) {
       });
 
       const data = await readResponse(response);
-      setMessage(data.message || "Görev bilgileri güncellendi");
+      const successMessage = data.message || "Değişiklikler kaydedildi";
+      setMessage(successMessage);
+      showToast(successMessage, "success");
       setTaskEditor(null);
       await loadTasks("active");
-
-      if (options.canViewActivity) {
-        await loadActivity();
-      }
     } catch (requestError) {
       setError(requestError.message || "Görev bilgileri güncellenemedi");
     } finally {
@@ -630,12 +605,10 @@ function TaskPanel({ refreshKey = 0 }) {
       });
 
       const data = await readResponse(response);
-      setMessage(data.message || "Görev geri yüklendi");
+      const successMessage = data.message || "Görev geri yüklendi";
+      setMessage(successMessage);
+      showToast(successMessage, "success");
       await loadTasks("archived");
-
-      if (options.canViewActivity) {
-        await loadActivity();
-      }
     } catch (requestError) {
       setError(requestError.message || "Görev geri yüklenemedi");
     } finally {
@@ -809,7 +782,6 @@ function TaskPanel({ refreshKey = 0 }) {
                 >
                   <option value="none">Atamasız oluştur</option>
                   <option value="user">Kullanıcıya ata</option>
-                  <option value="group">Gruba ata</option>
                 </select>
               </label>
 
@@ -830,29 +802,6 @@ function TaskPanel({ refreshKey = 0 }) {
                     {options.users.map((optionUser) => (
                       <option key={optionUser.id} value={optionUser.id}>
                         {optionUser.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-
-              {taskForm.assignmentType === "group" && (
-                <label className="task-field">
-                  <span>Atanacak grup</span>
-                  <select
-                    value={taskForm.assignmentId}
-                    onChange={(event) =>
-                      updateTaskForm(
-                        "assignmentId",
-                        event.target.value,
-                      )
-                    }
-                    required
-                  >
-                    <option value="">Grup seçiniz</option>
-                    {options.groups.map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {group.name}
                       </option>
                     ))}
                   </select>
@@ -933,7 +882,7 @@ function TaskPanel({ refreshKey = 0 }) {
       </div>
 
       <form className="task-toolbar" onSubmit={handleSearchSubmit}>
-        <label className="task-field task-field-wide">
+        <label className="task-field task-field-wide task-search-field">
           <span>Arama</span>
           <input
             type="search"
@@ -943,83 +892,87 @@ function TaskPanel({ refreshKey = 0 }) {
           />
         </label>
 
-        <label className="task-field">
-          <span>Durum</span>
-          <select
-            value={queryState.status}
-            onChange={(event) =>
-              updateQueryState("status", event.target.value)
-            }
-          >
-            <option value="">Tümü</option>
-            {STATUS_OPTIONS.map((status) => (
-              <option key={status} value={status}>
-                {STATUS_LABELS[status] || status}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="task-filter-row">
+          <label className="task-field">
+            <span>Durum</span>
+            <select
+              value={queryState.status}
+              onChange={(event) =>
+                updateQueryState("status", event.target.value)
+              }
+            >
+              <option value="">Tümü</option>
+              {STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {STATUS_LABELS[status] || status}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="task-field">
-          <span>Öncelik</span>
-          <select
-            value={queryState.priority}
-            onChange={(event) =>
-              updateQueryState("priority", event.target.value)
-            }
-          >
-            <option value="">Tümü</option>
-            <option value="Kritik">Kritik</option>
-            <option value="Yuksek">Yüksek</option>
-            <option value="Orta">Orta</option>
-            <option value="Dusuk">Düşük</option>
-          </select>
-        </label>
+          <label className="task-field">
+            <span>Öncelik</span>
+            <select
+              value={queryState.priority}
+              onChange={(event) =>
+                updateQueryState("priority", event.target.value)
+              }
+            >
+              <option value="">Tümü</option>
+              <option value="Kritik">Kritik</option>
+              <option value="Yuksek">Yüksek</option>
+              <option value="Orta">Orta</option>
+              <option value="Dusuk">Düşük</option>
+            </select>
+          </label>
 
-        <label className="task-field">
-          <span>Görev tipi</span>
-          <select
-            value={queryState.taskType}
-            onChange={(event) =>
-              updateQueryState("taskType", event.target.value)
-            }
-          >
-            <option value="">Tümü</option>
-            {options.types.map((type) => (
-              <option key={type.id} value={type.name}>
-                {type.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label className="task-field">
+            <span>Görev tipi</span>
+            <select
+              value={queryState.taskType}
+              onChange={(event) =>
+                updateQueryState("taskType", event.target.value)
+              }
+            >
+              <option value="">Tümü</option>
+              {options.types.map((type) => (
+                <option key={type.id} value={type.name}>
+                  {type.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="task-field">
-          <span>Sırala</span>
-          <select
-            value={queryState.sortBy}
-            onChange={(event) =>
-              updateQueryState("sortBy", event.target.value)
-            }
-          >
-            <option value="due_date">Son tarih</option>
-            <option value="priority">Öncelik</option>
-            <option value="created_at">Oluşturulma</option>
-            <option value="title">Başlık</option>
-          </select>
-        </label>
+          <div className="task-sort-box">
+            <label className="task-field">
+              <span>Sıralama</span>
+              <select
+                value={queryState.sortBy}
+                onChange={(event) =>
+                  updateQueryState("sortBy", event.target.value)
+                }
+              >
+                <option value="due_date">Son tarih</option>
+                <option value="priority">Öncelik</option>
+                <option value="created_at">Oluşturulma</option>
+                <option value="title">Başlık</option>
+              </select>
+            </label>
 
-        <label className="task-field">
-          <span>Yön</span>
-          <select
-            value={queryState.sortOrder}
-            onChange={(event) =>
-              updateQueryState("sortOrder", event.target.value)
-            }
-          >
-            <option value="asc">Artan</option>
-            <option value="desc">Azalan</option>
-          </select>
-        </label>
+            <label className="task-field">
+              <span>Yön</span>
+              <select
+                value={queryState.sortOrder}
+                onChange={(event) =>
+                  updateQueryState("sortOrder", event.target.value)
+                }
+              >
+                <option value="asc">Artan</option>
+                <option value="desc">Azalan</option>
+              </select>
+            </label>
+          </div>
+        </div>
       </form>
 
       {pagination.totalPages > 1 && (
@@ -1128,7 +1081,11 @@ function TaskPanel({ refreshKey = 0 }) {
               <dl className="task-meta">
                 <div>
                   <dt>Durum</dt>
-                  <dd>{STATUS_LABELS[task.status] || task.status}</dd>
+                  <dd>
+                    <span className={STATUS_CLASSNAMES[task.status] || "status-badge status-default"}>
+                      {STATUS_LABELS[task.status] || task.status}
+                    </span>
+                  </dd>
                 </div>
                 <div>
                   <dt>Tip</dt>
@@ -1184,34 +1141,19 @@ function TaskPanel({ refreshKey = 0 }) {
                         }))
                       }
                     >
-                      <option value="">Kullanıcı veya grup seçiniz</option>
-                      {options.groups.length > 0 && (
-                        <optgroup label="Gruplar">
-                          {options.groups.map((group) => (
-                            <option
-                              key={`group-${group.id}`}
-                              value={`group:${group.id}`}
-                            >
-                              {group.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {options.users.length > 0 && (
-                        <optgroup label="Kullanıcılar">
-                          {options.users.map((optionUser) => (
-                            <option
-                              key={`user-${optionUser.id}`}
-                              value={`user:${optionUser.id}`}
-                            >
-                              {optionUser.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
+                      <option value="">Kullanıcı seçiniz</option>
+                      {options.users.map((optionUser) => (
+                        <option
+                          key={`user-${optionUser.id}`}
+                          value={`user:${optionUser.id}`}
+                        >
+                          {optionUser.name}
+                        </option>
+                      ))}
                     </select>
                     <button
                       type="button"
+                      className="secondary-button"
                       onClick={() => handleAssignment(task.id)}
                       disabled={assigningTaskId === task.id}
                     >
@@ -1229,26 +1171,34 @@ function TaskPanel({ refreshKey = 0 }) {
                     <label htmlFor={`task-status-${task.id}`}>
                       Durum bilgisi
                     </label>
-                    <select
-                      id={`task-status-${task.id}`}
-                      value={statusDrafts[task.id] || task.status}
-                      onChange={(event) =>
-                        setStatusDrafts((current) => ({
-                          ...current,
-                          [task.id]: event.target.value,
-                        }))
-                      }
-                      disabled={
-                        updatingStatusTaskId === task.id ||
-                        archivingTaskId === task.id
-                      }
-                    >
-                      {STATUS_OPTIONS.map((status) => (
-                        <option key={status} value={status}>
-                          {STATUS_LABELS[status]}
-                        </option>
-                      ))}
-                    </select>
+
+                    <div className="status-choice-group" aria-label="Durum seçenekleri">
+                      {STATUS_OPTIONS.map((status) => {
+                        const isActive =
+                          (statusDrafts[task.id] || task.status) === status;
+
+                        return (
+                          <button
+                            key={status}
+                            type="button"
+                            id={`task-status-${task.id}-${status}`}
+                            className={`status-choice-button ${isActive ? "active" : ""}`}
+                            onClick={() =>
+                              setStatusDrafts((current) => ({
+                                ...current,
+                                [task.id]: status,
+                              }))
+                            }
+                            disabled={
+                              updatingStatusTaskId === task.id ||
+                              archivingTaskId === task.id
+                            }
+                          >
+                            {STATUS_LABELS[status]}
+                          </button>
+                        );
+                      })}
+                    </div>
 
                     <div className="task-action-buttons">
                       <button
@@ -1265,31 +1215,6 @@ function TaskPanel({ refreshKey = 0 }) {
                         {updatingStatusTaskId === task.id
                           ? "Güncelleniyor..."
                           : "Durumu güncelle"}
-                      </button>
-
-                      <button
-                        type="button"
-                        className="lifecycle-button"
-                        onClick={() =>
-                          handleStatusUpdate(
-                            task,
-                            ["Tamamlandi", "Iptal Edildi"].includes(
-                              task.status,
-                            )
-                              ? "Devam Ediyor"
-                              : "Tamamlandi",
-                          )
-                        }
-                        disabled={
-                          updatingStatusTaskId === task.id ||
-                          archivingTaskId === task.id
-                        }
-                      >
-                        {["Tamamlandi", "Iptal Edildi"].includes(
-                          task.status,
-                        )
-                          ? "Yeniden aç"
-                          : "Kapat"}
                       </button>
 
                       <button
@@ -1454,63 +1379,12 @@ function TaskPanel({ refreshKey = 0 }) {
         </div>
       )}
 
-      {options.canViewActivity && (
-        <section
-          className="activity-panel"
-          aria-labelledby="activity-panel-title"
-        >
-          <div className="task-list-heading">
-            <div>
-              <p className="eyebrow">Denetim izi</p>
-              <h3 id="activity-panel-title">Son işlem kayıtları</h3>
-            </div>
-            <button
-              type="button"
-              className="secondary-button refresh-button"
-              onClick={async () => {
-                setError("");
-
-                try {
-                  await loadActivity();
-                } catch (requestError) {
-                  setError(
-                    requestError.message ||
-                      "İşlem kayıtları yenilenemedi",
-                  );
-                }
-              }}
-              disabled={loadingActivity}
-            >
-              Kayıtları yenile
-            </button>
+      {toast && (
+        <div className="toast-stack" aria-live="polite" aria-atomic="true">
+          <div className={`toast toast-${toast.type}`}>
+            {toast.message}
           </div>
-
-          {loadingActivity ? (
-            <p className="task-empty-state">
-              İşlem kayıtları yükleniyor...
-            </p>
-          ) : activity.length === 0 ? (
-            <p className="task-empty-state">
-              Henüz işlem kaydı bulunmuyor.
-            </p>
-          ) : (
-            <ol className="activity-list">
-              {activity.map((entry) => (
-                <li key={entry.id}>
-                  <div className="activity-entry-heading">
-                    <span>
-                      {ACTIVITY_LABELS[entry.action] || entry.action}
-                    </span>
-                    <time dateTime={entry.createdAt}>
-                      {formatDate(entry.createdAt)}
-                    </time>
-                  </div>
-                  <p>{entry.detail}</p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
+        </div>
       )}
     </section>
   );
