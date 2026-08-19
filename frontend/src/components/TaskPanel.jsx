@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { readResponse } from "../api";
+import TaskAttachments from "./TaskAttachments";
 
 const EMPTY_TASK_FORM = {
   baslik: "",
@@ -1114,6 +1115,20 @@ function TaskPanel({ refreshKey = 0 }) {
                   </div>
                 )}
               </dl>
+
+              <TaskAttachments
+                task={task}
+                onError={(errorMessage) => {
+                  setMessage("");
+                  setError(errorMessage);
+                  showToast(errorMessage, "error");
+                }}
+                onSuccess={(successMessage) => {
+                  setError("");
+                  setMessage(successMessage);
+                  showToast(successMessage, "success");
+                }}
+              />
 
               {task.canEditTask && !task.archived && (
                 <button

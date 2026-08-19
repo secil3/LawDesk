@@ -1927,6 +1927,129 @@ button:disabled {
   color: #0f172a;
 }
 
+.task-attachments {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.attachment-toggle-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.attachment-toggle-button:hover:not(:disabled) {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.attachment-content {
+  padding: 12px 4px 0;
+}
+
+.attachment-empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.attachment-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.attachment-info {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.attachment-info strong {
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: 0.82rem;
+}
+
+.attachment-info span,
+.attachment-upload-row small {
+  color: #64748b;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.attachment-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.attachment-download-link,
+.attachment-remove-button {
+  width: auto;
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.attachment-download-link {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.attachment-remove-button {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
+.attachment-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.attachment-upload-button {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  padding: 8px 11px;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-size: 0.76rem;
+}
+
 .task-edit-card {
   width: min(100%, 680px);
   max-height: calc(100vh - 48px);
@@ -2229,6 +2352,23 @@ button:disabled {
   .activity-entry-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .attachment-item,
+  .attachment-upload-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .attachment-actions {
+    width: 100%;
+  }
+
+  .attachment-download-link,
+  .attachment-remove-button,
+  .attachment-upload-button {
+    flex: 1;
+    text-align: center;
   }
 }
 

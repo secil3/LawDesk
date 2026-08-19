@@ -180,9 +180,13 @@ CREATE TABLE Ekler (
     DosyaYolu           VARCHAR(500),       -- dosya sisteminde şifreli saklanıyorsa
     DosyaVerisi         BYTEA,              -- DB'de saklanıyorsa
     DosyaBoyutuByte     BIGINT NOT NULL,
+    MimeTuru            VARCHAR(150),
     SifrelemeYontemi    VARCHAR(50),
     YukleyenKullaniciID INT NOT NULL REFERENCES Kullanicilar(KullaniciID),
     YuklenmeTarihi      TIMESTAMP NOT NULL DEFAULT NOW(),
+    SilindiMi           BOOLEAN NOT NULL DEFAULT FALSE,
+    SilinmeTarihi       TIMESTAMP,
+    SilenKullaniciID    INT REFERENCES Kullanicilar(KullaniciID),
 
     CHECK (DosyaYolu IS NOT NULL OR DosyaVerisi IS NOT NULL)
 );
