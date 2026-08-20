@@ -99,26 +99,45 @@ const recordUserActivity = async (
 };
 
 exports.listGroups = async (req, res) => {
+  const isSystemViewer = ["admin", "yonetici"].includes(req.user?.rol);
+  const visibleGroupIds = Array.isArray(req.user?.groups)
+    ? req.user.groups
+        .map((group) => Number(group.grupId))
+        .filter((groupId) => Number.isInteger(groupId) && groupId > 0)
+    : [];
+
   try {
-    const result = await db.query(
-      `SELECT g.grupid AS "id",
-              g.grupadi AS "name",
-              g.aciklama AS "description",
-              COUNT(gu.grupuyelikid) FILTER (
-                WHERE member.silindimi = FALSE
-              )::int AS "memberCount",
-              COUNT(gu.grupuyelikid) FILTER (
-                WHERE gu.gruprolu = 'grup_yoneticisi'
-                  AND member.silindimi = FALSE
-              )::int AS "managerCount"
-       FROM gruplar g
-       LEFT JOIN grupuyelikleri gu
-         ON gu.grupid = g.grupid
-       LEFT JOIN kullanicilar member
-         ON member.kullaniciid = gu.kullaniciid
-       GROUP BY g.grupid, g.grupadi, g.aciklama
-       ORDER BY g.grupadi ASC`,
-    );
+    let query = `
+      SELECT g.grupid AS "id",
+             g.grupadi AS "name",
+             g.aciklama AS "description",
+             COUNT(gu.grupuyelikid) FILTER (
+               WHERE member.silindimi = FALSE
+             )::int AS "memberCount",
+             COUNT(gu.grupuyelikid) FILTER (
+               WHERE gu.gruprolu = 'grup_yoneticisi'
+                 AND member.silindimi = FALSE
+             )::int AS "managerCount"
+      FROM gruplar g
+      LEFT JOIN grupuyelikleri gu
+        ON gu.grupid = g.grupid
+      LEFT JOIN kullanicilar member
+        ON member.kullaniciid = gu.kullaniciid`;
+
+    const params = [];
+
+    if (!isSystemViewer) {
+      if (visibleGroupIds.length === 0) {
+        return res.json({ groups: [] });
+      }
+
+      query += ` WHERE g.grupid = ANY($1::int[])`;
+      params.push([...new Set(visibleGroupIds)]);
+    }
+
+    query += ` GROUP BY g.grupid, g.grupadi, g.aciklama ORDER BY g.grupadi ASC`;
+
+    const result = await db.query(query, params);
 
     return res.json({
       groups: result.rows,

@@ -119,7 +119,7 @@ function App() {
 
   const loadGroups = async () => {
     try {
-      const response = await fetch("/api/admin/groups", {
+      const response = await fetch("/api/groups", {
         credentials: "include",
       });
 
@@ -747,14 +747,79 @@ function App() {
 
   const renderGroupsPage = () => {
     const isAdmin = user?.rol === "admin";
-    const isGroupManager =
+    const isManager =
       Array.isArray(user?.groups) &&
       user.groups.some(
         (group) => group.grupRolu === "grup_yoneticisi",
       );
+    const isGroupMember =
+      Array.isArray(user?.groups) &&
+      user.groups.some((group) =>
+        ["grup_uyesi", "grup_yoneticisi"].includes(group.grupRolu),
+      );
 
     return (
       <>
+        {error && (
+          <p className="error-message" role="alert">
+            {error}
+          </p>
+        )}
+
+        {creationMessage && (
+          <p className="success-message" role="status">
+            {creationMessage}
+          </p>
+        )}
+
+        <section className="group-management-panel">
+          <div className="list-heading-with-tabs">
+            <div>
+              <p className="eyebrow">Erişim yapısı</p>
+              <h3 className="section-panel-title">
+                {isAdmin ? "Tüm Gruplar" : "Grup üyeliklerim"}
+              </h3>
+            </div>
+            <span className="info-chip">{groupOptions.length} grup</span>
+          </div>
+
+          <div className="group-overview-grid">
+            {groupOptions.length === 0 ? (
+              <div className="empty-state-box">
+                {isAdmin
+                  ? "Henüz gösterilecek grup yok. Yeni bir grup ekleyerek başlatabilirsiniz."
+                  : "Üyesi olduğunuz bir grup bulunmuyor."}
+              </div>
+            ) : (
+              groupOptions.map((group) => (
+                <article className="group-overview-card" key={group.id}>
+                  <div className="group-overview-header">
+                    <div>
+                      <p className="eyebrow">Grup</p>
+                      <h4>{group.name}</h4>
+                    </div>
+                  </div>
+
+                  <p className="group-overview-description">
+                    {group.description?.trim() || "Bu grubun açıklaması henüz eklenmemiş."}
+                  </p>
+
+                  <div className="group-metric-row simple">
+                    <div>
+                      <span>Üye</span>
+                      <strong>{group.memberCount || 0}</strong>
+                    </div>
+                    <div>
+                      <span>Yönetici</span>
+                      <strong>{group.managerCount || 0}</strong>
+                    </div>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+
         {isAdmin && (
           <div className="role-panel admin-panel">
             <h2>Yönetici paneli</h2>
@@ -764,27 +829,12 @@ function App() {
               <li>Genel görev takibi</li>
             </ul>
 
-            {error && (
-              <p className="error-message" role="alert">
-                {error}
-              </p>
-            )}
-
-            {creationMessage && (
-              <p className="success-message" role="status">
-                {creationMessage}
-              </p>
-            )}
-
             <section className="group-management-panel">
               <div className="list-heading-with-tabs">
                 <div>
                   <p className="eyebrow">Erişim yapısı</p>
                   <h3 className="section-panel-title">Yeni Grup Ekle</h3>
                 </div>
-                <span className="info-chip">
-                  {groupOptions.length} grup
-                </span>
               </div>
 
               <form className="group-create-form" onSubmit={handleCreateGroup}>
@@ -819,47 +869,6 @@ function App() {
                   {creatingGroup ? "Oluşturuluyor..." : "Grup oluştur"}
                 </button>
               </form>
-
-              <div className="list-heading-with-tabs" style={{ marginTop: 22 }}>
-                <div>
-                  <p className="eyebrow">Grup görünümü</p>
-                  <h3 className="section-panel-title">Mevcut Gruplar</h3>
-                </div>
-              </div>
-
-              <div className="group-overview-grid">
-                {groupOptions.length === 0 ? (
-                  <div className="empty-state-box">
-                    Henüz gösterilecek grup yok. Yeni bir grup ekleyerek başlatabilirsiniz.
-                  </div>
-                ) : (
-                  groupOptions.map((group) => (
-                    <article className="group-overview-card" key={group.id}>
-                      <div className="group-overview-header">
-                        <div>
-                          <p className="eyebrow">Grup</p>
-                          <h4>{group.name}</h4>
-                        </div>
-                      </div>
-
-                      <p className="group-overview-description">
-                        {group.description?.trim() || "Bu grubun açıklaması henüz eklenmemiş."}
-                      </p>
-
-                      <div className="group-metric-row simple">
-                        <div>
-                          <span>Üye</span>
-                          <strong>{group.memberCount || 0}</strong>
-                        </div>
-                        <div>
-                          <span>Yönetici</span>
-                          <strong>{group.managerCount || 0}</strong>
-                        </div>
-                      </div>
-                    </article>
-                  ))
-                )}
-              </div>
 
               <div className="list-heading-with-tabs" style={{ marginTop: 22 }}>
                 <div>
@@ -982,11 +991,10 @@ function App() {
                 })}
               </div>
             </section>
-
           </div>
         )}
 
-        {!isAdmin && isGroupManager && (
+        {!isAdmin && isManager && (
           <div className="role-panel manager-panel">
             <h2>Grup yöneticisi paneli</h2>
             <ul>
@@ -997,7 +1005,7 @@ function App() {
           </div>
         )}
 
-        {!isAdmin && !isGroupManager && (
+        {!isAdmin && !isGroupMember && (
           <div className="role-panel user-panel">
             <h2>Kullanıcı paneli</h2>
             <ul>

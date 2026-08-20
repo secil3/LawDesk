@@ -128,6 +128,41 @@ const requireSystemRole =
     return next();
   };
 
+const canAccessGroups = (user) => {
+  if (!user) {
+    return false;
+  }
+
+  if (["admin", "yonetici", "kullanici"].includes(user.rol)) {
+    return true;
+  }
+
+  return (
+    Array.isArray(user.groups) &&
+    user.groups.some((group) =>
+      ["grup_uyesi", "grup_yoneticisi"].includes(
+        normalizeGroupRole(group.grupRolu),
+      ),
+    )
+  );
+};
+
+const requireGroupAccess = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: "Giriş yapmanız gerekiyor",
+    });
+  }
+
+  if (!canAccessGroups(req.user)) {
+    return res.status(403).json({
+      error: "Bu işlem için yetkiniz bulunmuyor",
+    });
+  }
+
+  return next();
+};
+
 const requireGroupRole =
   (groupId, requiredRole) =>
   (req, res, next) => {
@@ -160,5 +195,6 @@ const requireGroupRole =
 module.exports = {
   requireAuth,
   requireSystemRole,
+  requireGroupAccess,
   requireGroupRole,
 };
