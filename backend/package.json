@@ -6,6 +6,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node --test --test-concurrency=1",
+    "migrate:task-tags": "node scripts/migrateTaskTags.js",
     "migrate:task-comments": "node scripts/migrateTaskComments.js",
     "migrate:task-attachments": "node scripts/migrateTaskAttachments.js",
     "migrate:user-archive": "node scripts/migrateUserArchive.js",

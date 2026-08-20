@@ -79,9 +79,21 @@ CREATE TABLE GorevTipleri (
    5. ETİKETLER  (örn: KVKK, sözleşme, uyum)
    ============================================================ */
 CREATE TABLE Etiketler (
-    EtiketID        SERIAL PRIMARY KEY,
-    EtiketAdi       VARCHAR(50) NOT NULL UNIQUE
+    EtiketID                   SERIAL PRIMARY KEY,
+    EtiketAdi                  VARCHAR(50) NOT NULL UNIQUE,
+    AktifMi                    BOOLEAN NOT NULL DEFAULT TRUE,
+    OlusturanKullaniciID       INT REFERENCES Kullanicilar(KullaniciID),
+    OlusturmaTarihi            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    GuncellemeTarihi           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ArsivlenmeTarihi           TIMESTAMPTZ,
+    ArsivleyenKullaniciID      INT REFERENCES Kullanicilar(KullaniciID)
 );
+
+CREATE UNIQUE INDEX idx_etiketler_adi_lower
+    ON Etiketler (LOWER(EtiketAdi));
+
+CREATE INDEX idx_etiketler_aktif_adi
+    ON Etiketler (AktifMi, LOWER(EtiketAdi), EtiketID);
 
 /* ============================================================
    6. GOREVLER  (ana görev + alt görev aynı tabloda, UstGorevID ile)
@@ -137,6 +149,9 @@ CREATE TABLE GorevEtiketleri (
     EtiketID    INT NOT NULL REFERENCES Etiketler(EtiketID),
     PRIMARY KEY (GorevID, EtiketID)
 );
+
+CREATE INDEX idx_gorevetiketleri_etiket_gorev
+    ON GorevEtiketleri (EtiketID, GorevID);
 
 /* ============================================================
    7. GOREV ATAMA GEÇMİŞİ  (backend, atama her değiştiğinde satır ekler)

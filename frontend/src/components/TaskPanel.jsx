@@ -100,6 +100,7 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
     canManageLifecycle: false,
     canViewActivity: false,
     types: [],
+    tags: [],
     groups: [],
     users: [],
   });
@@ -114,6 +115,7 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
     status: "",
     priority: "",
     taskType: "",
+    tagId: "",
     sortBy: "due_date",
     sortOrder: "asc",
     page: 1,
@@ -160,6 +162,10 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
 
     if (state.taskType) {
       params.set("taskType", state.taskType);
+    }
+
+    if (state.tagId) {
+      params.set("tagId", state.tagId);
     }
 
     if (state.sortBy) {
@@ -209,16 +215,19 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
   };
 
   const loadOptions = async () => {
-    const response = await fetch("/api/tasks/options", {
-      credentials: "include",
-    });
+    const [response, tagsResponse] = await Promise.all([
+      fetch("/api/tasks/options", { credentials: "include" }),
+      fetch("/api/tasks/tags", { credentials: "include" }),
+    ]);
     const data = await readResponse(response);
+    const tagsData = await readResponse(tagsResponse);
 
     const normalizedOptions = {
       canAssign: data.canAssign === true,
       canManageLifecycle: data.canManageLifecycle === true,
       canViewActivity: data.canViewActivity === true,
       types: Array.isArray(data.types) ? data.types : [],
+      tags: Array.isArray(tagsData.tags) ? tagsData.tags : [],
       groups: Array.isArray(data.groups) ? data.groups : [],
       users: Array.isArray(data.users) ? data.users : [],
     };
@@ -275,6 +284,7 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
     queryState.status,
     queryState.priority,
     queryState.taskType,
+    queryState.tagId,
     queryState.sortBy,
     queryState.sortOrder,
     queryState.page,
@@ -640,7 +650,7 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
     setQueryState((current) => ({
       ...current,
       [field]: value,
-      ...(field === "search" || field === "status" || field === "priority" || field === "taskType" || field === "sortBy" || field === "sortOrder"
+      ...(field === "search" || field === "status" || field === "priority" || field === "taskType" || field === "tagId" || field === "sortBy" || field === "sortOrder"
         ? { page: 1 }
         : {}),
     }));
@@ -973,6 +983,23 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
             </select>
           </label>
 
+          <label className="task-field">
+            <span>Etiket</span>
+            <select
+              value={queryState.tagId}
+              onChange={(event) =>
+                updateQueryState("tagId", event.target.value)
+              }
+            >
+              <option value="">Tümü</option>
+              {options.tags.map((tag) => (
+                <option key={tag.id} value={tag.id}>
+                  {tag.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <div className="task-sort-box">
             <label className="task-field">
               <span>Sıralama</span>
@@ -1115,6 +1142,18 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
                       <strong>#{task.id}</strong>
                       <span>{task.title}</span>
                     </div>
+                    {Array.isArray(task.tags) && task.tags.length > 0 && (
+                      <div className="task-table-tags">
+                        {task.tags.map((tag, index) => (
+                          <span
+                            key={tag.id}
+                            className={`tag-chip tag-chip-small tag-color-${index % 6}${tag.active === false ? " tag-chip-archived" : ""}`}
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td>{formatDate(task.dueDate)}</td>
                 </tr>

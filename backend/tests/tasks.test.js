@@ -806,6 +806,41 @@ test("task list filters by task type and combines with search", async () => {
   assert.match(recorded.listSql, /lower\(coalesce\(gt\.tipadi, ''\)\).*like lower\(\$12\)/i);
 });
 
+test("task list filters by an active tag", async () => {
+  const response = await authenticated(
+    request(app).get("/api/tasks?tagId=3"),
+    3,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.tasks.length, 1);
+  assert.deepEqual(recorded.listParams, [
+    3,
+    false,
+    [2],
+    [],
+    false,
+    false,
+    3,
+  ]);
+  assert.match(
+    recorded.listSql,
+    /filtered_task_tag\.etiketid = \$7/i,
+  );
+  assert.match(recorded.listSql, /filtered_tag\.aktifmi = true/i);
+});
+
+test("task list rejects an invalid tag filter", async () => {
+  const response = await authenticated(
+    request(app).get("/api/tasks?tagId=not-a-number"),
+    3,
+  );
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /geçerli bir etiket/i);
+  assert.equal(recorded.listParams, null);
+});
+
 test("task list sorts by due date ascending and combines with search and filters", async () => {
   const response = await authenticated(
     request(app).get("/api/tasks?search=dava&status=open&priority=high&sortBy=due_date&sortOrder=asc"),

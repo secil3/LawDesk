@@ -37,6 +37,16 @@ const {
 } = require("../controllers/commentController");
 
 const {
+  archiveTag,
+  createTag,
+  listTags,
+  listTaskTags,
+  replaceTaskTags,
+  restoreTag,
+  updateTag,
+} = require("../controllers/tagController");
+
+const {
   uploadSingleAttachment,
 } = require("../middleware/taskAttachmentUpload");
 
@@ -51,6 +61,27 @@ router.use(requireAuth);
 
 router.get("/dashboard-summary", getDashboardSummary);
 router.get("/options", getTaskOptions);
+router.get("/tags", listTags);
+router.post(
+  "/tags",
+  requireSystemRole("admin", "yonetici"),
+  createTag,
+);
+router.patch(
+  "/tags/:tagId/restore",
+  requireSystemRole("admin", "yonetici"),
+  restoreTag,
+);
+router.patch(
+  "/tags/:tagId",
+  requireSystemRole("admin", "yonetici"),
+  updateTag,
+);
+router.delete(
+  "/tags/:tagId",
+  requireSystemRole("admin", "yonetici"),
+  archiveTag,
+);
 router.get(
   "/activity",
   requireSystemRole("admin", "yonetici"),
@@ -59,6 +90,8 @@ router.get(
 router.get("/", listTasks);
 router.get("/:id", getTaskById);
 router.post("/", createTask);
+router.get("/:id/tags", listTaskTags);
+router.put("/:id/tags", replaceTaskTags);
 router.get("/:id/comments", listTaskComments);
 router.post("/:id/comments", createTaskComment);
 router.get(

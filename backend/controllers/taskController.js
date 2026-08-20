@@ -15,6 +15,24 @@ const ALLOWED_STATUSES = new Set([
   "Iptal Edildi",
 ]);
 
+const TASK_TAGS_SELECT = `COALESCE(
+  (
+    SELECT jsonb_agg(
+      jsonb_build_object(
+        'id', task_tag.etiketid,
+        'name', task_tag.etiketadi,
+        'active', task_tag.aktifmi
+      )
+      ORDER BY LOWER(task_tag.etiketadi) ASC, task_tag.etiketid ASC
+    )
+    FROM gorevetiketleri task_tag_link
+    JOIN etiketler task_tag
+      ON task_tag.etiketid = task_tag_link.etiketid
+    WHERE task_tag_link.gorevid = g.gorevid
+  ),
+  '[]'::jsonb
+) AS "tags"`;
+
 const normalizeText = (value, maxLength) => {
   if (typeof value !== "string") {
     return "";
@@ -42,6 +60,18 @@ const parseOptionalId = (value) => {
   }
 
   return { valid: true, value: parsed };
+};
+
+const normalizeTaskTags = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((tag) => ({
+    ...tag,
+    id: Number(tag.id),
+    active: tag.active === true,
+  }));
 };
 
 const createHttpError = (statusCode, message) => {
@@ -721,6 +751,7 @@ exports.listTasks = async (req, res) => {
   const statusFilter = normalizeTaskStatusFilter(req.query?.status);
   const priorityFilter = normalizeTaskPriorityFilter(req.query?.priority);
   const taskTypeFilter = normalizeTaskTypeFilter(req.query?.taskType);
+  const tagIdFilter = parseOptionalId(req.query?.tagId);
   const sortSpec = normalizeTaskSort(
     req.query?.sortBy,
     req.query?.sortOrder,
@@ -733,6 +764,12 @@ exports.listTasks = async (req, res) => {
   const limit = Math.min(requestedLimit, maxLimit);
   const page = requestedPage;
   const offset = (page - 1) * limit;
+
+  if (!tagIdFilter.valid) {
+    return res.status(400).json({
+      error: "Geçerli bir etiket seçiniz",
+    });
+  }
 
   if (archived && !privilegedViewer) {
     return res.status(403).json({
@@ -790,6 +827,21 @@ exports.listTasks = async (req, res) => {
       queryParams.push(taskTypeFilter);
     }
 
+    if (tagIdFilter.value) {
+      clauseParts.push(
+        `AND EXISTS (
+           SELECT 1
+           FROM gorevetiketleri filtered_task_tag
+           JOIN etiketler filtered_tag
+             ON filtered_tag.etiketid = filtered_task_tag.etiketid
+           WHERE filtered_task_tag.gorevid = g.gorevid
+             AND filtered_task_tag.etiketid = $${queryParams.length + 1}
+             AND filtered_tag.aktifmi = TRUE
+         )`,
+      );
+      queryParams.push(tagIdFilter.value);
+    }
+
     const whereClause = clauseParts.join(" ");
 
     const orderByClause = sortSpec
@@ -821,6 +873,7 @@ exports.listTasks = async (req, res) => {
                 assigned_user.adsoyad AS "assignedUserName",
                 assigned_group.grupid AS "assignedGroupId",
                 assigned_group.grupadi AS "assignedGroupName",
+                ${TASK_TAGS_SELECT},
                 CASE
                   WHEN $2::boolean THEN TRUE
                   WHEN cardinality($4::int[]) > 0 AND (
@@ -899,6 +952,7 @@ exports.listTasks = async (req, res) => {
 
           return {
             ...task,
+            tags: normalizeTaskTags(task.tags),
             canManageLifecycle: canManage && !task.archived,
             canRestore: canManage && task.archived === true,
             canEditTask:
@@ -973,6 +1027,7 @@ exports.listTasks = async (req, res) => {
               assigned_user.adsoyad AS "assignedUserName",
               assigned_group.grupid AS "assignedGroupId",
               assigned_group.grupadi AS "assignedGroupName",
+              ${TASK_TAGS_SELECT},
               CASE
                 WHEN $2::boolean THEN TRUE
                 WHEN cardinality($4::int[]) > 0 AND (
@@ -1053,6 +1108,7 @@ exports.listTasks = async (req, res) => {
 
         return {
           ...task,
+          tags: normalizeTaskTags(task.tags),
           canManageLifecycle: canManage && !task.archived,
           canRestore: canManage && task.archived === true,
           canEditTask:
