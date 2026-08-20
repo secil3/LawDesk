@@ -41,6 +41,7 @@ const ACTIVITY_LABELS = {
   EtiketArsivleme: "Etiket arşivleme",
   EtiketGeriYukleme: "Etiket geri yükleme",
   GorevEtiketDegisikligi: "Görev etiketi değişikliği",
+  AltGorevOlusturma: "Alt görev oluşturma",
 };
 
 const formatDate = (value) => {

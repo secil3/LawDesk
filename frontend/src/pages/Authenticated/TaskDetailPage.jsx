@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { readResponse } from "../../api";
 import TaskAttachments from "../../components/TaskAttachments";
 import TaskComments from "../../components/TaskComments";
+import TaskSubtasks from "../../components/TaskSubtasks";
 import TaskTags from "../../components/TaskTags";
 
 const STATUS_LABELS = {
@@ -460,7 +461,9 @@ function TaskDetailPage({ taskId, onNavigate }) {
     <section className="page-shell task-detail-page">
       <div className="task-detail-header">
         <div>
-          <p className="eyebrow">Görev detay</p>
+          <p className="eyebrow">
+            {task.parentTaskId ? "Alt görev detay" : "Görev detay"}
+          </p>
           <h2>
             #{task.id} {task.title}
           </h2>
@@ -473,6 +476,20 @@ function TaskDetailPage({ taskId, onNavigate }) {
           Geri dön
         </button>
       </div>
+
+      {task.parentTaskId && (
+        <button
+          type="button"
+          className="task-parent-link"
+          onClick={() => onNavigate?.(`/tasks/${task.parentTaskId}`)}
+        >
+          <span>Bağlı olduğu ana görev</span>
+          <strong>
+            #{task.parentTaskId} {task.parentTaskTitle || "Ana görev"}
+          </strong>
+          <span aria-hidden="true">Ana göreve git →</span>
+        </button>
+      )}
 
       <div className="task-detail-card">
         <div className="task-detail-topbar">
@@ -507,7 +524,7 @@ function TaskDetailPage({ taskId, onNavigate }) {
             <dd>{task.typeName || "Belirtilmedi"}</dd>
           </div>
           <div>
-            <dt>Oluşturan</dt>
+            <dt>{task.parentTaskId ? "Görev sahibi" : "Oluşturan"}</dt>
             <dd>{task.creatorName || "Belirtilmedi"}</dd>
           </div>
           <div>
@@ -535,6 +552,19 @@ function TaskDetailPage({ taskId, onNavigate }) {
             <h3>Açıklama</h3>
             <p>{task.description}</p>
           </div>
+        )}
+
+        {!task.parentTaskId && (
+          <TaskSubtasks
+            task={task}
+            types={options.types}
+            onNavigate={onNavigate}
+            onError={(message) => setError(message)}
+            onSuccess={(message) => {
+              setError("");
+              showToast(message, "success");
+            }}
+          />
         )}
 
         <TaskTags

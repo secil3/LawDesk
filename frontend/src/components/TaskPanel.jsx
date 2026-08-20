@@ -1140,6 +1140,14 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
                   <td>
                     <div className="task-table-title-wrap">
                       <strong>#{task.id}</strong>
+                      {task.parentTaskId && (
+                        <small className="task-parent-reference">
+                          Alt görev · Ana görev #{task.parentTaskId}
+                          {task.parentTaskTitle
+                            ? ` — ${task.parentTaskTitle}`
+                            : ""}
+                        </small>
+                      )}
                       <span>{task.title}</span>
                     </div>
                     {Array.isArray(task.tags) && task.tags.length > 0 && (
