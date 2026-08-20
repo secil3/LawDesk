@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { readResponse } from "../../api";
 import TaskAttachments from "../../components/TaskAttachments";
+import TaskComments from "../../components/TaskComments";
 
 const STATUS_LABELS = {
   "Yeni Atandi": "Yeni Atandı",
@@ -539,6 +540,15 @@ function TaskDetailPage({ taskId, onNavigate }) {
           task={task}
           onError={(message) => setError(message)}
           onSuccess={(message) => showToast(message, "success")}
+        />
+
+        <TaskComments
+          task={task}
+          onError={(message) => setError(message)}
+          onSuccess={(message) => {
+            setError("");
+            showToast(message, "success");
+          }}
         />
       </div>
 
