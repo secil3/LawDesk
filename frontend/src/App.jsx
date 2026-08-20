@@ -58,6 +58,23 @@ function App() {
   const [groupAssignmentDrafts, setGroupAssignmentDrafts] = useState({});
   const [taskPanelRevision, setTaskPanelRevision] = useState(0);
 
+  const canCreateUsers = (userRecord) => {
+    if (!userRecord) {
+      return false;
+    }
+
+    if (["admin", "yonetici", "kullanici"].includes(userRecord.rol)) {
+      return true;
+    }
+
+    return (
+      Array.isArray(userRecord.groups) &&
+      userRecord.groups.some((group) =>
+        ["grup_uyesi", "grup_yoneticisi"].includes(group.grupRolu),
+      )
+    );
+  };
+
   const refreshTaskPanel = () => {
     setTaskPanelRevision((current) => current + 1);
   };
@@ -477,11 +494,12 @@ function App() {
         if (isActive) {
           setUser(data.user);
 
-          if (data.user?.rol === "admin") {
+          if (canCreateUsers(data.user)) {
             await Promise.all([
-              loadUsers(),
-              loadArchivedUsers(),
               loadGroups(),
+              ...(data.user?.rol === "admin"
+                ? [loadUsers(), loadArchivedUsers()]
+                : []),
             ]);
           }
         }
@@ -546,11 +564,12 @@ function App() {
       setPassword("");
       navigate("/dashboard");
 
-      if (data.user?.rol === "admin") {
+      if (canCreateUsers(data.user)) {
         await Promise.all([
-          loadUsers(),
-          loadArchivedUsers(),
           loadGroups(),
+          ...(data.user?.rol === "admin"
+            ? [loadUsers(), loadArchivedUsers()]
+            : []),
         ]);
       }
     } catch (requestError) {

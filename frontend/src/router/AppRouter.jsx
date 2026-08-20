@@ -27,6 +27,23 @@ const AUTHENTICATED_ROUTES = [
   "/settings",
 ];
 
+const canCreateUsers = (user) => {
+  if (!user) {
+    return false;
+  }
+
+  if (["admin", "yonetici", "kullanici"].includes(user.rol)) {
+    return true;
+  }
+
+  return (
+    Array.isArray(user.groups) &&
+    user.groups.some((group) =>
+      ["grup_uyesi", "grup_yoneticisi"].includes(group.grupRolu),
+    )
+  );
+};
+
 function AppRouter({
   user,
   checkingSession,
@@ -75,6 +92,15 @@ function AppRouter({
       !checkingSession &&
       user &&
       PUBLIC_ROUTES.includes(currentPath)
+    ) {
+      navigate("/dashboard");
+    }
+
+    if (
+      !checkingSession &&
+      user &&
+      currentPath === "/users/create" &&
+      !canCreateUsers(user)
     ) {
       navigate("/dashboard");
     }
