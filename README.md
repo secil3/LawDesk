@@ -27,6 +27,7 @@ Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrul
 - Doğrulanmış dosyaları göreve ekleme, indirme, kaldırma ve geri yükleme
 - Etiket oluşturma, yeniden adlandırma, arşivleme ve geri yükleme
 - Görevlere etiket atama ve görev listesini etikete göre filtreleme
+- Görev tipi oluşturma, açıklamasını düzenleme, kullanım sayılarını görüntüleme, arşivleme ve geri yükleme
 - Kullanıcı, grup, görev ve yaşam döngüsü işlemleri için denetim kayıtları
 
 ## Roller ve temel yetkiler
@@ -152,6 +153,7 @@ npm run migrate:task-attachments
 npm run migrate:task-comments
 npm run migrate:task-tags
 npm run migrate:task-subtasks
+npm run migrate:task-type-management
 ```
 
 ### 4. İlk admin hesabı
@@ -209,7 +211,7 @@ cd backend
 npm test
 ```
 
-Güncel test paketi 138 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki ve etiket akışlarını kapsar.
+Güncel test paketi 152 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket ve görev tipi yönetimi akışlarını kapsar.
 
 Frontend production build kontrolü:
 
@@ -262,6 +264,11 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | GET | `/api/tasks/:id` | Yetkili kullanıcının görev detayını döndürür |
 | GET | `/api/tasks/options` | Görev tiplerini ve yetkiye uygun atama seçeneklerini döndürür |
 | POST | `/api/tasks` | Görev oluşturur |
+| GET | `/api/tasks/types` | Admin/yönetici için aktif veya `?archived=true` ile arşivlenmiş görev tiplerini ve kullanım sayılarını döndürür |
+| POST | `/api/tasks/types` | Admin/yönetici için görev tipi oluşturur |
+| PATCH | `/api/tasks/types/:typeId` | Görev tipinin adını ve açıklamasını günceller |
+| DELETE | `/api/tasks/types/:typeId` | Görev tipini mevcut görevlerden silmeden arşivler |
+| PATCH | `/api/tasks/types/:typeId/restore` | Arşivlenmiş görev tipini geri yükler |
 | PATCH | `/api/tasks/:id` | Başlık, açıklama, tip, öncelik ve bitiş tarihini günceller |
 | PATCH | `/api/tasks/:id/assignment` | Görevin atamasını günceller |
 | PATCH | `/api/tasks/:id/status` | Durumu değiştirir, kapatır veya yeniden açar |
@@ -306,7 +313,7 @@ Mevcut CORS ayarı geliştirme kolaylığı için dinamiktir. Üretime geçmeden
 
 - Uygulama içi bildirimler ve e-posta hatırlatmaları
 - Gelişmiş dashboard ve raporlar
-- Görev tipi ve sistem ayarları yönetimi
+- Genel sistem ayarları yönetimi
 - Kullanıcının kendi parolasını değiştirmesi
 - Gerçek PostgreSQL kullanan API entegrasyon testleri
 - Kurum sunucusu kurulum, yedekleme ve operasyon dokümanı

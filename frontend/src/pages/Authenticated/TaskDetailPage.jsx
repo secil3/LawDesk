@@ -626,6 +626,14 @@ function TaskDetailPage({ taskId, onNavigate }) {
                   onChange={(event) => setForm((current) => ({ ...current, typeId: event.target.value }))}
                 >
                   <option value="">Tip seçilmedi</option>
+                  {task.typeId &&
+                    !options.types.some(
+                      (type) => Number(type.id) === Number(task.typeId),
+                    ) && (
+                      <option value={task.typeId}>
+                        {task.typeName || "Mevcut görev tipi"} (arşivli)
+                      </option>
+                    )}
                   {options.types.map((type) => (
                     <option key={type.id} value={type.id}>{type.name}</option>
                   ))}

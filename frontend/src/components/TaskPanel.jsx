@@ -1222,6 +1222,17 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
                   }
                 >
                   <option value="">Tip seçilmedi</option>
+                  {taskEditor.task.typeId &&
+                    !options.types.some(
+                      (type) =>
+                        Number(type.id) ===
+                        Number(taskEditor.task.typeId),
+                    ) && (
+                      <option value={taskEditor.task.typeId}>
+                        {taskEditor.task.typeName || "Mevcut görev tipi"}{" "}
+                        (arşivli)
+                      </option>
+                    )}
                   {options.types.map((type) => (
                     <option key={type.id} value={type.id}>
                       {type.name}
