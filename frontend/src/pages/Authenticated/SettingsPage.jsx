@@ -31,6 +31,10 @@ const ACTIVITY_LABELS = {
   EkYukleme: "Ek yükleme",
   EkKaldirma: "Ek kaldırma",
   EkGeriYukleme: "Ek geri yükleme",
+  YorumEkleme: "Yorum ekleme",
+  YorumDuzenleme: "Yorum düzenleme",
+  YorumArsivleme: "Yorum arşivleme",
+  YorumGeriYukleme: "Yorum geri yükleme",
 };
 
 const formatDate = (value) => {

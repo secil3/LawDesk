@@ -139,8 +139,11 @@ Gerçek `.env` dosyası, veritabanı parolası, token anahtarı ve kullanıcı p
 Mevcut eski bir veritabanını güncelliyorsanız, `npm install` tamamlandıktan sonra migration'ları sırasıyla çalıştırın:
 
 ```bash
+npm run migrate:user-archive
 npm run migrate:task-core
 npm run migrate:task-lifecycle
+npm run migrate:task-attachments
+npm run migrate:task-comments
 ```
 
 ### 4. İlk admin hesabı
@@ -248,6 +251,7 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | Method | Endpoint | Açıklama |
 | --- | --- | --- |
 | GET | `/api/tasks` | Görünür aktif görevleri veya `?archived=true` ile yetkili arşiv görünümünü döndürür |
+| GET | `/api/tasks/:id` | Yetkili kullanıcının görev detayını döndürür |
 | GET | `/api/tasks/options` | Görev tiplerini ve yetkiye uygun atama seçeneklerini döndürür |
 | POST | `/api/tasks` | Görev oluşturur |
 | PATCH | `/api/tasks/:id` | Başlık, açıklama, tip, öncelik ve bitiş tarihini günceller |
@@ -255,6 +259,16 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | PATCH | `/api/tasks/:id/status` | Durumu değiştirir, kapatır veya yeniden açar |
 | DELETE | `/api/tasks/:id` | Görevi fiziksel silmeden arşivler |
 | PATCH | `/api/tasks/:id/restore` | Arşivlenmiş görevi geri yükler |
+| GET | `/api/tasks/:id/comments` | Aktif veya `?archived=true` ile arşivlenmiş yorumları döndürür |
+| POST | `/api/tasks/:id/comments` | Göreve yorum ekler |
+| PATCH | `/api/tasks/:id/comments/:commentId` | Yorumu sürüm kontrolüyle düzenler |
+| GET | `/api/tasks/:id/comments/:commentId/history` | Yorumun önceki sürümlerini döndürür |
+| DELETE | `/api/tasks/:id/comments/:commentId` | Yorumu fiziksel silmeden arşivler |
+| PATCH | `/api/tasks/:id/comments/:commentId/restore` | Arşivlenmiş yorumu geri yükler |
+| GET | `/api/tasks/:id/attachments` | Aktif veya kaldırılmış görev eklerini döndürür |
+| POST | `/api/tasks/:id/attachments` | Doğrulanmış bir dosyayı göreve ekler |
+| DELETE | `/api/tasks/:id/attachments/:attachmentId` | Eki fiziksel silmeden kaldırır |
+| PATCH | `/api/tasks/:id/attachments/:attachmentId/restore` | Kaldırılmış eki geri yükler |
 | GET | `/api/tasks/activity` | Admin ve yöneticiler için son işlem kayıtlarını döndürür |
 
 Kapalı veya iptal edilmiş görevlerin bilgileri değiştirilemez; önce görev yeniden açılmalıdır. Arşivlenmiş görevler düzenlenmeden önce geri yüklenmelidir.
@@ -272,11 +286,8 @@ Mevcut CORS ayarı geliştirme kolaylığı için dinamiktir. Üretime geçmeden
 
 ## Henüz tamamlanmayan ana alanlar
 
-- Yorum ekleme, yorum düzenleme ve yorum geçmişi
-- Dosya ve ek yükleme
 - Uygulama içi bildirimler ve e-posta hatırlatmaları
-- Arama, filtreleme, sıralama ve sayfalama
-- Etiketler, alt görevler ve dashboard/raporlar
+- Etiketler, alt görevler ve gelişmiş raporlar
 - Görev tipi ve sistem ayarları yönetimi
 - Kullanıcının kendi parolasını değiştirmesi
 - Gerçek PostgreSQL kullanan API entegrasyon testleri

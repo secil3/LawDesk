@@ -28,6 +28,15 @@ const {
 } = require("../controllers/attachmentController");
 
 const {
+  archiveTaskComment,
+  createTaskComment,
+  listTaskCommentHistory,
+  listTaskComments,
+  restoreTaskComment,
+  updateTaskComment,
+} = require("../controllers/commentController");
+
+const {
   uploadSingleAttachment,
 } = require("../middleware/taskAttachmentUpload");
 
@@ -50,6 +59,18 @@ router.get(
 router.get("/", listTasks);
 router.get("/:id", getTaskById);
 router.post("/", createTask);
+router.get("/:id/comments", listTaskComments);
+router.post("/:id/comments", createTaskComment);
+router.get(
+  "/:id/comments/:commentId/history",
+  listTaskCommentHistory,
+);
+router.patch(
+  "/:id/comments/:commentId/restore",
+  restoreTaskComment,
+);
+router.patch("/:id/comments/:commentId", updateTaskComment);
+router.delete("/:id/comments/:commentId", archiveTaskComment);
 router.get("/:id/attachments", listTaskAttachments);
 router.post(
   "/:id/attachments",

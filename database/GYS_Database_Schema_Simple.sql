@@ -154,21 +154,38 @@ CREATE TABLE GorevAtamaGecmisi (
    8. YORUMLAR  (düzenleme geçmişi ile)
    ============================================================ */
 CREATE TABLE Yorumlar (
-    YorumID         SERIAL PRIMARY KEY,
-    GorevID         INT NOT NULL REFERENCES Gorevler(GorevID),
-    KullaniciID     INT NOT NULL REFERENCES Kullanicilar(KullaniciID),
-    YorumMetni      TEXT NOT NULL,
-    OlusturmaTarihi TIMESTAMP NOT NULL DEFAULT NOW(),
-    DuzenlendiMi    BOOLEAN NOT NULL DEFAULT FALSE,
-    SilindiMi       BOOLEAN NOT NULL DEFAULT FALSE
+    YorumID            SERIAL PRIMARY KEY,
+    GorevID            INT NOT NULL REFERENCES Gorevler(GorevID),
+    KullaniciID        INT NOT NULL REFERENCES Kullanicilar(KullaniciID),
+    YorumMetni         TEXT NOT NULL,
+    OlusturmaTarihi    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    GuncellemeTarihi   TIMESTAMPTZ,
+    DuzenlendiMi       BOOLEAN NOT NULL DEFAULT FALSE,
+    Versiyon           INT NOT NULL DEFAULT 1 CHECK (Versiyon > 0),
+    SilindiMi          BOOLEAN NOT NULL DEFAULT FALSE,
+    SilinmeTarihi      TIMESTAMPTZ,
+    SilenKullaniciID   INT REFERENCES Kullanicilar(KullaniciID)
 );
 
 CREATE TABLE YorumGecmisi (
-    GecmisID         SERIAL PRIMARY KEY,
-    YorumID          INT NOT NULL REFERENCES Yorumlar(YorumID),
-    OncekiMetin      TEXT NOT NULL,
-    DegisiklikTarihi TIMESTAMP NOT NULL DEFAULT NOW()
+    GecmisID                 SERIAL PRIMARY KEY,
+    YorumID                  INT NOT NULL REFERENCES Yorumlar(YorumID),
+    OncekiMetin              TEXT NOT NULL,
+    OncekiVersiyon           INT NOT NULL,
+    DuzenleyenKullaniciID    INT REFERENCES Kullanicilar(KullaniciID),
+    DegisiklikTarihi         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX idx_yorumlar_gorev_aktif
+    ON Yorumlar (GorevID, OlusturmaTarihi, YorumID)
+    WHERE SilindiMi = FALSE;
+
+CREATE INDEX idx_yorumlar_gorev_arsiv
+    ON Yorumlar (GorevID, SilinmeTarihi DESC, YorumID DESC)
+    WHERE SilindiMi = TRUE;
+
+CREATE INDEX idx_yorumgecmisi_yorum
+    ON YorumGecmisi (YorumID, OncekiVersiyon DESC, GecmisID DESC);
 
 /* ============================================================
    9. EKLER  (dosya boyutu sınırı Ayarlar'dan, backend kontrol eder)
