@@ -3430,14 +3430,45 @@ button:disabled {
   border-top: 1px solid #e2e8f0;
 }
 
-.activity-show-more-wrap {
-  display: flex;
-  justify-content: center;
-  margin-top: 14px;
+.activity-panel-heading > div > p:last-child {
+  max-width: 720px;
+  margin: 6px 0 0;
+  color: #64748b;
+  line-height: 1.5;
 }
 
-.activity-show-more {
+.activity-filter-form {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid #dbe3ee;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fafc, #ffffff);
+}
+
+.activity-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.activity-filter-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.activity-filter-actions button {
   width: auto;
+  margin: 0;
+}
+
+.activity-result-summary {
+  margin: 4px 0 14px;
+  color: #475569;
+  font-size: 0.88rem;
 }
 
 .toast-stack {
@@ -3519,6 +3550,35 @@ button:disabled {
   line-height: 1.5;
 }
 
+.activity-entry-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.activity-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.activity-pagination button {
+  width: auto;
+  margin: 0;
+}
+
+.activity-pagination span {
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 @media (max-width: 520px) {
   .auth-page {
     padding: 14px;
@@ -3554,6 +3614,7 @@ button:disabled {
   .task-meta,
   .task-action-buttons,
   .task-edit-grid,
+  .activity-filter-grid,
   .group-management-grid,
   .membership-row {
     grid-template-columns: 1fr;
@@ -3622,6 +3683,18 @@ button:disabled {
   .activity-entry-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .activity-filter-actions,
+  .activity-pagination,
+  .activity-entry-meta {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .activity-filter-actions button,
+  .activity-pagination button {
+    width: 100%;
   }
 
   .attachment-item,

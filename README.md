@@ -2,7 +2,7 @@
 
 LawDesk, Hukuk ve Uyum Başkanlığı ekiplerinin kullanıcı, grup ve görev süreçlerini tek bir web uygulamasından yönetebilmesi için geliştirilen bir görev yönetim sistemidir.
 
-Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, tek seviyeli alt görevler, yorumlar, dosya ekleri, etiketler, arşivleme ve temel denetim izi uygulanmıştır. Üretim ortamına geçiş için güvenlik sertleştirmesi, gerçek PostgreSQL entegrasyon testleri ve kurulum/operasyon çalışmaları hâlâ gereklidir.
+Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, tek seviyeli alt görevler, yorumlar, dosya ekleri, etiketler, arşivleme ve filtrelenebilir denetim izi uygulanmıştır. Üretim ortamına geçiş için güvenlik sertleştirmesi, gerçek PostgreSQL entegrasyon testleri ve kurulum/operasyon çalışmaları hâlâ gereklidir.
 
 ## Mevcut özellikler
 
@@ -28,7 +28,8 @@ Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrul
 - Etiket oluşturma, yeniden adlandırma, arşivleme ve geri yükleme
 - Görevlere etiket atama ve görev listesini etikete göre filtreleme
 - Görev tipi oluşturma, açıklamasını düzenleme, kullanım sayılarını görüntüleme, arşivleme ve geri yükleme
-- Kullanıcı, grup, görev ve yaşam döngüsü işlemleri için denetim kayıtları
+- Kullanıcı, grup, görev ve yaşam döngüsü işlemleri için kullanıcı, görev, işlem türü ve tarih aralığıyla filtrelenebilen denetim kayıtları
+- Filtrelenmiş denetim kayıtlarını Excel uyumlu UTF-8 CSV olarak dışa aktarma
 
 ## Roller ve temel yetkiler
 
@@ -154,6 +155,7 @@ npm run migrate:task-comments
 npm run migrate:task-tags
 npm run migrate:task-subtasks
 npm run migrate:task-type-management
+npm run migrate:activity-log-filters
 ```
 
 ### 4. İlk admin hesabı
@@ -211,7 +213,7 @@ cd backend
 npm test
 ```
 
-Güncel test paketi 152 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket ve görev tipi yönetimi akışlarını kapsar.
+Güncel test paketi 160 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi ve denetim izi dışa aktarma akışlarını kapsar.
 
 Frontend production build kontrolü:
 
@@ -294,7 +296,8 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | PATCH | `/api/tasks/tags/:tagId/restore` | Admin veya yönetici için etiketi geri yükler |
 | GET | `/api/tasks/:id/tags` | Görevin etiketlerini ve kullanılabilir etiketleri döndürür |
 | PUT | `/api/tasks/:id/tags` | Yetkili kullanıcının görev etiketlerini atomik olarak değiştirir |
-| GET | `/api/tasks/activity` | Admin ve yöneticiler için son işlem kayıtlarını döndürür |
+| GET | `/api/tasks/activity` | Admin ve yöneticiler için filtrelenmiş ve sayfalanmış işlem kayıtlarını döndürür |
+| GET | `/api/tasks/activity/export` | Aynı filtrelerle en fazla 5000 işlem kaydını Excel uyumlu UTF-8 CSV olarak dışa aktarır |
 
 Kapalı veya iptal edilmiş görevlerin bilgileri değiştirilemez; önce görev yeniden açılmalıdır. Arşivlenmiş görevler düzenlenmeden önce geri yüklenmelidir. Alt görevler ana görevin atamasını ve görünürlüğünü devralır; bağımsız olarak yeniden atanamaz. Ana görev kapatılmadan önce açık alt görevler kapatılmalı, arşivlenmeden önce de bütün alt görevler arşivlenmelidir.
 

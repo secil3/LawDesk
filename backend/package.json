@@ -6,6 +6,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node --test --test-concurrency=1",
+    "migrate:activity-log-filters": "node scripts/migrateActivityLogFilters.js",
     "migrate:task-type-management": "node scripts/migrateTaskTypeManagement.js",
     "migrate:task-subtasks": "node scripts/migrateTaskSubtasks.js",
     "migrate:task-tags": "node scripts/migrateTaskTags.js",

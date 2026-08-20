@@ -267,6 +267,15 @@ CREATE TABLE AktiviteLoglari (
     IslemTarihi     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX idx_aktiviteloglari_tarih_log
+    ON AktiviteLoglari (IslemTarihi DESC, LogID DESC);
+
+CREATE INDEX idx_aktiviteloglari_kullanici_tarih
+    ON AktiviteLoglari (KullaniciID, IslemTarihi DESC);
+
+CREATE INDEX idx_aktiviteloglari_islem_tarih
+    ON AktiviteLoglari (Islem, IslemTarihi DESC);
+
 
 /* ============================================================
    SEED DATA
