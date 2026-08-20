@@ -9,6 +9,7 @@ const cookieParser = require("cookie-parser");
 const homeRoutes = require("./routes/home");
 const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
+const groupsRoutes = require("./routes/groups");
 const taskRoutes = require("./routes/tasks");
 const { getAuthConfig } = require("./config/auth");
 
@@ -35,6 +36,7 @@ app.get("/", (req, res) => {
 app.use("/api", homeRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/groups", groupsRoutes);
 app.use("/api/tasks", taskRoutes);
 
 module.exports = app;
