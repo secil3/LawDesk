@@ -7,7 +7,7 @@ function HomePage({ onNavigate }) {
   ];
 
   const steps = [
-    { title: "Hesap oluştur", desc: "Hızlıca kayıt olun ve ekibinizi davet edin." },
+    { title: "Hesap yönetin", desc: "Erişimleri ve ekibinizi tek bir panelden yönetin." },
     { title: "Görev oluştur & yönet", desc: "Görevler oluşturun, atayın ve önceliklendirin." },
     { title: "Süreci takip et", desc: "Görevlerin ilerleyişini izleyin ve iş akışınızı yönetin." },
   ];
@@ -24,7 +24,6 @@ function HomePage({ onNavigate }) {
 
           <div className="hero-actions">
             <button type="button" onClick={() => onNavigate("/login")}>Giriş Yap</button>
-            <button type="button" className="secondary-button" onClick={() => onNavigate("/register")}>Kayıt Ol</button>
           </div>
         </div>
 
@@ -87,7 +86,6 @@ function HomePage({ onNavigate }) {
         <h3>LawDesk ile iş akışınızı daha düzenli hale getirin.</h3>
         <div className="hero-actions">
           <button type="button" onClick={() => onNavigate("/login")}>Giriş Yap</button>
-          <button type="button" className="secondary-button" onClick={() => onNavigate("/register")}>Kayıt Ol</button>
         </div>
       </section>
 
@@ -102,7 +100,6 @@ function HomePage({ onNavigate }) {
             <button type="button" onClick={() => onNavigate("/")}>Ana Sayfa</button>
             <button type="button" onClick={() => onNavigate("/features")}>Özellikler</button>
             <button type="button" onClick={() => onNavigate("/login")}>Giriş Yap</button>
-            <button type="button" onClick={() => onNavigate("/register")}>Kayıt Ol</button>
           </nav>
         </div>
       </footer>

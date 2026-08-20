@@ -7,7 +7,6 @@ import ProtectedRoute from "../components/ProtectedRoute";
 import HomePage from "../pages/Public/HomePage";
 import FeaturesPage from "../pages/Public/FeaturesPage";
 import LoginPage from "../pages/Public/LoginPage";
-import RegisterPage from "../pages/Public/RegisterPage";
 
 import DashboardPage from "../pages/Authenticated/DashboardPage";
 import TasksPage from "../pages/Authenticated/TasksPage";
@@ -16,7 +15,7 @@ import UserCreatePage from "../pages/Authenticated/UserCreatePage";
 import SettingsPage from "../pages/Authenticated/SettingsPage";
 import NotificationsPage from "../pages/Authenticated/NotificationsPage";
 
-const PUBLIC_ROUTES = ["/", "/features", "/login", "/register"];
+const PUBLIC_ROUTES = ["/", "/features", "/login"];
 
 const AUTHENTICATED_ROUTES = [
   "/dashboard",
@@ -123,8 +122,6 @@ function AppRouter({
             onNavigate={navigate}
           />
         );
-      case "/register":
-        return <RegisterPage onNavigate={navigate} />;
       case "/":
       default:
         return <HomePage onNavigate={navigate} />;
