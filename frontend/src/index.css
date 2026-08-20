@@ -1379,6 +1379,183 @@ button:disabled {
   background: #ffffff;
 }
 
+.task-table-compact .task-table {
+  min-width: 420px;
+}
+
+.task-detail-page {
+  display: grid;
+  gap: 20px;
+  padding-bottom: 24px;
+}
+
+.task-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid #dbe4f0;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.task-detail-header h2 {
+  margin: 8px 0 0;
+  color: #0f172a;
+  font-size: clamp(1.5rem, 2vw, 2.1rem);
+}
+
+.task-detail-card {
+  padding: 20px;
+  border: 1px solid #dbe4f0;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.03);
+}
+
+.task-detail-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.task-detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.task-detail-actions-inline {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.task-detail-meta {
+  margin-top: 18px;
+}
+
+.task-detail-description {
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.task-detail-description h3 {
+  margin: 0 0 10px;
+  color: #0f172a;
+}
+
+.task-detail-description p {
+  margin: 0;
+  line-height: 1.7;
+  color: #334155;
+}
+
+.task-detail-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.detail-form {
+  margin-top: 0;
+}
+
+.compact-task-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.task-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.detail-panel {
+  padding: 18px;
+  border: 1px solid #dbe4f0;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.detail-panel h3 {
+  margin: 0 0 12px;
+  color: #0f172a;
+}
+
+.task-operations-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.task-operations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.task-operation-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.task-operation-block label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.task-operation-block label span {
+  font-weight: 600;
+}
+
+.task-operation-block button {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.danger-button {
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: #991b1b;
+}
+
+@media (max-width: 640px) {
+  .task-detail-header,
+  .task-detail-topbar,
+  .task-inline-actions,
+  .task-detail-actions-inline {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .task-detail-header button,
+  .task-detail-actions-inline button,
+  .task-inline-actions button {
+    width: 100%;
+  }
+
+  .compact-task-form-grid,
+  .task-operations-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .dashboard-page {
   display: grid;
   gap: 22px;
@@ -1926,10 +2103,62 @@ button:disabled {
   text-align: center;
 }
 
-.task-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+.task-table-wrapper {
+  overflow-x: auto;
+  margin-top: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.task-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.task-table th,
+.task-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.task-table th {
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #f8fafc;
+}
+
+.task-table-row {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.task-table-row:hover,
+.task-table-row:focus-visible {
+  background: #f8fafc;
+  outline: none;
+}
+
+.task-table-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-table-title-wrap strong {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.task-table-title-wrap span {
+  color: #0f172a;
+  font-weight: 700;
 }
 
 .task-card {

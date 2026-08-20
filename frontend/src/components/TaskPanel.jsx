@@ -93,7 +93,7 @@ const assignmentLabel = (task) => {
   return "Henüz atanmadı";
 };
 
-function TaskPanel({ refreshKey = 0 }) {
+function TaskPanel({ refreshKey = 0, onNavigate }) {
   const [tasks, setTasks] = useState([]);
   const [options, setOptions] = useState({
     canAssign: false,
@@ -1058,217 +1058,40 @@ function TaskPanel({ refreshKey = 0 }) {
             : "Henüz görünür bir görev yok."}
         </p>
       ) : (
-        <div className="task-grid">
-          {tasks.map((task) => (
-            <article className="task-card" key={task.id}>
-              <div className="task-card-header">
-                <div>
-                  <span className="task-number">Görev #{task.id}</span>
-                  <h4>{task.title}</h4>
-                </div>
-                <span
-                  className={`priority-badge priority-${String(
-                    task.priority || "Orta",
-                  ).toLowerCase()}`}
+        <div className="task-table-wrapper task-table-compact">
+          <table className="task-table">
+            <thead>
+              <tr>
+                <th>Görev</th>
+                <th>Bitiş</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.map((task) => (
+                <tr
+                  key={task.id}
+                  className="task-table-row"
+                  onClick={() => onNavigate && onNavigate(`/tasks/${task.id}`)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onNavigate && onNavigate(`/tasks/${task.id}`);
+                    }
+                  }}
                 >
-                  {PRIORITY_LABELS[task.priority] || task.priority}
-                </span>
-              </div>
-
-              {task.description && (
-                <p className="task-description">{task.description}</p>
-              )}
-
-              <dl className="task-meta">
-                <div>
-                  <dt>Durum</dt>
-                  <dd>
-                    <span className={STATUS_CLASSNAMES[task.status] || "status-badge status-default"}>
-                      {STATUS_LABELS[task.status] || task.status}
-                    </span>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Tip</dt>
-                  <dd>{task.typeName || "Belirtilmedi"}</dd>
-                </div>
-                <div>
-                  <dt>Oluşturan</dt>
-                  <dd>{task.creatorName}</dd>
-                </div>
-                <div>
-                  <dt>Atama</dt>
-                  <dd>{assignmentLabel(task)}</dd>
-                </div>
-                <div>
-                  <dt>Bitiş</dt>
-                  <dd>{formatDate(task.dueDate)}</dd>
-                </div>
-                <div>
-                  <dt>Oluşturulma</dt>
-                  <dd>{formatDate(task.createdAt)}</dd>
-                </div>
-                {task.archived && (
-                  <div>
-                    <dt>Arşivlenme</dt>
-                    <dd>{formatDate(task.archivedAt)}</dd>
-                  </div>
-                )}
-              </dl>
-
-              <TaskAttachments
-                task={task}
-                onError={(errorMessage) => {
-                  setMessage("");
-                  setError(errorMessage);
-                  showToast(errorMessage, "error");
-                }}
-                onSuccess={(successMessage) => {
-                  setError("");
-                  setMessage(successMessage);
-                  showToast(successMessage, "success");
-                }}
-              />
-
-              {task.canEditTask && !task.archived && (
-                <button
-                  type="button"
-                  className="secondary-button task-edit-button"
-                  onClick={() => openTaskEditor(task)}
-                >
-                  Görev bilgilerini düzenle
-                </button>
-              )}
-
-              {task.canManageAssignment && options.canAssign && !task.archived && (
-                <div className="task-assignment-editor">
-                  <label htmlFor={`task-assignment-${task.id}`}>
-                    Atamayı değiştir
-                  </label>
-                  <div className="assignment-controls">
-                    <select
-                      id={`task-assignment-${task.id}`}
-                      value={assignmentDrafts[task.id] || ""}
-                      onChange={(event) =>
-                        setAssignmentDrafts((current) => ({
-                          ...current,
-                          [task.id]: event.target.value,
-                        }))
-                      }
-                    >
-                      <option value="">Kullanıcı seçiniz</option>
-                      {options.users.map((optionUser) => (
-                        <option
-                          key={`user-${optionUser.id}`}
-                          value={`user:${optionUser.id}`}
-                        >
-                          {optionUser.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => handleAssignment(task.id)}
-                      disabled={assigningTaskId === task.id}
-                    >
-                      {assigningTaskId === task.id
-                        ? "Atanıyor..."
-                        : "Ata"}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {task.canManageLifecycle &&
-                options.canManageLifecycle && (
-                  <div className="task-lifecycle-editor">
-                    <label htmlFor={`task-status-${task.id}`}>
-                      Durum bilgisi
-                    </label>
-
-                    <div className="status-choice-group" aria-label="Durum seçenekleri">
-                      {STATUS_OPTIONS.map((status) => {
-                        const isActive =
-                          (statusDrafts[task.id] || task.status) === status;
-
-                        return (
-                          <button
-                            key={status}
-                            type="button"
-                            id={`task-status-${task.id}-${status}`}
-                            className={`status-choice-button ${isActive ? "active" : ""}`}
-                            onClick={() =>
-                              setStatusDrafts((current) => ({
-                                ...current,
-                                [task.id]: status,
-                              }))
-                            }
-                            disabled={
-                              updatingStatusTaskId === task.id ||
-                              archivingTaskId === task.id
-                            }
-                          >
-                            {STATUS_LABELS[status]}
-                          </button>
-                        );
-                      })}
+                  <td>
+                    <div className="task-table-title-wrap">
+                      <strong>#{task.id}</strong>
+                      <span>{task.title}</span>
                     </div>
-
-                    <div className="task-action-buttons">
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => handleStatusUpdate(task)}
-                        disabled={
-                          updatingStatusTaskId === task.id ||
-                          archivingTaskId === task.id ||
-                          (statusDrafts[task.id] || task.status) ===
-                            task.status
-                        }
-                      >
-                        {updatingStatusTaskId === task.id
-                          ? "Güncelleniyor..."
-                          : "Durumu güncelle"}
-                      </button>
-
-                      <button
-                        type="button"
-                        className="danger-button"
-                        onClick={() => handleArchive(task)}
-                        disabled={
-                          archivingTaskId === task.id ||
-                          updatingStatusTaskId === task.id
-                        }
-                      >
-                        {archivingTaskId === task.id
-                          ? "Arşivleniyor..."
-                          : "Arşivle"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-              {task.canRestore && task.archived && (
-                <div className="task-restore-editor">
-                  <p>
-                    Bu görev arşivde. Geri yüklendiğinde mevcut durumu ve
-                    ataması korunur.
-                  </p>
-                  <button
-                    type="button"
-                    className="restore-button"
-                    onClick={() => handleRestoreTask(task)}
-                    disabled={restoringTaskId === task.id}
-                  >
-                    {restoringTaskId === task.id
-                      ? "Geri yükleniyor..."
-                      : "Görevi geri yükle"}
-                  </button>
-                </div>
-              )}
-            </article>
-          ))}
+                  </td>
+                  <td>{formatDate(task.dueDate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

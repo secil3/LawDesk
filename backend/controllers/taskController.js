@@ -565,6 +565,136 @@ exports.getTaskOptions = async (req, res) => {
   }
 };
 
+exports.getTaskById = async (req, res) => {
+  const taskId = Number(req.params?.id);
+  const userId = Number(req.user.id);
+  const systemViewer = isSystemAssigner(req.user);
+  const groupIds = allGroupIdsFor(req.user);
+  const managedGroupIds = managedGroupIdsFor(req.user);
+  const archived = req.query?.archived === "true";
+
+  if (!Number.isInteger(taskId) || taskId < 1) {
+    return res.status(400).json({ error: "Geçersiz görev id" });
+  }
+
+  try {
+    const result = await db.query(
+      `SELECT g.gorevid AS "id",
+              g.baslik AS "title",
+              g.aciklama AS "description",
+              g.oncelik AS "priority",
+              g.durum AS "status",
+              g.bitisTarihi AS "dueDate",
+              g.olusturmaTarihi AS "createdAt",
+              g.arsivlendimi AS "archived",
+              g.arsivlenmetarihi AS "archivedAt",
+              gt.tipid AS "typeId",
+              gt.tipadi AS "typeName",
+              creator.kullaniciid AS "creatorId",
+              creator.adsoyad AS "creatorName",
+              assigned_user.kullaniciid AS "assignedUserId",
+              assigned_user.adsoyad AS "assignedUserName",
+              assigned_group.grupid AS "assignedGroupId",
+              assigned_group.grupadi AS "assignedGroupName",
+              CASE
+                WHEN $2::boolean THEN TRUE
+                WHEN cardinality($4::int[]) > 0 AND (
+                  g.atanangrupid = ANY($4::int[])
+                  OR g.gorunurlukgrupid = ANY($4::int[])
+                  OR EXISTS (
+                    SELECT 1
+                    FROM grupuyelikleri assigned_membership
+                    WHERE assigned_membership.kullaniciid = g.atanankullaniciid
+                      AND assigned_membership.grupid = ANY($4::int[])
+                  )
+                  OR (
+                    g.atanankullaniciid IS NULL
+                    AND g.atanangrupid IS NULL
+                    AND EXISTS (
+                      SELECT 1
+                      FROM grupuyelikleri creator_membership
+                      WHERE creator_membership.kullaniciid = g.olusturankullaniciid
+                        AND creator_membership.grupid = ANY($4::int[])
+                    )
+                  )
+                ) THEN TRUE
+                ELSE FALSE
+              END AS "canManageAssignment"
+       FROM gorevler g
+       LEFT JOIN gorevtipleri gt
+         ON gt.tipid = g.tipid
+       JOIN kullanicilar creator
+         ON creator.kullaniciid = g.olusturankullaniciid
+       LEFT JOIN kullanicilar assigned_user
+         ON assigned_user.kullaniciid = g.atanankullaniciid
+       LEFT JOIN gruplar assigned_group
+         ON assigned_group.grupid = g.atanangrupid
+       WHERE g.gorevid = $1
+         AND (
+           $2::boolean
+           OR g.olusturankullaniciid = $3
+           OR g.atanankullaniciid = $3
+           OR g.gorunurlukkullaniciid = $3
+           OR g.atanangrupid = ANY($5::int[])
+           OR g.gorunurlukgrupid = ANY($5::int[])
+           OR (
+             cardinality($4::int[]) > 0
+             AND (
+               EXISTS (
+                 SELECT 1
+                 FROM grupuyelikleri assigned_membership
+                 WHERE assigned_membership.kullaniciid = g.atanankullaniciid
+                   AND assigned_membership.grupid = ANY($4::int[])
+               )
+               OR (
+                 g.atanankullaniciid IS NULL
+                 AND g.atanangrupid IS NULL
+                 AND EXISTS (
+                   SELECT 1
+                   FROM grupuyelikleri creator_membership
+                   WHERE creator_membership.kullaniciid = g.olusturankullaniciid
+                     AND creator_membership.grupid = ANY($4::int[])
+                 )
+               )
+             )
+           )
+         )
+         AND g.arsivlendimi = $6::boolean
+       LIMIT 1`,
+      [taskId, systemViewer, userId, managedGroupIds, groupIds, archived],
+    );
+
+    const task = result.rows[0];
+
+    if (!task) {
+      throw createHttpError(404, "Görev bulunamadı");
+    }
+
+    const canManage = task.canManageAssignment === true;
+    const terminal = ["Tamamlandi", "Iptal Edildi"].includes(task.status);
+
+    return res.json({
+      task: {
+        ...task,
+        canManage: canManage,
+        canManageAssignment: canManage,
+        canManageLifecycle: canManage && !task.archived,
+        canRestore: canManage && task.archived === true,
+        canEditTask:
+          !task.archived &&
+          !terminal &&
+          (Number(task.creatorId) === userId || canManage),
+        canEditDueDate:
+          !task.archived &&
+          !terminal &&
+          (Number(task.creatorId) === userId || canManage),
+      },
+    });
+  } catch (error) {
+    return sendError(res, error, "Görev detay bilgisi getirilemedi");
+  }
+};
+
 exports.listTasks = async (req, res) => {
   const userId = Number(req.user.id);
   const systemViewer = isSystemAssigner(req.user);

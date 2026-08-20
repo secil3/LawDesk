@@ -10,6 +10,7 @@ import LoginPage from "../pages/Public/LoginPage";
 
 import DashboardPage from "../pages/Authenticated/DashboardPage";
 import TasksPage from "../pages/Authenticated/TasksPage";
+import TaskDetailPage from "../pages/Authenticated/TaskDetailPage";
 import GroupsPage from "../pages/Authenticated/GroupsPage";
 import UserCreatePage from "../pages/Authenticated/UserCreatePage";
 import SettingsPage from "../pages/Authenticated/SettingsPage";
@@ -25,6 +26,8 @@ const AUTHENTICATED_ROUTES = [
   "/notifications",
   "/settings",
 ];
+
+const isTaskPath = (path) => /^\/tasks(?:\/\d+)?$/.test(path || "");
 
 const canCreateUsers = (user) => {
   if (!user) {
@@ -105,6 +108,8 @@ function AppRouter({
     }
   }, [checkingSession, currentPath, navigate, user]);
 
+  const taskDetailMatch = /^\/tasks\/(\d+)$/.exec(currentPath || "");
+
   const renderPublicPage = () => {
     switch (currentPath) {
       case "/features":
@@ -129,10 +134,22 @@ function AppRouter({
   };
 
   const renderAuthenticatedPage = () => {
+    if (taskDetailMatch) {
+      return (
+        <TaskDetailPage
+          taskId={Number(taskDetailMatch[1])}
+          onNavigate={navigate}
+        />
+      );
+    }
+
     switch (currentPath) {
       case "/tasks":
         return (
-          <TasksPage taskPanelRevision={taskPanelRevision} />
+          <TasksPage
+            taskPanelRevision={taskPanelRevision}
+            onNavigate={navigate}
+          />
         );
       case "/groups":
         return (
@@ -195,7 +212,7 @@ function AppRouter({
     );
   }
 
-  if (!user && AUTHENTICATED_ROUTES.includes(currentPath)) {
+  if (!user && (AUTHENTICATED_ROUTES.includes(currentPath) || isTaskPath(currentPath))) {
     return (
       <PublicLayout currentPath={currentPath} onNavigate={navigate}>
         <LoginPage

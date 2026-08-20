@@ -639,6 +639,18 @@ test("group manager cannot assign outside managed groups", async () => {
   assert.equal(recorded.insertParams, null);
 });
 
+test("task detail endpoint returns one visible task", async () => {
+  const response = await authenticated(
+    request(app).get("/api/tasks/50"),
+    3,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.task.id, 50);
+  assert.equal(response.body.task.title, "Görülebilen görev");
+  assert.equal(response.body.task.canManage, false);
+});
+
 test("task list passes visibility context to database", async () => {
   const response = await authenticated(
     request(app).get("/api/tasks"),
