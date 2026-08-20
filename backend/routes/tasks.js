@@ -52,6 +52,14 @@ const {
 } = require("../controllers/subtaskController");
 
 const {
+  archiveTaskType,
+  createTaskType,
+  listTaskTypes,
+  restoreTaskType,
+  updateTaskType,
+} = require("../controllers/taskTypeController");
+
+const {
   uploadSingleAttachment,
 } = require("../middleware/taskAttachmentUpload");
 
@@ -66,6 +74,31 @@ router.use(requireAuth);
 
 router.get("/dashboard-summary", getDashboardSummary);
 router.get("/options", getTaskOptions);
+router.get(
+  "/types",
+  requireSystemRole("admin", "yonetici"),
+  listTaskTypes,
+);
+router.post(
+  "/types",
+  requireSystemRole("admin", "yonetici"),
+  createTaskType,
+);
+router.patch(
+  "/types/:typeId/restore",
+  requireSystemRole("admin", "yonetici"),
+  restoreTaskType,
+);
+router.patch(
+  "/types/:typeId",
+  requireSystemRole("admin", "yonetici"),
+  updateTaskType,
+);
+router.delete(
+  "/types/:typeId",
+  requireSystemRole("admin", "yonetici"),
+  archiveTaskType,
+);
 router.get("/tags", listTags);
 router.post(
   "/tags",

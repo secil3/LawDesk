@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { readResponse } from "../../api";
 import TagManagement from "../../components/TagManagement";
+import TaskTypeManagement from "../../components/TaskTypeManagement";
 
 const SYSTEM_ROLE_LABELS = {
   admin: "Admin",
@@ -42,6 +43,10 @@ const ACTIVITY_LABELS = {
   EtiketGeriYukleme: "Etiket geri yükleme",
   GorevEtiketDegisikligi: "Görev etiketi değişikliği",
   AltGorevOlusturma: "Alt görev oluşturma",
+  GorevTipiOlusturma: "Görev tipi oluşturma",
+  GorevTipiGuncelleme: "Görev tipi güncelleme",
+  GorevTipiArsivleme: "Görev tipi arşivleme",
+  GorevTipiGeriYukleme: "Görev tipi geri yükleme",
 };
 
 const formatDate = (value) => {
@@ -152,6 +157,10 @@ function SettingsPage({ user }) {
           eklenecektir.
         </p>
       </div>
+
+      <TaskTypeManagement
+        enabled={["admin", "yonetici"].includes(user?.rol)}
+      />
 
       <TagManagement
         enabled={["admin", "yonetici"].includes(user?.rol)}
