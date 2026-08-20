@@ -1700,6 +1700,46 @@ button:disabled {
   background: #fff7f7;
 }
 
+.dashboard-report-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.dashboard-report-toolbar > div:first-child {
+  display: grid;
+  gap: 6px;
+  min-width: 190px;
+}
+
+.dashboard-report-toolbar label {
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.dashboard-report-toolbar select {
+  min-height: 40px;
+  margin: 0;
+}
+
+.dashboard-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.dashboard-report-actions button {
+  width: auto;
+  margin: 0;
+}
+
 .dashboard-section {
   margin-top: 4px;
   padding: 22px 24px;
@@ -1720,6 +1760,16 @@ button:disabled {
 .section-heading-row h3 {
   margin: 0;
   color: #0f172a;
+}
+
+.dashboard-heading-with-note {
+  align-items: flex-start;
+}
+
+.dashboard-heading-with-note p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 0.84rem;
 }
 
 .dashboard-stats {
@@ -1757,6 +1807,162 @@ button:disabled {
 .accent-card { background: linear-gradient(135deg, rgba(37,99,235,0.08), rgba(191,219,254,0.2)); }
 .soft-card { background: linear-gradient(135deg, rgba(14,165,233,0.06), rgba(125,211,252,0.12)); }
 .muted-card { background: linear-gradient(135deg, rgba(148,163,184,0.08), rgba(226,232,240,0.18)); }
+
+.dashboard-risk-grid,
+.dashboard-performance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px;
+}
+
+.dashboard-risk-card,
+.dashboard-performance-card {
+  display: grid;
+  gap: 6px;
+  min-height: 116px;
+  padding: 17px 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 15px;
+  background: #f8fafc;
+}
+
+.dashboard-risk-card span,
+.dashboard-performance-card span {
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.dashboard-risk-card strong,
+.dashboard-performance-card strong {
+  align-self: end;
+  color: #0f172a;
+  font-size: 1.85rem;
+  line-height: 1;
+}
+
+.dashboard-risk-card small {
+  color: #64748b;
+  font-size: 0.76rem;
+}
+
+.dashboard-risk-card.risk-danger {
+  border-color: #fecaca;
+  background: linear-gradient(135deg, #fff7f7, #fef2f2);
+}
+
+.dashboard-risk-card.risk-danger strong {
+  color: #b91c1c;
+}
+
+.dashboard-risk-card.risk-warning {
+  border-color: #fde68a;
+  background: linear-gradient(135deg, #fffbeb, #fefce8);
+}
+
+.dashboard-risk-card.risk-warning strong {
+  color: #a16207;
+}
+
+.dashboard-risk-card.risk-neutral {
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+}
+
+.dashboard-report-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.dashboard-report-card {
+  min-width: 0;
+  margin-top: 4px;
+}
+
+.dashboard-bar-list {
+  display: grid;
+  gap: 14px;
+}
+
+.dashboard-bar-row {
+  display: grid;
+  gap: 7px;
+}
+
+.dashboard-bar-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #334155;
+  font-size: 0.84rem;
+}
+
+.dashboard-bar-label strong {
+  color: #0f172a;
+}
+
+.dashboard-bar-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.dashboard-bar-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #38bdf8);
+}
+
+.dashboard-assignment-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.dashboard-assignment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.dashboard-assignment-item > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dashboard-assignment-item strong {
+  overflow: hidden;
+  color: #0f172a;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-assignment-item small {
+  color: #64748b;
+}
+
+.dashboard-assignment-counts {
+  display: grid;
+  gap: 4px;
+  flex: 0 0 auto;
+  text-align: right;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.dashboard-assignment-counts .has-overdue {
+  color: #b91c1c;
+}
 
 .dashboard-info-grid {
   display: grid;
@@ -1872,6 +2078,11 @@ button:disabled {
   border-radius: 18px;
 }
 
+.recent-task-card.recent-task-overdue {
+  border-color: #fecaca;
+  box-shadow: inset 4px 0 0 #dc2626;
+}
+
 .recent-task-top {
   display: flex;
   align-items: flex-start;
@@ -1895,6 +2106,24 @@ button:disabled {
   margin-bottom: 0;
 }
 
+.recent-task-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.dashboard-overdue-badge {
+  display: inline-flex;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
 .recent-task-card h4 {
   margin: 0;
   font-size: 1.08rem;
@@ -1907,6 +2136,22 @@ button:disabled {
   line-height: 1.55;
 }
 
+.dashboard-task-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.dashboard-task-context span {
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
 .recent-task-footer {
   display: flex;
   align-items: center;
@@ -1915,6 +2160,61 @@ button:disabled {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid #e2e8f0;
+}
+
+.dashboard-task-footer > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dashboard-task-link {
+  width: auto;
+  margin: 0;
+}
+
+.dashboard-generated-at {
+  margin: -5px 4px 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+@media (max-width: 760px) {
+  .dashboard-report-toolbar,
+  .dashboard-task-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-report-toolbar > div:first-child {
+    width: 100%;
+  }
+
+  .dashboard-report-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-report-actions button,
+  .dashboard-task-link {
+    width: 100%;
+  }
+
+  .dashboard-report-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-assignment-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dashboard-assignment-counts {
+    display: flex;
+    text-align: left;
+  }
 }
 
 .task-date {

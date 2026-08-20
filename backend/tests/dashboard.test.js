@@ -68,6 +68,7 @@ const authenticated = (requestBuilder, userId) =>
   );
 
 let dashboardParams;
+let recentTaskParams;
 
 before(async () => {
   testServer = expressApp.listen(0, "127.0.0.1");
@@ -83,6 +84,7 @@ before(async () => {
 
 beforeEach(() => {
   dashboardParams = null;
+  recentTaskParams = null;
 
   db.query = async (text, params = []) => {
     const sql = String(text || "");
@@ -124,12 +126,40 @@ beforeEach(() => {
             activeTasks: 1,
             archivedTasks:
               params[4] === true ? 1 : 0,
+            openTasks: 1,
+            closedTasks: 0,
             newAssigned: 1,
             inProgress: 0,
             waiting: 0,
             completed: 0,
             cancelled: 0,
+            overdue: 1,
+            dueSoon: 0,
+            withoutDueDate: 0,
+            criticalPriority: 0,
+            highPriority: 1,
+            mediumPriority: 0,
+            lowPriority: 0,
+            createdInPeriod: 2,
+            completedInPeriod: 1,
+            averageCompletionHours: "12.5",
             groupCount: params[2].length,
+            typeBreakdown: [
+              {
+                id: 5,
+                name: "=Riskli tip",
+                count: 1,
+              },
+            ],
+            assignmentBreakdown: [
+              {
+                id: 2,
+                name: "KVKK",
+                kind: "group",
+                count: 1,
+                overdue: 1,
+              },
+            ],
           },
         ],
       };
@@ -141,16 +171,26 @@ beforeEach(() => {
       ) &&
       normalized.includes("limit 6")
     ) {
+      assert.equal(
+        params.length,
+        4,
+        "recent task query must receive exactly four SQL parameters",
+      );
+      recentTaskParams = params;
+
       return {
         rows: [
           {
             id: 10,
             title: "Görünür görev",
             description: null,
-            priority: "Orta",
+            priority: "Yuksek",
             status: "Yeni Atandi",
-            dueDate: null,
-            typeName: null,
+            dueDate: "2026-08-19T09:00:00.000Z",
+            typeName: "Operasyonel",
+            assignedUserName: null,
+            assignedGroupName: "KVKK",
+            overdue: true,
           },
         ],
       };
@@ -183,6 +223,7 @@ after(async () => {
 test(
   "standard user dashboard excludes archive access",
   async () => {
+    const beforeRequest = Date.now();
     const response = await authenticated(
       request(app).get(
         "/api/tasks/dashboard-summary",
@@ -191,18 +232,29 @@ test(
     );
 
     assert.equal(response.status, 200);
-
-    assert.deepEqual(dashboardParams, [
+    assert.deepEqual(dashboardParams.slice(0, 5), [
       4,
       false,
       [],
       [],
       false,
     ]);
+    assert.deepEqual(recentTaskParams, [
+      4,
+      false,
+      [],
+      [],
+    ]);
 
+    const boundary = new Date(dashboardParams[5]).getTime();
+    const expectedBoundary = beforeRequest - 30 * 24 * 60 * 60 * 1000;
+    assert.ok(Math.abs(boundary - expectedBoundary) < 5_000);
+
+    assert.equal(response.body.reportPeriod, "30");
     assert.equal(response.body.totalTasks, 1);
     assert.equal(response.body.activeTasks, 1);
     assert.equal(response.body.archivedTasks, 0);
+    assert.equal(response.body.openTasks, 1);
     assert.equal(response.body.groupCount, 0);
     assert.equal(
       response.body.canViewArchive,
@@ -216,7 +268,17 @@ test(
       Tamamlandi: 0,
       "Iptal Edildi": 0,
     });
-
+    assert.deepEqual(response.body.riskCounts, {
+      overdue: 1,
+      dueSoon: 0,
+      withoutDueDate: 0,
+    });
+    assert.deepEqual(response.body.performance, {
+      createdTasks: 2,
+      completedTasks: 1,
+      completionRate: 50,
+      averageCompletionHours: 12.5,
+    });
     assert.equal(
       response.body.recentTasks[0].title,
       "Görünür görev",
@@ -235,8 +297,7 @@ test(
     );
 
     assert.equal(response.status, 200);
-
-    assert.deepEqual(dashboardParams, [
+    assert.deepEqual(dashboardParams.slice(0, 5), [
       2,
       false,
       [2],
@@ -252,5 +313,96 @@ test(
       response.body.canViewArchive,
       true,
     );
+    assert.deepEqual(response.body.assignmentBreakdown, [
+      {
+        id: 2,
+        name: "KVKK",
+        kind: "group",
+        count: 1,
+        overdue: 1,
+      },
+    ]);
+  },
+);
+
+test(
+  "dashboard applies the selected reporting period",
+  async () => {
+    const beforeRequest = Date.now();
+    const response = await authenticated(
+      request(app).get(
+        "/api/tasks/dashboard-summary?period=90",
+      ),
+      4,
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.reportPeriod, "90");
+
+    const boundary = new Date(dashboardParams[5]).getTime();
+    const expectedBoundary = beforeRequest - 90 * 24 * 60 * 60 * 1000;
+    assert.ok(Math.abs(boundary - expectedBoundary) < 5_000);
+  },
+);
+
+test(
+  "dashboard all-time period does not set a date boundary",
+  async () => {
+    const response = await authenticated(
+      request(app).get(
+        "/api/tasks/dashboard-summary?period=all",
+      ),
+      4,
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.reportPeriod, "all");
+    assert.equal(dashboardParams[5], null);
+  },
+);
+
+test(
+  "dashboard report export requires authentication",
+  async () => {
+    const response = await request(app).get(
+      "/api/tasks/dashboard-report/export",
+    );
+
+    assert.equal(response.status, 401);
+    assert.equal(response.body.error, "Giriş yapmanız gerekiyor");
+  },
+);
+
+test(
+  "dashboard report exports scoped Excel-safe UTF-8 CSV",
+  async () => {
+    const response = await authenticated(
+      request(app).get(
+        "/api/tasks/dashboard-report/export?period=all",
+      ),
+      4,
+    );
+
+    assert.equal(response.status, 200);
+    assert.match(
+      response.headers["content-type"],
+      /^text\/csv; charset=utf-8/,
+    );
+    assert.match(
+      response.headers["content-disposition"],
+      /lawdesk-gorev-raporu-all-\d{4}-\d{2}-\d{2}\.csv/,
+    );
+    assert.equal(response.text.charCodeAt(0), 0xfeff);
+    assert.match(response.text, /"Bölüm";"Metrik";"Değer";"Açıklama"/);
+    assert.ok(response.text.includes("\"'=Riskli tip\""));
+    assert.ok(!response.text.includes("\"=Riskli tip\""));
+    assert.deepEqual(dashboardParams.slice(0, 5), [
+      4,
+      false,
+      [],
+      [],
+      false,
+    ]);
+    assert.equal(dashboardParams[5], null);
   },
 );

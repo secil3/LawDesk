@@ -2,7 +2,7 @@
 
 LawDesk, Hukuk ve Uyum Başkanlığı ekiplerinin kullanıcı, grup ve görev süreçlerini tek bir web uygulamasından yönetebilmesi için geliştirilen bir görev yönetim sistemidir.
 
-Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, tek seviyeli alt görevler, yorumlar, dosya ekleri, etiketler, arşivleme ve filtrelenebilir denetim izi uygulanmıştır. Üretim ortamına geçiş için güvenlik sertleştirmesi, gerçek PostgreSQL entegrasyon testleri ve kurulum/operasyon çalışmaları hâlâ gereklidir.
+Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, tek seviyeli alt görevler, yorumlar, dosya ekleri, etiketler, arşivleme, filtrelenebilir denetim izi ve görünürlük kapsamlı görev raporları uygulanmıştır. Üretim ortamına geçiş için güvenlik sertleştirmesi, gerçek PostgreSQL entegrasyon testleri ve kurulum/operasyon çalışmaları hâlâ gereklidir.
 
 ## Mevcut özellikler
 
@@ -30,6 +30,10 @@ Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrul
 - Görev tipi oluşturma, açıklamasını düzenleme, kullanım sayılarını görüntüleme, arşivleme ve geri yükleme
 - Kullanıcı, grup, görev ve yaşam döngüsü işlemleri için kullanıcı, görev, işlem türü ve tarih aralığıyla filtrelenebilen denetim kayıtları
 - Filtrelenmiş denetim kayıtlarını Excel uyumlu UTF-8 CSV olarak dışa aktarma
+- Dashboard üzerinde geciken, yaklaşan ve bitiş tarihi olmayan görev risklerini görüntüleme
+- Seçilen döneme göre görev oluşturma, tamamlama oranı ve ortalama tamamlanma süresi raporu
+- Öncelik, görev tipi ve atama yükü dağılımlarını rol ve görünürlük kapsamına göre görüntüleme
+- Dashboard görev raporunu Excel uyumlu UTF-8 CSV olarak dışa aktarma
 
 ## Roller ve temel yetkiler
 
@@ -156,6 +160,7 @@ npm run migrate:task-tags
 npm run migrate:task-subtasks
 npm run migrate:task-type-management
 npm run migrate:activity-log-filters
+npm run migrate:dashboard-reports
 ```
 
 ### 4. İlk admin hesabı
@@ -213,7 +218,7 @@ cd backend
 npm test
 ```
 
-Güncel test paketi 160 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi ve denetim izi dışa aktarma akışlarını kapsar.
+Güncel test paketi 164 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
 
 Frontend production build kontrolü:
 
@@ -263,6 +268,8 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | Method | Endpoint | Açıklama |
 | --- | --- | --- |
 | GET | `/api/tasks` | Görünür aktif görevleri veya `?archived=true` ile yetkili arşiv görünümünü döndürür |
+| GET | `/api/tasks/dashboard-summary` | Görünür görevlerden dashboard risk, performans ve dağılım özetini döndürür |
+| GET | `/api/tasks/dashboard-report/export` | Seçilen dönem için görünürlük kapsamlı görev raporunu UTF-8 CSV olarak dışa aktarır |
 | GET | `/api/tasks/:id` | Yetkili kullanıcının görev detayını döndürür |
 | GET | `/api/tasks/options` | Görev tiplerini ve yetkiye uygun atama seçeneklerini döndürür |
 | POST | `/api/tasks` | Görev oluşturur |
@@ -315,7 +322,6 @@ Mevcut CORS ayarı geliştirme kolaylığı için dinamiktir. Üretime geçmeden
 ## Henüz tamamlanmayan ana alanlar
 
 - Uygulama içi bildirimler ve e-posta hatırlatmaları
-- Gelişmiş dashboard ve raporlar
 - Genel sistem ayarları yönetimi
 - Kullanıcının kendi parolasını değiştirmesi
 - Gerçek PostgreSQL kullanan API entegrasyon testleri
