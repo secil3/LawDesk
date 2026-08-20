@@ -2,7 +2,7 @@
 
 LawDesk, Hukuk ve Uyum Başkanlığı ekiplerinin kullanıcı, grup ve görev süreçlerini tek bir web uygulamasından yönetebilmesi için geliştirilen bir görev yönetim sistemidir.
 
-Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, yorumlar, dosya ekleri, etiketler, arşivleme ve temel denetim izi uygulanmıştır. Üretim ortamına geçiş için güvenlik sertleştirmesi, gerçek PostgreSQL entegrasyon testleri ve kurulum/operasyon çalışmaları hâlâ gereklidir.
+Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, tek seviyeli alt görevler, yorumlar, dosya ekleri, etiketler, arşivleme ve temel denetim izi uygulanmıştır. Üretim ortamına geçiş için güvenlik sertleştirmesi, gerçek PostgreSQL entegrasyon testleri ve kurulum/operasyon çalışmaları hâlâ gereklidir.
 
 ## Mevcut özellikler
 
@@ -21,6 +21,8 @@ Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrul
 - Geçmiş tarih ve saat için bitiş tarihi oluşturmayı engelleme
 - Görev durumunu değiştirme, kapatma ve yeniden açma
 - Görevleri arşivleme ve geri yükleme
+- Ana görev altında tek seviyeli alt görev oluşturma; atama ve görünürlüğü ana görevden devralma
+- Ana görev ile alt görevler arasında bitiş tarihi, kapatma, arşivleme ve geri yükleme bütünlüğü
 - Göreve yorum ekleme; yorumu düzenleme, geçmişini görüntüleme, arşivleme ve geri yükleme
 - Doğrulanmış dosyaları göreve ekleme, indirme, kaldırma ve geri yükleme
 - Etiket oluşturma, yeniden adlandırma, arşivleme ve geri yükleme
@@ -149,6 +151,7 @@ npm run migrate:task-lifecycle
 npm run migrate:task-attachments
 npm run migrate:task-comments
 npm run migrate:task-tags
+npm run migrate:task-subtasks
 ```
 
 ### 4. İlk admin hesabı
@@ -206,7 +209,7 @@ cd backend
 npm test
 ```
 
-Güncel test paketi 115 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, yorum, dosya eki ve etiket akışlarını kapsar.
+Güncel test paketi 138 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki ve etiket akışlarını kapsar.
 
 Frontend production build kontrolü:
 
@@ -264,6 +267,8 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | PATCH | `/api/tasks/:id/status` | Durumu değiştirir, kapatır veya yeniden açar |
 | DELETE | `/api/tasks/:id` | Görevi fiziksel silmeden arşivler |
 | PATCH | `/api/tasks/:id/restore` | Arşivlenmiş görevi geri yükler |
+| GET | `/api/tasks/:id/subtasks` | Aktif veya `?archived=true` ile arşivlenmiş alt görevleri döndürür |
+| POST | `/api/tasks/:id/subtasks` | Ana görevin altında tek seviyeli bir alt görev oluşturur |
 | GET | `/api/tasks/:id/comments` | Aktif veya `?archived=true` ile arşivlenmiş yorumları döndürür |
 | POST | `/api/tasks/:id/comments` | Göreve yorum ekler |
 | PATCH | `/api/tasks/:id/comments/:commentId` | Yorumu sürüm kontrolüyle düzenler |
@@ -284,7 +289,7 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | PUT | `/api/tasks/:id/tags` | Yetkili kullanıcının görev etiketlerini atomik olarak değiştirir |
 | GET | `/api/tasks/activity` | Admin ve yöneticiler için son işlem kayıtlarını döndürür |
 
-Kapalı veya iptal edilmiş görevlerin bilgileri değiştirilemez; önce görev yeniden açılmalıdır. Arşivlenmiş görevler düzenlenmeden önce geri yüklenmelidir.
+Kapalı veya iptal edilmiş görevlerin bilgileri değiştirilemez; önce görev yeniden açılmalıdır. Arşivlenmiş görevler düzenlenmeden önce geri yüklenmelidir. Alt görevler ana görevin atamasını ve görünürlüğünü devralır; bağımsız olarak yeniden atanamaz. Ana görev kapatılmadan önce açık alt görevler kapatılmalı, arşivlenmeden önce de bütün alt görevler arşivlenmelidir.
 
 ## Güvenlik notları
 
@@ -300,7 +305,7 @@ Mevcut CORS ayarı geliştirme kolaylığı için dinamiktir. Üretime geçmeden
 ## Henüz tamamlanmayan ana alanlar
 
 - Uygulama içi bildirimler ve e-posta hatırlatmaları
-- Alt görevler ve gelişmiş raporlar
+- Gelişmiş dashboard ve raporlar
 - Görev tipi ve sistem ayarları yönetimi
 - Kullanıcının kendi parolasını değiştirmesi
 - Gerçek PostgreSQL kullanan API entegrasyon testleri

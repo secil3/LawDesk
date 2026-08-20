@@ -47,6 +47,11 @@ const {
 } = require("../controllers/tagController");
 
 const {
+  createSubtask,
+  listSubtasks,
+} = require("../controllers/subtaskController");
+
+const {
   uploadSingleAttachment,
 } = require("../middleware/taskAttachmentUpload");
 
@@ -90,6 +95,8 @@ router.get(
 router.get("/", listTasks);
 router.get("/:id", getTaskById);
 router.post("/", createTask);
+router.get("/:id/subtasks", listSubtasks);
+router.post("/:id/subtasks", createSubtask);
 router.get("/:id/tags", listTaskTags);
 router.put("/:id/tags", replaceTaskTags);
 router.get("/:id/comments", listTaskComments);

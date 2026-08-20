@@ -298,6 +298,7 @@ const findTaskWithManagement = async (
 
   const result = await query(
     `SELECT g.gorevid AS "id",
+            g.ustgorevid AS "parentTaskId",
             g.baslik AS "title",
             g.aciklama AS "description",
             g.oncelik AS "priority",
@@ -400,6 +401,52 @@ const describeDueDate = (value) => {
     dateStyle: "short",
     timeStyle: "short",
   });
+};
+
+const assertDueDateFitsHierarchy = async (query, task, dueDate) => {
+  if (!dueDate) {
+    return;
+  }
+
+  if (task.parentTaskId) {
+    const parentResult = await query(
+      `SELECT bitistarihi AS "dueDate"
+       FROM gorevler
+       WHERE gorevid = $1`,
+      [task.parentTaskId],
+    );
+    const parentDueDate = parentResult.rows[0]?.dueDate;
+
+    if (
+      parentDueDate &&
+      dueDate.getTime() > new Date(parentDueDate).getTime()
+    ) {
+      throw createHttpError(
+        400,
+        "Alt görevin bitiş tarihi ana görevin bitiş tarihini geçemez",
+      );
+    }
+
+    return;
+  }
+
+  const laterChildResult = await query(
+    `SELECT gorevid AS "id", baslik AS "title", bitistarihi AS "dueDate"
+     FROM gorevler
+     WHERE ustgorevid = $1
+       AND arsivlendimi = FALSE
+       AND bitistarihi > $2
+     ORDER BY bitistarihi DESC
+     LIMIT 1`,
+    [task.id, dueDate],
+  );
+
+  if (laterChildResult.rows[0]) {
+    throw createHttpError(
+      409,
+      `Ana görevin bitiş tarihi, "${laterChildResult.rows[0].title}" alt görevinin bitiş tarihinden önce olamaz`,
+    );
+  }
 };
 
 const normalizeTaskStatusFilter = (value) => {
@@ -610,6 +657,10 @@ exports.getTaskById = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT g.gorevid AS "id",
+              g.ustgorevid AS "parentTaskId",
+              parent_task.baslik AS "parentTaskTitle",
+              parent_task.durum AS "parentTaskStatus",
+              parent_task.arsivlendimi AS "parentTaskArchived",
               g.baslik AS "title",
               g.aciklama AS "description",
               g.oncelik AS "priority",
@@ -653,6 +704,8 @@ exports.getTaskById = async (req, res) => {
        FROM gorevler g
        LEFT JOIN gorevtipleri gt
          ON gt.tipid = g.tipid
+       LEFT JOIN gorevler parent_task
+         ON parent_task.gorevid = g.ustgorevid
        JOIN kullanicilar creator
          ON creator.kullaniciid = g.olusturankullaniciid
        LEFT JOIN kullanicilar assigned_user
@@ -717,7 +770,7 @@ exports.getTaskById = async (req, res) => {
       task: {
         ...task,
         canManage: canManage,
-        canManageAssignment: canManage,
+        canManageAssignment: !task.parentTaskId && canManage,
         canManageLifecycle: canManage && !task.archived,
         canRestore: canManage && task.archived === true,
         canEditTask:
@@ -857,6 +910,8 @@ exports.listTasks = async (req, res) => {
     if (!hasPagination) {
       const result = await db.query(
         `SELECT g.gorevid AS "id",
+                g.ustgorevid AS "parentTaskId",
+                parent_task.baslik AS "parentTaskTitle",
                 g.baslik AS "title",
                 g.aciklama AS "description",
                 g.oncelik AS "priority",
@@ -901,6 +956,8 @@ exports.listTasks = async (req, res) => {
          FROM gorevler g
          LEFT JOIN gorevtipleri gt
            ON gt.tipid = g.tipid
+         LEFT JOIN gorevler parent_task
+           ON parent_task.gorevid = g.ustgorevid
          JOIN kullanicilar creator
            ON creator.kullaniciid = g.olusturankullaniciid
          LEFT JOIN kullanicilar assigned_user
@@ -953,6 +1010,7 @@ exports.listTasks = async (req, res) => {
           return {
             ...task,
             tags: normalizeTaskTags(task.tags),
+            canManageAssignment: !task.parentTaskId && canManage,
             canManageLifecycle: canManage && !task.archived,
             canRestore: canManage && task.archived === true,
             canEditTask:
@@ -1011,6 +1069,8 @@ exports.listTasks = async (req, res) => {
 
     const result = await db.query(
       `SELECT g.gorevid AS "id",
+              g.ustgorevid AS "parentTaskId",
+              parent_task.baslik AS "parentTaskTitle",
               g.baslik AS "title",
               g.aciklama AS "description",
               g.oncelik AS "priority",
@@ -1055,6 +1115,8 @@ exports.listTasks = async (req, res) => {
        FROM gorevler g
        LEFT JOIN gorevtipleri gt
          ON gt.tipid = g.tipid
+       LEFT JOIN gorevler parent_task
+         ON parent_task.gorevid = g.ustgorevid
        JOIN kullanicilar creator
          ON creator.kullaniciid = g.olusturankullaniciid
        LEFT JOIN kullanicilar assigned_user
@@ -1109,6 +1171,7 @@ exports.listTasks = async (req, res) => {
         return {
           ...task,
           tags: normalizeTaskTags(task.tags),
+          canManageAssignment: !task.parentTaskId && canManage,
           canManageLifecycle: canManage && !task.archived,
           canRestore: canManage && task.archived === true,
           canEditTask:
@@ -1329,6 +1392,13 @@ exports.updateTaskAssignment = async (req, res) => {
           taskId,
         );
 
+        if (task.parentTaskId) {
+          throw createHttpError(
+            409,
+            "Alt görev ataması ana görevden devralınır ve ayrı değiştirilemez",
+          );
+        }
+
         const target = await validateAssignmentTarget(
           transactionQuery,
           req.user,
@@ -1355,6 +1425,45 @@ exports.updateTaskAssignment = async (req, res) => {
           ],
         );
 
+        const childUpdateResult = await transactionQuery(
+          `UPDATE gorevler
+           SET atanankullaniciid = $1,
+               atanangrupid = $2,
+               gorunurluktipi = $3,
+               gorunurlukkullaniciid = $4,
+               gorunurlukgrupid = $5,
+               guncellemetarihi = NOW()
+           WHERE ustgorevid = $6
+           RETURNING gorevid AS "id"`,
+          [
+            target.type === "user" ? target.id : null,
+            target.type === "group" ? target.id : null,
+            visibility.type,
+            visibility.userId,
+            visibility.groupId,
+            taskId,
+          ],
+        );
+
+        const childIds = childUpdateResult.rows
+          .map((child) => Number(child.id))
+          .filter((childId) => Number.isInteger(childId) && childId > 0);
+
+        if (childIds.length > 0) {
+          await transactionQuery(
+            `INSERT INTO gorevatamagecmisi
+               (gorevid, atanankullaniciid, atanangrupid, atayankullaniciid)
+             SELECT child_id, $2, $3, $4
+             FROM unnest($1::int[]) AS child_id`,
+            [
+              childIds,
+              target.type === "user" ? target.id : null,
+              target.type === "group" ? target.id : null,
+              req.user.id,
+            ],
+          );
+        }
+
         await transactionQuery(
           `INSERT INTO gorevatamagecmisi
              (gorevid, atanankullaniciid, atanangrupid, atayankullaniciid)
@@ -1373,7 +1482,10 @@ exports.updateTaskAssignment = async (req, res) => {
           action: "GorevAtama",
           detail:
             `${req.user.adSoyad}, "${task.title}" görevini ` +
-            `${assignmentDescription(target)} atadı.`,
+            `${assignmentDescription(target)} atadı.` +
+            (childIds.length > 0
+              ? ` Atama ${childIds.length} alt göreve de aktarıldı.`
+              : ""),
         });
 
         return target;
@@ -1539,6 +1651,14 @@ exports.updateTask = async (req, res) => {
           throw createHttpError(
             400,
             "Bitiş tarihi geçmiş bir zaman olamaz",
+          );
+        }
+
+        if (currentDueTime !== nextDueTime) {
+          await assertDueDateFitsHierarchy(
+            transactionQuery,
+            task,
+            nextDueDate ? new Date(nextDueDate) : null,
           );
         }
 
@@ -1723,6 +1843,12 @@ exports.updateTaskDueDate = async (req, res) => {
           throw createHttpError(409, "Bitiş tarihi zaten bu değerde");
         }
 
+        await assertDueDateFitsHierarchy(
+          transactionQuery,
+          task,
+          dueDate,
+        );
+
         const updateResult = await transactionQuery(
           `UPDATE gorevler
            SET bitistarihi = $1,
@@ -1802,6 +1928,48 @@ exports.updateTaskStatus = async (req, res) => {
           throw createHttpError(409, "Görev zaten seçilen durumda");
         }
 
+        if (!task.parentTaskId && ["Tamamlandi", "Iptal Edildi"].includes(status)) {
+          const openSubtasksResult = await transactionQuery(
+            `SELECT COUNT(*)::int AS "total"
+             FROM gorevler
+             WHERE ustgorevid = $1
+               AND arsivlendimi = FALSE
+               AND durum NOT IN ('Tamamlandi', 'Iptal Edildi')`,
+            [taskId],
+          );
+          const openSubtaskCount = Number(
+            openSubtasksResult.rows[0]?.total || 0,
+          );
+
+          if (openSubtaskCount > 0) {
+            throw createHttpError(
+              409,
+              `Ana görevi kapatmadan önce ${openSubtaskCount} açık alt görevi tamamlayın veya iptal edin`,
+            );
+          }
+        }
+
+        if (task.parentTaskId && !["Tamamlandi", "Iptal Edildi"].includes(status)) {
+          const parentResult = await transactionQuery(
+            `SELECT durum AS "status", arsivlendimi AS "archived"
+             FROM gorevler
+             WHERE gorevid = $1`,
+            [task.parentTaskId],
+          );
+          const parent = parentResult.rows[0];
+
+          if (
+            !parent ||
+            parent.archived === true ||
+            ["Tamamlandi", "Iptal Edildi"].includes(parent.status)
+          ) {
+            throw createHttpError(
+              409,
+              "Alt görevi yeniden açmadan önce ana görevi aktif duruma getirin",
+            );
+          }
+        }
+
         const updateResult = await transactionQuery(
           `UPDATE gorevler
            SET durum = $1,
@@ -1875,6 +2043,24 @@ exports.archiveTask = async (req, res) => {
         taskId,
       );
 
+      if (!task.parentTaskId) {
+        const childResult = await transactionQuery(
+          `SELECT COUNT(*)::int AS "total"
+           FROM gorevler
+           WHERE ustgorevid = $1
+             AND arsivlendimi = FALSE`,
+          [taskId],
+        );
+        const childCount = Number(childResult.rows[0]?.total || 0);
+
+        if (childCount > 0) {
+          throw createHttpError(
+            409,
+            `Ana görevi arşivlemeden önce ${childCount} alt görevi arşivleyin`,
+          );
+        }
+      }
+
       const updateResult = await transactionQuery(
         `UPDATE gorevler
          SET arsivlendimi = TRUE,
@@ -1931,6 +2117,47 @@ exports.restoreTask = async (req, res) => {
           taskId,
           true,
         );
+
+        if (task.parentTaskId) {
+          const parentResult = await transactionQuery(
+            `SELECT durum AS "status",
+                    bitistarihi AS "dueDate",
+                    arsivlendimi AS "archived"
+             FROM gorevler
+             WHERE gorevid = $1`,
+            [task.parentTaskId],
+          );
+          const parent = parentResult.rows[0];
+
+          if (!parent || parent.archived === true) {
+            throw createHttpError(
+              409,
+              "Alt görevi geri yüklemeden önce ana görevi geri yükleyin",
+            );
+          }
+
+          if (
+            !["Tamamlandi", "Iptal Edildi"].includes(task.status) &&
+            ["Tamamlandi", "Iptal Edildi"].includes(parent.status)
+          ) {
+            throw createHttpError(
+              409,
+              "Açık alt görevi geri yüklemeden önce ana görevi aktif duruma getirin",
+            );
+          }
+
+          if (
+            task.dueDate &&
+            parent.dueDate &&
+            new Date(task.dueDate).getTime() >
+              new Date(parent.dueDate).getTime()
+          ) {
+            throw createHttpError(
+              409,
+              "Alt görevi geri yüklemeden önce bitiş tarihini ana görevle uyumlu hâle getirin",
+            );
+          }
+        }
 
         const updateResult = await transactionQuery(
           `UPDATE gorevler

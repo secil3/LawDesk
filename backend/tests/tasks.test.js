@@ -119,6 +119,14 @@ let currentTaskPriority;
 let currentTaskTypeId;
 let currentTaskTypeName;
 let currentTaskArchived;
+let currentTaskParentId;
+let inheritedChildIds;
+let laterChildTask;
+let openSubtaskCount;
+let unarchivedSubtaskCount;
+let parentTaskArchived;
+let parentTaskDueDate;
+let parentTaskStatus;
 
 before(async () => {
   testServer = expressApp.listen(0, "127.0.0.1");
@@ -148,6 +156,7 @@ beforeEach(() => {
     restoreParams: null,
     taskUpdateParams: null,
     updateCount: 0,
+    childPropagationParams: null,
   };
   manageAllowed = true;
   currentTaskStatus = "Yeni Atandi";
@@ -159,6 +168,14 @@ beforeEach(() => {
   currentTaskTypeId = null;
   currentTaskTypeName = null;
   currentTaskArchived = false;
+  currentTaskParentId = null;
+  inheritedChildIds = [];
+  laterChildTask = null;
+  openSubtaskCount = 0;
+  unarchivedSubtaskCount = 0;
+  parentTaskArchived = false;
+  parentTaskDueDate = null;
+  parentTaskStatus = "Devam Ediyor";
 
   db.query = async (text, params = []) => {
     const sql = String(text || "");
@@ -345,6 +362,7 @@ beforeEach(() => {
         rows: [
           {
             id: Number(params[0]),
+            parentTaskId: currentTaskParentId,
             title: currentTaskTitle,
             description: currentTaskDescription,
             priority: currentTaskPriority,
@@ -357,6 +375,85 @@ beforeEach(() => {
             canManage: manageAllowed,
           },
         ],
+      };
+    }
+
+    if (
+      normalized.includes('select gorevid as "id", baslik as "title"') &&
+      normalized.includes("where ustgorevid = $1") &&
+      normalized.includes("bitistarihi > $2")
+    ) {
+      return { rows: laterChildTask ? [laterChildTask] : [] };
+    }
+
+    if (
+      normalized.includes('select bitistarihi as "duedate"') &&
+      normalized.includes("where gorevid = $1")
+    ) {
+      return { rows: [{ dueDate: parentTaskDueDate }] };
+    }
+
+    if (
+      normalized.includes('select durum as "status"') &&
+      normalized.includes('bitistarihi as "duedate"') &&
+      normalized.includes('arsivlendimi as "archived"') &&
+      normalized.includes("where gorevid = $1")
+    ) {
+      return {
+        rows: [
+          {
+            status: parentTaskStatus,
+            dueDate: parentTaskDueDate,
+            archived: parentTaskArchived,
+          },
+        ],
+      };
+    }
+
+    if (
+      normalized.includes('select durum as "status", arsivlendimi as "archived"') &&
+      normalized.includes("where gorevid = $1")
+    ) {
+      return {
+        rows: [
+          {
+            status: parentTaskStatus,
+            archived: parentTaskArchived,
+          },
+        ],
+      };
+    }
+
+    if (
+      normalized.includes('select arsivlendimi as "archived"') &&
+      normalized.includes("where gorevid = $1")
+    ) {
+      return { rows: [{ archived: parentTaskArchived }] };
+    }
+
+    if (
+      normalized.includes('select count(*)::int as "total"') &&
+      normalized.includes("where ustgorevid = $1") &&
+      normalized.includes("durum not in")
+    ) {
+      return { rows: [{ total: openSubtaskCount }] };
+    }
+
+    if (
+      normalized.includes('select count(*)::int as "total"') &&
+      normalized.includes("where ustgorevid = $1")
+    ) {
+      return { rows: [{ total: unarchivedSubtaskCount }] };
+    }
+
+    if (
+      normalized.includes("update gorevler") &&
+      normalized.includes("where ustgorevid = $6")
+    ) {
+      recorded.childPropagationParams = params;
+      return {
+        rowCount: inheritedChildIds.length,
+        rows: inheritedChildIds.map((id) => ({ id })),
       };
     }
 
@@ -487,6 +584,10 @@ beforeEach(() => {
         rows: [
           {
             id: Number(params[0]),
+            parentTaskId: currentTaskParentId,
+            parentTaskTitle: currentTaskParentId
+              ? "Ana görev"
+              : null,
             title: currentTaskTitle,
             description: currentTaskDescription,
             priority: currentTaskPriority,
@@ -522,6 +623,8 @@ beforeEach(() => {
         rows: [
           {
             id: 50,
+            parentTaskId: null,
+            parentTaskTitle: null,
             title: "Görülebilen görev",
             description: null,
             priority: "Orta",
@@ -691,6 +794,21 @@ test("task detail endpoint returns one visible task", async () => {
   assert.equal(response.body.task.id, 50);
   assert.equal(response.body.task.title, "Görülebilen görev");
   assert.equal(response.body.task.canManage, false);
+});
+
+test("subtask detail returns its parent reference and inherited assignment", async () => {
+  currentTaskParentId = 10;
+
+  const response = await authenticated(
+    request(app).get("/api/tasks/50"),
+    2,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.task.parentTaskId, 10);
+  assert.equal(response.body.task.parentTaskTitle, "Ana görev");
+  assert.equal(response.body.task.canManage, true);
+  assert.equal(response.body.task.canManageAssignment, false);
 });
 
 test("group manager can open and restore an archived task detail", async () => {
@@ -946,6 +1064,35 @@ test("group manager can assign a manageable task to group member", async () => {
   assert.equal(recorded.activity[0].action, "GorevAtama");
 });
 
+test("parent assignment is propagated to direct subtasks", async () => {
+  inheritedChildIds = [70, 71];
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/assignment"),
+    2,
+  ).send({ atananGrupId: 2 });
+
+  assert.equal(response.status, 200);
+  assert.equal(recorded.childPropagationParams[1], 2);
+  assert.equal(recorded.childPropagationParams[4], 2);
+  assert.equal(recorded.childPropagationParams[5], 50);
+  assert.equal(recorded.historyCount, 2);
+  assert.match(recorded.activity[0].detail, /2 alt göreve/i);
+});
+
+test("subtask assignment cannot be changed independently", async () => {
+  currentTaskParentId = 10;
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/assignment"),
+    2,
+  ).send({ atananKullaniciId: 3 });
+
+  assert.equal(response.status, 409);
+  assert.match(response.body.error, /ana görevden devralınır/i);
+  assert.equal(recorded.updateCount, 0);
+});
+
 test("group manager cannot reassign a task outside managed scope", async () => {
   manageAllowed = false;
 
@@ -1140,6 +1287,37 @@ test("due date update rejects a past value", async () => {
   assert.equal(recorded.dueDateParams, null);
 });
 
+test("parent due date cannot be earlier than an active subtask", async () => {
+  laterChildTask = {
+    id: 70,
+    title: "Belge kontrolü",
+    dueDate: new Date("2099-08-25T12:00:00.000Z"),
+  };
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/due-date"),
+    3,
+  ).send({ bitisTarihi: "2099-08-20T12:00:00.000Z" });
+
+  assert.equal(response.status, 409);
+  assert.match(response.body.error, /belge kontrolü/i);
+  assert.equal(recorded.dueDateParams, null);
+});
+
+test("subtask due date cannot exceed its parent due date", async () => {
+  currentTaskParentId = 10;
+  parentTaskDueDate = new Date("2099-08-20T12:00:00.000Z");
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/due-date"),
+    3,
+  ).send({ bitisTarihi: "2099-08-25T12:00:00.000Z" });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /ana görevin bitiş tarihini geçemez/i);
+  assert.equal(recorded.dueDateParams, null);
+});
+
 test("standard user cannot change task status", async () => {
   const response = await authenticated(
     request(app).patch("/api/tasks/50/status"),
@@ -1174,6 +1352,34 @@ test("group manager can close a task in managed scope", async () => {
   assert.equal(recorded.activity[0].action, "DurumDegisikligi");
   assert.match(recorded.activity[0].detail, /Yeni Atandi/);
   assert.match(recorded.activity[0].detail, /Tamamlandi/);
+});
+
+test("parent task cannot close while a subtask remains open", async () => {
+  openSubtaskCount = 2;
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/status"),
+    2,
+  ).send({ durum: "Tamamlandi" });
+
+  assert.equal(response.status, 409);
+  assert.match(response.body.error, /2 açık alt görevi/i);
+  assert.equal(recorded.statusParams, null);
+});
+
+test("subtask cannot reopen while its parent is terminal", async () => {
+  currentTaskParentId = 10;
+  currentTaskStatus = "Tamamlandi";
+  parentTaskStatus = "Tamamlandi";
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/status"),
+    2,
+  ).send({ durum: "Devam Ediyor" });
+
+  assert.equal(response.status, 409);
+  assert.match(response.body.error, /ana görevi aktif duruma/i);
+  assert.equal(recorded.statusParams, null);
 });
 
 test("group manager can reopen a completed task", async () => {
@@ -1221,6 +1427,19 @@ test("group manager can soft archive a task in managed scope", async () => {
   assert.equal(recorded.activity[0].action, "GorevArsivleme");
 });
 
+test("parent task cannot archive before its subtasks", async () => {
+  unarchivedSubtaskCount = 2;
+
+  const response = await authenticated(
+    request(app).delete("/api/tasks/50"),
+    2,
+  );
+
+  assert.equal(response.status, 409);
+  assert.match(response.body.error, /2 alt görevi arşivleyin/i);
+  assert.equal(recorded.archiveParams, null);
+});
+
 test("standard user cannot archive a task", async () => {
   const response = await authenticated(
     request(app).delete("/api/tasks/50"),
@@ -1244,6 +1463,49 @@ test("group manager can restore a task in managed scope", async () => {
   assert.deepEqual(recorded.findParams.at(-1), [50, false, [2], true]);
   assert.equal(recorded.activity.length, 1);
   assert.equal(recorded.activity[0].action, "GorevGeriYukleme");
+});
+
+test("subtask cannot restore while its parent is archived", async () => {
+  currentTaskParentId = 10;
+  parentTaskArchived = true;
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/restore"),
+    2,
+  );
+
+  assert.equal(response.status, 409);
+  assert.match(response.body.error, /ana görevi geri yükleyin/i);
+  assert.equal(recorded.restoreParams, null);
+});
+
+test("active subtask cannot restore while its parent is terminal", async () => {
+  currentTaskParentId = 10;
+  parentTaskStatus = "Tamamlandi";
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/restore"),
+    2,
+  );
+
+  assert.equal(response.status, 409);
+  assert.match(response.body.error, /ana görevi aktif duruma/i);
+  assert.equal(recorded.restoreParams, null);
+});
+
+test("subtask restore preserves the parent due date boundary", async () => {
+  currentTaskParentId = 10;
+  currentTaskDueDate = new Date("2099-08-25T12:00:00.000Z");
+  parentTaskDueDate = new Date("2099-08-20T12:00:00.000Z");
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/restore"),
+    2,
+  );
+
+  assert.equal(response.status, 409);
+  assert.match(response.body.error, /bitiş tarihini ana görevle uyumlu/i);
+  assert.equal(recorded.restoreParams, null);
 });
 
 test("standard user cannot restore a task", async () => {

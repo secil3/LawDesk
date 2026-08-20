@@ -140,8 +140,13 @@ CREATE TABLE Gorevler (
     CHECK (NOT (
         AtananKullaniciID IS NOT NULL
         AND AtananGrupID IS NOT NULL
-    ))
+    )),
+    CONSTRAINT gorevler_ustgorev_farkli
+        CHECK (UstGorevID IS NULL OR UstGorevID <> GorevID)
 );
+
+CREATE INDEX idx_gorevler_ustgorev
+    ON Gorevler (UstGorevID, ArsivlendiMi, Durum, GorevID);
 
 /* Görev - Etiket (many-to-many) */
 CREATE TABLE GorevEtiketleri (
@@ -287,10 +292,10 @@ VALUES
      NOW() + INTERVAL '14 days', 2, 'Grup', 2, 1);
 
 INSERT INTO Gorevler
-    (UstGorevID, Baslik, Aciklama, TipID, Oncelik, Durum, TahminiBitisTarihi, AtananKullaniciID, GorunurlukTipi, OlusturanKullaniciID)
+    (UstGorevID, Baslik, Aciklama, TipID, Oncelik, Durum, BitisTarihi, AtananGrupID, GorunurlukTipi, GorunurlukGrupID, OlusturanKullaniciID)
 VALUES
     (1, 'Envanter Kontrolü', 'Kişisel veri envanterinin gözden geçirilmesi', 5, 'Orta', 'Yeni Atandi',
-     NOW() + INTERVAL '7 days', 3, 'Kisi', 1);
+     NOW() + INTERVAL '7 days', 2, 'Grup', 2, 1);
 
 INSERT INTO GorevEtiketleri (GorevID, EtiketID) VALUES (1, 1), (1, 3);
 
