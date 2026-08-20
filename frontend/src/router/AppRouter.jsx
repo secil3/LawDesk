@@ -30,20 +30,7 @@ const AUTHENTICATED_ROUTES = [
 const isTaskPath = (path) => /^\/tasks(?:\/\d+)?$/.test(path || "");
 
 const canCreateUsers = (user) => {
-  if (!user) {
-    return false;
-  }
-
-  if (["admin", "yonetici", "kullanici"].includes(user.rol)) {
-    return true;
-  }
-
-  return (
-    Array.isArray(user.groups) &&
-    user.groups.some((group) =>
-      ["grup_uyesi", "grup_yoneticisi"].includes(group.grupRolu),
-    )
-  );
+  return user?.rol === "admin";
 };
 
 function AppRouter({
@@ -158,7 +145,7 @@ function AppRouter({
           </GroupsPage>
         );
       case "/users/create":
-        return (
+        return canCreateUsers(user) ? (
           <UserCreatePage
             user={user}
             userForm={userForm}
@@ -190,6 +177,8 @@ function AppRouter({
             error={error}
             creationMessage={creationMessage}
           />
+        ) : (
+          <DashboardPage user={user} />
         );
       case "/notifications":
         return <NotificationsPage />;

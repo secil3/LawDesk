@@ -118,6 +118,7 @@ let currentTaskDescription;
 let currentTaskPriority;
 let currentTaskTypeId;
 let currentTaskTypeName;
+let currentTaskArchived;
 
 before(async () => {
   testServer = expressApp.listen(0, "127.0.0.1");
@@ -136,6 +137,7 @@ beforeEach(() => {
     activity: [],
     archiveParams: null,
     dueDateParams: null,
+    detailParams: null,
     findParams: [],
     insertParams: null,
     listParams: null,
@@ -156,6 +158,7 @@ beforeEach(() => {
   currentTaskPriority = "Orta";
   currentTaskTypeId = null;
   currentTaskTypeName = null;
+  currentTaskArchived = false;
 
   db.query = async (text, params = []) => {
     const sql = String(text || "");
@@ -471,6 +474,45 @@ beforeEach(() => {
 
     if (
       normalized.includes('end as "canmanageassignment"') &&
+      normalized.includes("from gorevler g") &&
+      normalized.includes("where g.gorevid = $1")
+    ) {
+      recorded.detailParams = params;
+
+      if (currentTaskArchived && params[5] !== true) {
+        return { rows: [] };
+      }
+
+      return {
+        rows: [
+          {
+            id: Number(params[0]),
+            title: currentTaskTitle,
+            description: currentTaskDescription,
+            priority: currentTaskPriority,
+            status: currentTaskStatus,
+            dueDate: currentTaskDueDate,
+            createdAt: new Date("2026-08-13T09:00:00.000Z"),
+            archived: currentTaskArchived,
+            archivedAt: currentTaskArchived
+              ? new Date("2026-08-13T10:00:00.000Z")
+              : null,
+            typeId: currentTaskTypeId,
+            typeName: currentTaskTypeName,
+            creatorId: currentTaskCreatorId,
+            creatorName: "KVKK Üyesi",
+            assignedUserId: 3,
+            assignedUserName: "KVKK Üyesi",
+            assignedGroupId: null,
+            assignedGroupName: null,
+            canManageAssignment: params[1] === true || params[3].length > 0,
+          },
+        ],
+      };
+    }
+
+    if (
+      normalized.includes('end as "canmanageassignment"') &&
       normalized.includes("from gorevler g")
     ) {
       recorded.listSql = normalized;
@@ -649,6 +691,32 @@ test("task detail endpoint returns one visible task", async () => {
   assert.equal(response.body.task.id, 50);
   assert.equal(response.body.task.title, "Görülebilen görev");
   assert.equal(response.body.task.canManage, false);
+});
+
+test("group manager can open and restore an archived task detail", async () => {
+  currentTaskArchived = true;
+
+  const response = await authenticated(
+    request(app).get("/api/tasks/50"),
+    2,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.task.archived, true);
+  assert.equal(response.body.task.canRestore, true);
+  assert.equal(recorded.detailParams[5], true);
+});
+
+test("standard user cannot open an archived task detail", async () => {
+  currentTaskArchived = true;
+
+  const response = await authenticated(
+    request(app).get("/api/tasks/50"),
+    3,
+  );
+
+  assert.equal(response.status, 404);
+  assert.equal(recorded.detailParams[5], false);
 });
 
 test("task list passes visibility context to database", async () => {

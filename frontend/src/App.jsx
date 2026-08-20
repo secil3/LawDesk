@@ -59,20 +59,7 @@ function App() {
   const [taskPanelRevision, setTaskPanelRevision] = useState(0);
 
   const canCreateUsers = (userRecord) => {
-    if (!userRecord) {
-      return false;
-    }
-
-    if (["admin", "yonetici", "kullanici"].includes(userRecord.rol)) {
-      return true;
-    }
-
-    return (
-      Array.isArray(userRecord.groups) &&
-      userRecord.groups.some((group) =>
-        ["grup_uyesi", "grup_yoneticisi"].includes(group.grupRolu),
-      )
-    );
+    return userRecord?.rol === "admin";
   };
 
   const refreshTaskPanel = () => {
@@ -527,14 +514,12 @@ function App() {
         if (isActive) {
           setUser(data.user);
 
-          if (canCreateUsers(data.user)) {
-            await Promise.all([
-              loadGroups(),
-              ...(data.user?.rol === "admin"
-                ? [loadUsers(), loadArchivedUsers()]
-                : []),
-            ]);
-          }
+          await Promise.all([
+            loadGroups(),
+            ...(canCreateUsers(data.user)
+              ? [loadUsers(), loadArchivedUsers()]
+              : []),
+          ]);
         }
       } catch (requestError) {
         if (isActive) {
@@ -597,14 +582,12 @@ function App() {
       setPassword("");
       navigate("/dashboard");
 
-      if (canCreateUsers(data.user)) {
-        await Promise.all([
-          loadGroups(),
-          ...(data.user?.rol === "admin"
-            ? [loadUsers(), loadArchivedUsers()]
-            : []),
-        ]);
-      }
+      await Promise.all([
+        loadGroups(),
+        ...(canCreateUsers(data.user)
+          ? [loadUsers(), loadArchivedUsers()]
+          : []),
+      ]);
     } catch (requestError) {
       setError(
         requestError.message || "Giriş işlemi tamamlanamadı",

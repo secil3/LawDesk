@@ -388,29 +388,44 @@ test(
 );
 
 test(
-  "user creation permission allows manager-level actors",
+  "user creation permission allows only admins",
   () => {
-    const req = {
+    const adminRequest = {
       user: {
-        rol: "yonetici",
+        rol: "admin",
         groups: [],
       },
     };
 
-    const res = createResponse();
-    let nextCalled = false;
+    const adminResponse = createResponse();
+    let adminNextCalled = false;
 
     requireUserCreationPermission(
-      req,
-      res,
+      adminRequest,
+      adminResponse,
       () => {
-        nextCalled = true;
+        adminNextCalled = true;
       },
     );
 
-    assert.equal(nextCalled, true);
-    assert.equal(res.statusCode, 200);
-    assert.equal(res.body, null);
+    assert.equal(adminNextCalled, true);
+    assert.equal(adminResponse.statusCode, 200);
+
+    for (const role of ["yonetici", "kullanici"]) {
+      const response = createResponse();
+      let nextCalled = false;
+
+      requireUserCreationPermission(
+        { user: { rol: role, groups: [] } },
+        response,
+        () => {
+          nextCalled = true;
+        },
+      );
+
+      assert.equal(nextCalled, false);
+      assert.equal(response.statusCode, 403);
+    }
   },
 );
 

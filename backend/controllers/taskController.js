@@ -571,7 +571,7 @@ exports.getTaskById = async (req, res) => {
   const systemViewer = isSystemAssigner(req.user);
   const groupIds = allGroupIdsFor(req.user);
   const managedGroupIds = managedGroupIdsFor(req.user);
-  const archived = req.query?.archived === "true";
+  const privilegedViewer = systemViewer || managedGroupIds.length > 0;
 
   if (!Number.isInteger(taskId) || taskId < 1) {
     return res.status(400).json({ error: "Geçersiz görev id" });
@@ -659,9 +659,19 @@ exports.getTaskById = async (req, res) => {
              )
            )
          )
-         AND g.arsivlendimi = $6::boolean
+         AND (
+           g.arsivlendimi = FALSE
+           OR $6::boolean
+         )
        LIMIT 1`,
-      [taskId, systemViewer, userId, managedGroupIds, groupIds, archived],
+      [
+        taskId,
+        systemViewer,
+        userId,
+        managedGroupIds,
+        groupIds,
+        privilegedViewer,
+      ],
     );
 
     const task = result.rows[0];

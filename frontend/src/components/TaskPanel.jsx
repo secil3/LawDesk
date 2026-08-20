@@ -328,7 +328,7 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
       taskForm.assignmentType !== "none" &&
       !taskForm.assignmentId
     ) {
-      setError("Atama için bir kullanıcı seçiniz");
+      setError("Atama için bir kullanıcı veya grup seçiniz");
       return;
     }
 
@@ -355,7 +355,10 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
             taskForm.assignmentType === "user"
               ? Number(taskForm.assignmentId)
               : null,
-          atananGrupId: null,
+          atananGrupId:
+            taskForm.assignmentType === "group"
+              ? Number(taskForm.assignmentId)
+              : null,
         }),
       });
 
@@ -379,11 +382,11 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
     const targetId = Number(rawTargetId);
 
     if (
-      targetType !== "user" ||
+      !["user", "group"].includes(targetType) ||
       !Number.isInteger(targetId) ||
       targetId < 1
     ) {
-      setError("Atama için bir kullanıcı seçiniz");
+      setError("Atama için bir kullanıcı veya grup seçiniz");
       return;
     }
 
@@ -401,8 +404,10 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
           },
           credentials: "include",
           body: JSON.stringify({
-            atananKullaniciId: targetId,
-            atananGrupId: null,
+            atananKullaniciId:
+              targetType === "user" ? targetId : null,
+            atananGrupId:
+              targetType === "group" ? targetId : null,
           }),
         },
       );
@@ -783,6 +788,7 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
                 >
                   <option value="none">Atamasız oluştur</option>
                   <option value="user">Kullanıcıya ata</option>
+                  <option value="group">Gruba ata</option>
                 </select>
               </label>
 
@@ -803,6 +809,29 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
                     {options.users.map((optionUser) => (
                       <option key={optionUser.id} value={optionUser.id}>
                         {optionUser.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {taskForm.assignmentType === "group" && (
+                <label className="task-field">
+                  <span>Atanacak grup</span>
+                  <select
+                    value={taskForm.assignmentId}
+                    onChange={(event) =>
+                      updateTaskForm(
+                        "assignmentId",
+                        event.target.value,
+                      )
+                    }
+                    required
+                  >
+                    <option value="">Grup seçiniz</option>
+                    {options.groups.map((optionGroup) => (
+                      <option key={optionGroup.id} value={optionGroup.id}>
+                        {optionGroup.name}
                       </option>
                     ))}
                   </select>
