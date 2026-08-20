@@ -79,6 +79,30 @@ function App() {
     setTaskPanelRevision((current) => current + 1);
   };
 
+  const clearClientSession = () => {
+    if (typeof document !== "undefined") {
+      document.cookie =
+        "lawdesk_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax";
+    }
+  };
+
+  const handleExpiredSession = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => undefined);
+    } finally {
+      clearClientSession();
+      setUser(null);
+      setError("Oturum süresi doldu. Lütfen tekrar giriş yapın.");
+      setCurrentPath("/login");
+      if (typeof window !== "undefined") {
+        window.history.pushState({}, "", "/login");
+      }
+    }
+  };
+
   const toggleGroupSelection = (groupId) => {
     const groupKey = String(groupId);
     setUserForm((current) => {
@@ -140,6 +164,11 @@ function App() {
         credentials: "include",
       });
 
+      if (response.status === 401) {
+        await handleExpiredSession();
+        return;
+      }
+
       const data = await readResponse(response);
       const groups = Array.isArray(data.groups) ? data.groups : [];
       setGroupOptions(groups);
@@ -178,6 +207,11 @@ function App() {
           description: groupForm.description.trim(),
         }),
       });
+
+      if (response.status === 401) {
+        await handleExpiredSession();
+        return;
+      }
 
       const data = await readResponse(response);
       const successMessage = data.message || "Grup başarıyla oluşturuldu";
@@ -483,8 +517,7 @@ function App() {
 
         if (response.status === 401) {
           if (isActive) {
-            setUser(null);
-            setError("Oturum süresi doldu. Lütfen tekrar giriş yapın.");
+            await handleExpiredSession();
           }
           return;
         }
