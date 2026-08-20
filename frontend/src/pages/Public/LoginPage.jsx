@@ -64,13 +64,6 @@ function LoginPage({
             <button
               type="button"
               className="secondary-button"
-              onClick={() => onNavigate("/register")}
-            >
-              Kayıt Ol
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
               onClick={() => onNavigate("/")}
             >
               Ana Sayfa

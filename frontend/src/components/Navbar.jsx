@@ -3,7 +3,6 @@ function Navbar({ currentPath, onNavigate }) {
     { label: "Ana Sayfa", path: "/" },
     { label: "Özellikler", path: "/features" },
     { label: "Giriş Yap", path: "/login" },
-    { label: "Kayıt Ol", path: "/register" },
   ];
 
   return (
