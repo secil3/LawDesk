@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { readResponse } from "../../api";
 import TaskAttachments from "../../components/TaskAttachments";
 import TaskComments from "../../components/TaskComments";
+import TaskTags from "../../components/TaskTags";
 
 const STATUS_LABELS = {
   "Yeni Atandi": "Yeni Atandı",
@@ -535,6 +536,15 @@ function TaskDetailPage({ taskId, onNavigate }) {
             <p>{task.description}</p>
           </div>
         )}
+
+        <TaskTags
+          task={task}
+          onError={(message) => setError(message)}
+          onSuccess={(message) => {
+            setError("");
+            showToast(message, "success");
+          }}
+        />
 
         <TaskAttachments
           task={task}

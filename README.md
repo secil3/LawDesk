@@ -2,7 +2,7 @@
 
 LawDesk, Hukuk ve Uyum Başkanlığı ekiplerinin kullanıcı, grup ve görev süreçlerini tek bir web uygulamasından yönetebilmesi için geliştirilen bir görev yönetim sistemidir.
 
-Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, arşivleme ve temel denetim izi uygulanmıştır. Üretim ortamına geçiş için güvenlik sertleştirmesi, gerçek PostgreSQL entegrasyon testleri ve kurulum/operasyon çalışmaları hâlâ gereklidir.
+Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, yorumlar, dosya ekleri, etiketler, arşivleme ve temel denetim izi uygulanmıştır. Üretim ortamına geçiş için güvenlik sertleştirmesi, gerçek PostgreSQL entegrasyon testleri ve kurulum/operasyon çalışmaları hâlâ gereklidir.
 
 ## Mevcut özellikler
 
@@ -21,6 +21,10 @@ Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrul
 - Geçmiş tarih ve saat için bitiş tarihi oluşturmayı engelleme
 - Görev durumunu değiştirme, kapatma ve yeniden açma
 - Görevleri arşivleme ve geri yükleme
+- Göreve yorum ekleme; yorumu düzenleme, geçmişini görüntüleme, arşivleme ve geri yükleme
+- Doğrulanmış dosyaları göreve ekleme, indirme, kaldırma ve geri yükleme
+- Etiket oluşturma, yeniden adlandırma, arşivleme ve geri yükleme
+- Görevlere etiket atama ve görev listesini etikete göre filtreleme
 - Kullanıcı, grup, görev ve yaşam döngüsü işlemleri için denetim kayıtları
 
 ## Roller ve temel yetkiler
@@ -144,6 +148,7 @@ npm run migrate:task-core
 npm run migrate:task-lifecycle
 npm run migrate:task-attachments
 npm run migrate:task-comments
+npm run migrate:task-tags
 ```
 
 ### 4. İlk admin hesabı
@@ -201,7 +206,7 @@ cd backend
 npm test
 ```
 
-Güncel test paketi 55 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi, görev görünürlüğü, atama, düzenleme, yaşam döngüsü ve arşivleme akışlarını kapsar.
+Güncel test paketi 115 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, yorum, dosya eki ve etiket akışlarını kapsar.
 
 Frontend production build kontrolü:
 
@@ -267,8 +272,16 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | PATCH | `/api/tasks/:id/comments/:commentId/restore` | Arşivlenmiş yorumu geri yükler |
 | GET | `/api/tasks/:id/attachments` | Aktif veya kaldırılmış görev eklerini döndürür |
 | POST | `/api/tasks/:id/attachments` | Doğrulanmış bir dosyayı göreve ekler |
+| GET | `/api/tasks/:id/attachments/:attachmentId/download` | Yetkili kullanıcının görev ekini indirmesini sağlar |
 | DELETE | `/api/tasks/:id/attachments/:attachmentId` | Eki fiziksel silmeden kaldırır |
 | PATCH | `/api/tasks/:id/attachments/:attachmentId/restore` | Kaldırılmış eki geri yükler |
+| GET | `/api/tasks/tags` | Aktif etiketleri veya yetkili kullanıcı için `?archived=true` ile etiket arşivini döndürür |
+| POST | `/api/tasks/tags` | Admin veya yönetici için yeni etiket oluşturur |
+| PATCH | `/api/tasks/tags/:tagId` | Admin veya yönetici için etiket adını günceller |
+| DELETE | `/api/tasks/tags/:tagId` | Admin veya yönetici için etiketi fiziksel silmeden arşivler |
+| PATCH | `/api/tasks/tags/:tagId/restore` | Admin veya yönetici için etiketi geri yükler |
+| GET | `/api/tasks/:id/tags` | Görevin etiketlerini ve kullanılabilir etiketleri döndürür |
+| PUT | `/api/tasks/:id/tags` | Yetkili kullanıcının görev etiketlerini atomik olarak değiştirir |
 | GET | `/api/tasks/activity` | Admin ve yöneticiler için son işlem kayıtlarını döndürür |
 
 Kapalı veya iptal edilmiş görevlerin bilgileri değiştirilemez; önce görev yeniden açılmalıdır. Arşivlenmiş görevler düzenlenmeden önce geri yüklenmelidir.
@@ -287,7 +300,7 @@ Mevcut CORS ayarı geliştirme kolaylığı için dinamiktir. Üretime geçmeden
 ## Henüz tamamlanmayan ana alanlar
 
 - Uygulama içi bildirimler ve e-posta hatırlatmaları
-- Etiketler, alt görevler ve gelişmiş raporlar
+- Alt görevler ve gelişmiş raporlar
 - Görev tipi ve sistem ayarları yönetimi
 - Kullanıcının kendi parolasını değiştirmesi
 - Gerçek PostgreSQL kullanan API entegrasyon testleri

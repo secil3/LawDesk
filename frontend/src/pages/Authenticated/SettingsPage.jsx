@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { readResponse } from "../../api";
+import TagManagement from "../../components/TagManagement";
 
 const SYSTEM_ROLE_LABELS = {
   admin: "Admin",
@@ -35,6 +36,11 @@ const ACTIVITY_LABELS = {
   YorumDuzenleme: "Yorum düzenleme",
   YorumArsivleme: "Yorum arşivleme",
   YorumGeriYukleme: "Yorum geri yükleme",
+  EtiketOlusturma: "Etiket oluşturma",
+  EtiketGuncelleme: "Etiket güncelleme",
+  EtiketArsivleme: "Etiket arşivleme",
+  EtiketGeriYukleme: "Etiket geri yükleme",
+  GorevEtiketDegisikligi: "Görev etiketi değişikliği",
 };
 
 const formatDate = (value) => {
@@ -145,6 +151,10 @@ function SettingsPage({ user }) {
           eklenecektir.
         </p>
       </div>
+
+      <TagManagement
+        enabled={["admin", "yonetici"].includes(user?.rol)}
+      />
 
       {canViewActivity && (
         <section
