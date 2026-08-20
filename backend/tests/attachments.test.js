@@ -121,7 +121,8 @@ const createStoredPdf = async () => {
     uploaderId: 3,
     uploaderName: "Görev Üyesi",
     uploadedAt: new Date("2026-08-19T08:00:00.000Z"),
-    deleted: false,
+    removed: false,
+    removedAt: null,
   };
 };
 
@@ -177,7 +178,8 @@ beforeEach(async () => {
     ) {
       return {
         rows:
-          currentAttachment && !currentAttachment.deleted
+          currentAttachment &&
+          currentAttachment.removed === Boolean(params[1])
             ? [currentAttachment]
             : [],
       };
@@ -191,7 +193,7 @@ beforeEach(async () => {
         rows: [
           {
             count:
-              currentAttachment && !currentAttachment.deleted ? "1" : "0",
+              currentAttachment && !currentAttachment.removed ? "1" : "0",
           },
         ],
       };
@@ -208,7 +210,8 @@ beforeEach(async () => {
         uploaderId: Number(params[5]),
         uploaderName: users[Number(params[5])].adsoyad,
         uploadedAt: new Date("2026-08-19T09:00:00.000Z"),
-        deleted: false,
+        removed: false,
+        removedAt: null,
       };
 
       return { rows: [currentAttachment] };
@@ -221,7 +224,7 @@ beforeEach(async () => {
     ) {
       return {
         rows:
-          currentAttachment && !currentAttachment.deleted
+          currentAttachment && !currentAttachment.removed
             ? [currentAttachment]
             : [],
       };
@@ -232,29 +235,48 @@ beforeEach(async () => {
       normalized.includes("from ekler") &&
       normalized.includes("for update")
     ) {
+      const expectsRemoved = normalized.includes("silindimi = true");
+
       return {
         rows:
-          currentAttachment && !currentAttachment.deleted
+          currentAttachment &&
+          currentAttachment.removed === expectsRemoved
             ? [currentAttachment]
             : [],
       };
     }
 
     if (
-      normalized.includes("delete from ekler")
+      normalized.includes("update ekler") &&
+      normalized.includes("set silindimi = true")
     ) {
-      if (!currentAttachment || currentAttachment.deleted) {
+      if (!currentAttachment || currentAttachment.removed) {
         return { rowCount: 0, rows: [] };
       }
 
-      currentAttachment.deleted = true;
+      currentAttachment.removed = true;
+      currentAttachment.removedAt = new Date(
+        "2026-08-19T10:00:00.000Z",
+      );
       return {
         rowCount: 1,
-        rows: [
-          {
-            storedName: currentAttachment.storedName,
-          },
-        ],
+        rows: [{ id: currentAttachment.id }],
+      };
+    }
+
+    if (
+      normalized.includes("update ekler") &&
+      normalized.includes("set silindimi = false")
+    ) {
+      if (!currentAttachment || !currentAttachment.removed) {
+        return { rowCount: 0, rows: [] };
+      }
+
+      currentAttachment.removed = false;
+      currentAttachment.removedAt = null;
+      return {
+        rowCount: 1,
+        rows: [],
       };
     }
 
@@ -421,7 +443,7 @@ test("unrelated user cannot remove another user's attachment", async () => {
 
   assert.equal(response.status, 403);
   assert.match(response.body.error, /kaldırma yetkiniz/i);
-  assert.equal(currentAttachment.deleted, false);
+  assert.equal(currentAttachment.removed, false);
 });
 
 test("uploader can remove an attachment", async () => {
@@ -434,6 +456,67 @@ test("uploader can remove an attachment", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(response.body.message, "Ek görevden kaldırıldı");
-  assert.equal(currentAttachment.deleted, true);
+  assert.equal(currentAttachment.removed, true);
   assert.equal(activity[0].action, "EkKaldirma");
+
+  await fs.access(
+    path.join(TEST_STORAGE_ROOT, currentAttachment.storedName),
+  );
+});
+
+test("uploader can list and restore a removed attachment", async () => {
+  await createStoredPdf();
+  currentAttachment.removed = true;
+  currentAttachment.removedAt = new Date(
+    "2026-08-19T10:00:00.000Z",
+  );
+
+  const listResponse = await authenticated(
+    request(app).get("/api/tasks/50/attachments?removed=true"),
+    3,
+  );
+
+  assert.equal(listResponse.status, 200);
+  assert.equal(listResponse.body.removed, true);
+  assert.equal(listResponse.body.attachments.length, 1);
+  assert.equal(listResponse.body.attachments[0].removed, true);
+  assert.equal(listResponse.body.attachments[0].canRestore, true);
+
+  const restoreResponse = await authenticated(
+    request(app).patch("/api/tasks/50/attachments/70/restore"),
+    3,
+  );
+
+  assert.equal(restoreResponse.status, 200);
+  assert.equal(restoreResponse.body.message, "Ek göreve geri yüklendi");
+  assert.equal(currentAttachment.removed, false);
+  assert.equal(currentAttachment.removedAt, null);
+  assert.equal(activity[0].action, "EkGeriYukleme");
+});
+
+test("removed attachment cannot be downloaded before restore", async () => {
+  await createStoredPdf();
+  currentAttachment.removed = true;
+
+  const response = await authenticated(
+    request(app).get("/api/tasks/50/attachments/70/download"),
+    3,
+  );
+
+  assert.equal(response.status, 404);
+  assert.equal(response.body.error, "Ek dosyası bulunamadı");
+});
+
+test("unrelated user cannot restore a removed attachment", async () => {
+  await createStoredPdf();
+  currentAttachment.removed = true;
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/attachments/70/restore"),
+    4,
+  );
+
+  assert.equal(response.status, 403);
+  assert.match(response.body.error, /geri yükleme yetkiniz/i);
+  assert.equal(currentAttachment.removed, true);
 });

@@ -6,20 +6,7 @@ function AuthLayout({
   onLogout,
 }) {
   const canCreateUsers = (userRecord) => {
-    if (!userRecord) {
-      return false;
-    }
-
-    if (["admin", "yonetici", "kullanici"].includes(userRecord.rol)) {
-      return true;
-    }
-
-    return (
-      Array.isArray(userRecord.groups) &&
-      userRecord.groups.some((group) =>
-        ["grup_uyesi", "grup_yoneticisi"].includes(group.grupRolu),
-      )
-    );
+    return userRecord?.rol === "admin";
   };
 
   const menuItems = [

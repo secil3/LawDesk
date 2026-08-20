@@ -28,6 +28,9 @@ const ACTIVITY_LABELS = {
   KullaniciGrupUyelikleriDegisikligi: "Kullanıcı üyelik değişikliği",
   GrupOlusturma: "Grup oluşturma",
   GrupGuncelleme: "Grup güncelleme",
+  EkYukleme: "Ek yükleme",
+  EkKaldirma: "Ek kaldırma",
+  EkGeriYukleme: "Ek geri yükleme",
 };
 
 const formatDate = (value) => {

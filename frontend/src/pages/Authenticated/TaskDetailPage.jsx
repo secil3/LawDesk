@@ -146,7 +146,9 @@ function TaskDetailPage({ taskId, onNavigate }) {
         setAssignmentDraft(
           loadedTask?.assignedUserId
             ? `user:${loadedTask.assignedUserId}`
-            : "",
+            : loadedTask?.assignedGroupId
+              ? `group:${loadedTask.assignedGroupId}`
+              : "",
         );
         setDueDateDraft(toDateTimeInputValue(loadedTask?.dueDate));
 
@@ -231,8 +233,12 @@ function TaskDetailPage({ taskId, onNavigate }) {
     const [targetType, rawTargetId] = selectedValue.split(":");
     const targetId = Number(rawTargetId);
 
-    if (targetType !== "user" || !Number.isInteger(targetId) || targetId < 1) {
-      setError("Atama için bir kullanıcı seçiniz");
+    if (
+      !["user", "group"].includes(targetType) ||
+      !Number.isInteger(targetId) ||
+      targetId < 1
+    ) {
+      setError("Atama için bir kullanıcı veya grup seçiniz");
       return;
     }
 
@@ -245,16 +251,30 @@ function TaskDetailPage({ taskId, onNavigate }) {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          atananKullaniciId: targetId,
-          atananGrupId: null,
+          atananKullaniciId:
+            targetType === "user" ? targetId : null,
+          atananGrupId:
+            targetType === "group" ? targetId : null,
         }),
       });
 
       const data = await readResponse(response);
       setTask((current) => ({
         ...current,
-        assignedUserId: targetId,
-        assignedUserName: options.users.find((user) => Number(user.id) === targetId)?.name || current?.assignedUserName,
+        assignedUserId: targetType === "user" ? targetId : null,
+        assignedUserName:
+          targetType === "user"
+            ? options.users.find(
+                (user) => Number(user.id) === targetId,
+              )?.name || null
+            : null,
+        assignedGroupId: targetType === "group" ? targetId : null,
+        assignedGroupName:
+          targetType === "group"
+            ? options.groups.find(
+                (group) => Number(group.id) === targetId,
+              )?.name || null
+            : null,
       }));
       showToast(data.message || "Görev ataması güncellendi", "success");
     } catch (requestError) {
@@ -596,10 +616,15 @@ function TaskDetailPage({ taskId, onNavigate }) {
                       value={assignmentDraft}
                       onChange={(event) => setAssignmentDraft(event.target.value)}
                     >
-                      <option value="">Kullanıcı seçiniz</option>
+                      <option value="">Kullanıcı veya grup seçiniz</option>
                       {options.users.map((user) => (
                         <option key={user.id} value={`user:${user.id}`}>
-                          {user.name}
+                          Kullanıcı: {user.name}
+                        </option>
+                      ))}
+                      {options.groups.map((group) => (
+                        <option key={`group-${group.id}`} value={`group:${group.id}`}>
+                          Grup: {group.name}
                         </option>
                       ))}
                     </select>

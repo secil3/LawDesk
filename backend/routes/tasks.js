@@ -24,6 +24,7 @@ const {
   downloadTaskAttachment,
   listTaskAttachments,
   removeTaskAttachment,
+  restoreTaskAttachment,
 } = require("../controllers/attachmentController");
 
 const {
@@ -63,6 +64,10 @@ router.get(
 router.delete(
   "/:id/attachments/:attachmentId",
   removeTaskAttachment,
+);
+router.patch(
+  "/:id/attachments/:attachmentId/restore",
+  restoreTaskAttachment,
 );
 router.patch("/:id", updateTask);
 router.patch("/:id/assignment", updateTaskAssignment);

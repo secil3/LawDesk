@@ -128,29 +128,8 @@ const requireSystemRole =
     return next();
   };
 
-const USER_CREATION_SYSTEM_ROLES = [
-  "admin",
-  "yonetici",
-  "kullanici",
-];
-
 const canCreateUsers = (user) => {
-  if (!user) {
-    return false;
-  }
-
-  if (USER_CREATION_SYSTEM_ROLES.includes(user.rol)) {
-    return true;
-  }
-
-  return (
-    Array.isArray(user.groups) &&
-    user.groups.some((group) =>
-      ["grup_uyesi", "grup_yoneticisi"].includes(
-        normalizeGroupRole(group.grupRolu),
-      ),
-    )
-  );
+  return user?.rol === "admin";
 };
 
 const requireUserCreationPermission = (req, res, next) => {

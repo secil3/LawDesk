@@ -55,7 +55,9 @@ function TaskAttachments({ task, onError, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [removingId, setRemovingId] = useState(null);
+  const [restoringId, setRestoringId] = useState(null);
   const [attachments, setAttachments] = useState([]);
+  const [viewMode, setViewMode] = useState("active");
   const [canUpload, setCanUpload] = useState(
     !task.archived &&
       !["Tamamlandi", "Iptal Edildi"].includes(task.status),
@@ -69,17 +71,26 @@ function TaskAttachments({ task, onError, onSuccess }) {
     );
   }, [task.archived, task.status]);
 
+  useEffect(() => {
+    setExpanded(false);
+    setLoaded(false);
+    setAttachments([]);
+    setViewMode("active");
+  }, [task.id]);
+
   const reportError = (error, fallbackMessage) => {
     onError?.(error?.message || fallbackMessage);
   };
 
-  const loadAttachments = async () => {
+  const loadAttachments = async (mode = viewMode) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`/api/tasks/${task.id}/attachments`, {
-        credentials: "include",
-      });
+      const query = mode === "removed" ? "?removed=true" : "";
+      const response = await fetch(
+        `/api/tasks/${task.id}/attachments${query}`,
+        { credentials: "include" },
+      );
       const data = await readResponse(response);
 
       setAttachments(
@@ -96,6 +107,17 @@ function TaskAttachments({ task, onError, onSuccess }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const changeViewMode = async (mode) => {
+    if (mode === viewMode && loaded) {
+      return;
+    }
+
+    setViewMode(mode);
+    setLoaded(false);
+    setAttachments([]);
+    await loadAttachments(mode);
   };
 
   const toggleExpanded = async () => {
@@ -192,6 +214,30 @@ function TaskAttachments({ task, onError, onSuccess }) {
     }
   };
 
+  const handleRestore = async (attachment) => {
+    setRestoringId(attachment.id);
+
+    try {
+      const response = await fetch(
+        `/api/tasks/${task.id}/attachments/${attachment.id}/restore`,
+        {
+          method: "PATCH",
+          credentials: "include",
+        },
+      );
+      const data = await readResponse(response);
+
+      setAttachments((current) =>
+        current.filter((item) => item.id !== attachment.id),
+      );
+      onSuccess?.(data.message || "Ek göreve geri yüklendi");
+    } catch (error) {
+      reportError(error, "Ek göreve geri yüklenemedi");
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
   return (
     <section className="task-attachments">
       <button
@@ -206,10 +252,33 @@ function TaskAttachments({ task, onError, onSuccess }) {
 
       {expanded && (
         <div className="attachment-content">
+          <div className="view-tabs attachment-view-tabs" aria-label="Ek görünümü">
+            <button
+              type="button"
+              className={viewMode === "active" ? "active" : ""}
+              onClick={() => changeViewMode("active")}
+              disabled={loading}
+            >
+              Aktif ekler
+            </button>
+            <button
+              type="button"
+              className={viewMode === "removed" ? "active" : ""}
+              onClick={() => changeViewMode("removed")}
+              disabled={loading}
+            >
+              Kaldırılanlar
+            </button>
+          </div>
+
           {loading ? (
             <p className="attachment-empty">Ekler yükleniyor...</p>
           ) : attachments.length === 0 ? (
-            <p className="attachment-empty">Bu göreve henüz dosya eklenmedi.</p>
+            <p className="attachment-empty">
+              {viewMode === "removed"
+                ? "Bu görevde kaldırılmış ek bulunmuyor."
+                : "Bu göreve henüz dosya eklenmedi."}
+            </p>
           ) : (
             <ul className="attachment-list">
               {attachments.map((attachment) => (
@@ -220,17 +289,22 @@ function TaskAttachments({ task, onError, onSuccess }) {
                       {formatFileSize(attachment.size)} · {attachment.uploaderName}
                       {" · "}
                       {formatUploadDate(attachment.uploadedAt)}
+                      {viewMode === "removed" && attachment.removedAt
+                        ? ` · Kaldırılma: ${formatUploadDate(attachment.removedAt)}`
+                        : ""}
                     </span>
                   </div>
 
                   <div className="attachment-actions">
-                    <a
-                      className="attachment-download-link"
-                      href={`/api/tasks/${task.id}/attachments/${attachment.id}/download`}
-                      download={attachment.fileName}
-                    >
-                      İndir
-                    </a>
+                    {viewMode === "active" && (
+                      <a
+                        className="attachment-download-link"
+                        href={`/api/tasks/${task.id}/attachments/${attachment.id}/download`}
+                        download={attachment.fileName}
+                      >
+                        İndir
+                      </a>
+                    )}
 
                     {attachment.canDelete && canUpload && (
                       <button
@@ -244,13 +318,26 @@ function TaskAttachments({ task, onError, onSuccess }) {
                           : "Kaldır"}
                       </button>
                     )}
+
+                    {attachment.canRestore && (
+                      <button
+                        type="button"
+                        className="secondary-button attachment-restore-button"
+                        onClick={() => handleRestore(attachment)}
+                        disabled={restoringId === attachment.id}
+                      >
+                        {restoringId === attachment.id
+                          ? "Geri yükleniyor..."
+                          : "Geri yükle"}
+                      </button>
+                    )}
                   </div>
                 </li>
               ))}
             </ul>
           )}
 
-          {canUpload && (
+          {canUpload && viewMode === "active" && (
             <div className="attachment-upload-row">
               <input
                 ref={fileInputRef}
