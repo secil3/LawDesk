@@ -3,6 +3,7 @@ const express = require("express");
 const {
   archiveTask,
   createTask,
+  getTaskById,
   getTaskOptions,
   listActivityLogs,
   listTasks,
@@ -46,6 +47,7 @@ router.get(
   listActivityLogs,
 );
 router.get("/", listTasks);
+router.get("/:id", getTaskById);
 router.post("/", createTask);
 router.get("/:id/attachments", listTaskAttachments);
 router.post(

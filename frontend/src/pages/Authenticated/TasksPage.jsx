@@ -1,9 +1,9 @@
 import TaskPanel from "../../components/TaskPanel";
 
-function TasksPage({ taskPanelRevision }) {
+function TasksPage({ taskPanelRevision, onNavigate }) {
   return (
     <section className="page-shell">
-      <TaskPanel refreshKey={taskPanelRevision} />
+      <TaskPanel refreshKey={taskPanelRevision} onNavigate={onNavigate} />
     </section>
   );
 }
