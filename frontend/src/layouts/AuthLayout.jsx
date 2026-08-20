@@ -5,11 +5,30 @@ function AuthLayout({
   onNavigate,
   onLogout,
 }) {
+  const canCreateUsers = (userRecord) => {
+    if (!userRecord) {
+      return false;
+    }
+
+    if (["admin", "yonetici", "kullanici"].includes(userRecord.rol)) {
+      return true;
+    }
+
+    return (
+      Array.isArray(userRecord.groups) &&
+      userRecord.groups.some((group) =>
+        ["grup_uyesi", "grup_yoneticisi"].includes(group.grupRolu),
+      )
+    );
+  };
+
   const menuItems = [
     { label: "Ana Sayfa", path: "/dashboard" },
     { label: "Görevler", path: "/tasks" },
     { label: "Gruplar", path: "/groups" },
-    { label: "Kullanıcılar", path: "/users/create" },
+    ...(canCreateUsers(user)
+      ? [{ label: "Kullanıcılar", path: "/users/create" }]
+      : []),
     { label: "Bildirimler", path: "/notifications" },
     { label: "Ayarlar", path: "/settings" },
   ];

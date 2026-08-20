@@ -19,6 +19,7 @@ const db = require("../config/db");
 const {
   requireSystemRole,
   requireGroupRole,
+  requireUserCreationPermission,
 } = require("../middleware/auth");
 
 let app = null;
@@ -372,6 +373,33 @@ test(
     let nextCalled = false;
 
     requireSystemRole("admin")(
+      req,
+      res,
+      () => {
+        nextCalled = true;
+      },
+    );
+
+    assert.equal(nextCalled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body, null);
+  },
+);
+
+test(
+  "user creation permission allows manager-level actors",
+  () => {
+    const req = {
+      user: {
+        rol: "yonetici",
+        groups: [],
+      },
+    };
+
+    const res = createResponse();
+    let nextCalled = false;
+
+    requireUserCreationPermission(
       req,
       res,
       () => {

@@ -128,6 +128,47 @@ const requireSystemRole =
     return next();
   };
 
+const USER_CREATION_SYSTEM_ROLES = [
+  "admin",
+  "yonetici",
+  "kullanici",
+];
+
+const canCreateUsers = (user) => {
+  if (!user) {
+    return false;
+  }
+
+  if (USER_CREATION_SYSTEM_ROLES.includes(user.rol)) {
+    return true;
+  }
+
+  return (
+    Array.isArray(user.groups) &&
+    user.groups.some((group) =>
+      ["grup_uyesi", "grup_yoneticisi"].includes(
+        normalizeGroupRole(group.grupRolu),
+      ),
+    )
+  );
+};
+
+const requireUserCreationPermission = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: "Giriş yapmanız gerekiyor",
+    });
+  }
+
+  if (!canCreateUsers(req.user)) {
+    return res.status(403).json({
+      error: "Bu işlem için yetkiniz bulunmuyor",
+    });
+  }
+
+  return next();
+};
+
 const requireGroupRole =
   (groupId, requiredRole) =>
   (req, res, next) => {
@@ -160,5 +201,6 @@ const requireGroupRole =
 module.exports = {
   requireAuth,
   requireSystemRole,
+  requireUserCreationPermission,
   requireGroupRole,
 };
