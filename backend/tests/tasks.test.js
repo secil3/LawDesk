@@ -335,6 +335,13 @@ beforeEach(() => {
 
     if (
       normalized.includes("from aktiviteloglari al") &&
+      normalized.includes('count(*)::int as "total"')
+    ) {
+      return { rows: [{ total: 1 }] };
+    }
+
+    if (
+      normalized.includes("from aktiviteloglari al") &&
       normalized.includes("order by al.islemtarihi")
     ) {
       return {

@@ -5,7 +5,6 @@ const {
   createTask,
   getTaskById,
   getTaskOptions,
-  listActivityLogs,
   listTasks,
   restoreTask,
   updateTask,
@@ -13,6 +12,11 @@ const {
   updateTaskDueDate,
   updateTaskStatus,
 } = require("../controllers/taskController");
+
+const {
+  exportActivityLogs,
+  listActivityLogs,
+} = require("../controllers/activityController");
 
 const {
   getDashboardSummary,
@@ -119,6 +123,11 @@ router.delete(
   "/tags/:tagId",
   requireSystemRole("admin", "yonetici"),
   archiveTag,
+);
+router.get(
+  "/activity/export",
+  requireSystemRole("admin", "yonetici"),
+  exportActivityLogs,
 );
 router.get(
   "/activity",
