@@ -169,6 +169,30 @@ const requireUserCreationPermission = (req, res, next) => {
   return next();
 };
 
+const canAccessGroups = (user) => {
+  if (!user) {
+    return false;
+  }
+
+  return true;
+};
+
+const requireGroupAccess = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: "Giriş yapmanız gerekiyor",
+    });
+  }
+
+  if (!canAccessGroups(req.user)) {
+    return res.status(403).json({
+      error: "Bu işlem için yetkiniz bulunmuyor",
+    });
+  }
+
+  return next();
+};
+
 const requireGroupRole =
   (groupId, requiredRole) =>
   (req, res, next) => {
@@ -202,5 +226,6 @@ module.exports = {
   requireAuth,
   requireSystemRole,
   requireUserCreationPermission,
+  requireGroupAccess,
   requireGroupRole,
 };

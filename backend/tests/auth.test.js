@@ -19,6 +19,7 @@ const db = require("../config/db");
 const {
   requireSystemRole,
   requireGroupRole,
+  requireGroupAccess,
   requireUserCreationPermission,
 } = require("../middleware/auth");
 
@@ -400,6 +401,39 @@ test(
     let nextCalled = false;
 
     requireUserCreationPermission(
+      req,
+      res,
+      () => {
+        nextCalled = true;
+      },
+    );
+
+    assert.equal(nextCalled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body, null);
+  },
+);
+
+test(
+  "group access allows authenticated user to view visible groups",
+  () => {
+    const req = {
+      user: {
+        rol: "kullanici",
+        groups: [
+          {
+            grupId: 2,
+            grupAdi: "KVKK",
+            grupRolu: "grup_uyesi",
+          },
+        ],
+      },
+    };
+
+    const res = createResponse();
+    let nextCalled = false;
+
+    requireGroupAccess(
       req,
       res,
       () => {
