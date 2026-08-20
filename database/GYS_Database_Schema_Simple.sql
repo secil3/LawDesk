@@ -160,6 +160,19 @@ CREATE TABLE Gorevler (
 CREATE INDEX idx_gorevler_ustgorev
     ON Gorevler (UstGorevID, ArsivlendiMi, Durum, GorevID);
 
+CREATE INDEX idx_gorevler_dashboard_risk
+    ON Gorevler (BitisTarihi, GorevID)
+    WHERE ArsivlendiMi = FALSE
+      AND Durum NOT IN ('Tamamlandi', 'Iptal Edildi')
+      AND BitisTarihi IS NOT NULL;
+
+CREATE INDEX idx_gorevler_rapor_olusturma
+    ON Gorevler (OlusturmaTarihi DESC, GorevID DESC);
+
+CREATE INDEX idx_gorevler_rapor_tamamlanma
+    ON Gorevler (TamamlanmaTarihi DESC, GorevID DESC)
+    WHERE TamamlanmaTarihi IS NOT NULL;
+
 /* Görev - Etiket (many-to-many) */
 CREATE TABLE GorevEtiketleri (
     GorevID     INT NOT NULL REFERENCES Gorevler(GorevID),

@@ -19,6 +19,7 @@ const {
 } = require("../controllers/activityController");
 
 const {
+  exportDashboardReport,
   getDashboardSummary,
 } = require("../controllers/dashboardController");
 
@@ -77,6 +78,7 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.get("/dashboard-summary", getDashboardSummary);
+router.get("/dashboard-report/export", exportDashboardReport);
 router.get("/options", getTaskOptions);
 router.get(
   "/types",

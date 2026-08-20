@@ -178,7 +178,7 @@ function AppRouter({
             creationMessage={creationMessage}
           />
         ) : (
-          <DashboardPage user={user} />
+          <DashboardPage user={user} onNavigate={navigate} />
         );
       case "/notifications":
         return <NotificationsPage />;
@@ -186,7 +186,7 @@ function AppRouter({
         return <SettingsPage user={user} />;
       case "/dashboard":
       default:
-        return <DashboardPage user={user} />;
+        return <DashboardPage user={user} onNavigate={navigate} />;
     }
   };
 
