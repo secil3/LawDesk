@@ -263,12 +263,8 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
       setError("");
 
       try {
-        const loadedOptions = await loadOptions();
+        await loadOptions();
         await loadTasks(taskListMode, queryState);
-
-        if (loadedOptions.canViewActivity) {
-          await loadActivity();
-        }
       } catch (requestError) {
         setError(
           requestError.message || "Görev bilgileri yüklenemedi",
@@ -302,12 +298,8 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
       setError("");
 
       try {
-        const loadedOptions = await loadOptions();
+        await loadOptions();
         await loadTasks(taskListMode, queryState);
-
-        if (loadedOptions.canViewActivity) {
-          await loadActivity();
-        }
       } catch (requestError) {
         setError(
           requestError.message || "Görev bilgileri yenilenemedi",
