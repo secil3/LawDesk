@@ -44,6 +44,11 @@ const users = {
   },
 };
 
+const groups = [
+  { id: 1, name: "Uyum" },
+  { id: 2, name: "KVKK" },
+];
+
 const createToken = (userId) =>
   jwt.sign(
     {},
@@ -71,6 +76,8 @@ const typeResponse = (taskType) => ({
   id: taskType.id,
   name: taskType.name,
   description: taskType.description,
+  groupId: taskType.groupId,
+  groupName: taskType.groupName,
   active: taskType.active,
   createdAt: taskType.createdAt,
   updatedAt: taskType.updatedAt,
@@ -97,6 +104,8 @@ beforeEach(() => {
       id: 1,
       name: "Operasyonel",
       description: "Günlük operasyonlar",
+      groupId: 2,
+      groupName: "KVKK",
       active: true,
       createdAt: new Date("2026-08-20T08:00:00.000Z"),
       updatedAt: new Date("2026-08-20T08:00:00.000Z"),
@@ -108,6 +117,8 @@ beforeEach(() => {
       id: 2,
       name: "Sözleşme",
       description: null,
+      groupId: 1,
+      groupName: "Uyum",
       active: true,
       createdAt: new Date("2026-08-20T08:00:00.000Z"),
       updatedAt: new Date("2026-08-20T08:00:00.000Z"),
@@ -119,6 +130,8 @@ beforeEach(() => {
       id: 3,
       name: "Eski Tip",
       description: "Arşivlenmiş görev tipi",
+      groupId: 1,
+      groupName: "Uyum",
       active: false,
       createdAt: new Date("2026-08-20T08:00:00.000Z"),
       updatedAt: new Date("2026-08-20T09:00:00.000Z"),
@@ -147,6 +160,23 @@ beforeEach(() => {
       normalized.includes("from grupuyelikleri gu")
     ) {
       return { rows: [] };
+    }
+
+    if (
+      normalized.includes('select grupid as "id", grupadi as "name"') &&
+      normalized.includes("from gruplar") &&
+      normalized.includes("where grupid = $1")
+    ) {
+      const group = groups.find((item) => item.id === Number(params[0]));
+      return { rows: group ? [group] : [] };
+    }
+
+    if (
+      normalized.includes('select grupid as "id", grupadi as "name"') &&
+      normalized.includes("from gruplar") &&
+      normalized.includes("order by grupadi")
+    ) {
+      return { rows: groups };
     }
 
     if (
@@ -186,6 +216,8 @@ beforeEach(() => {
         id: Math.max(...taskTypes.map((item) => item.id)) + 1,
         name: params[0],
         description: params[1],
+        groupId: Number(params[2]),
+        groupName: groups.find((item) => item.id === Number(params[2]))?.name,
         active: true,
         createdAt: new Date("2026-08-20T10:00:00.000Z"),
         updatedAt: new Date("2026-08-20T10:00:00.000Z"),
@@ -202,7 +234,7 @@ beforeEach(() => {
       normalized.includes("set tipadi = $1")
     ) {
       const taskType = taskTypes.find(
-        (item) => item.id === Number(params[2]) && item.active,
+        (item) => item.id === Number(params[3]) && item.active,
       );
 
       if (!taskType) {
@@ -211,6 +243,10 @@ beforeEach(() => {
 
       taskType.name = params[0];
       taskType.description = params[1];
+      taskType.groupId = Number(params[2]);
+      taskType.groupName = groups.find(
+        (item) => item.id === Number(params[2]),
+      )?.name;
       taskType.updatedAt = new Date("2026-08-20T10:00:00.000Z");
       return { rowCount: 1, rows: [typeResponse(taskType)] };
     }
@@ -309,6 +345,8 @@ test("admin can list active task types with usage counts", async () => {
   assert.equal(response.body.taskTypes.length, 2);
   assert.equal(response.body.taskTypes[0].taskCount, 2);
   assert.equal(response.body.taskTypes[0].activeTaskCount, 1);
+  assert.equal(response.body.taskTypes[0].groupName, "KVKK");
+  assert.deepEqual(response.body.groups, groups);
   assert.equal(response.body.limits.maxNameLength, 100);
   assert.equal(response.body.limits.maxDescriptionLength, 300);
 });
@@ -332,6 +370,7 @@ test("admin can create a normalized task type", async () => {
   ).send({
     tipAdi: "  Dava   Takibi  ",
     aciklama: "  Dava ve   duruşma süreçleri  ",
+    grupId: 2,
   });
 
   assert.equal(response.status, 201);
@@ -340,6 +379,7 @@ test("admin can create a normalized task type", async () => {
     response.body.taskType.description,
     "Dava ve duruşma süreçleri",
   );
+  assert.equal(response.body.taskType.groupName, "KVKK");
   assert.equal(activity[0].action, "GorevTipiOlusturma");
 });
 
@@ -347,7 +387,7 @@ test("manager can create a task type", async () => {
   const response = await authenticated(
     request(app).post("/api/tasks/types"),
     2,
-  ).send({ tipAdi: "Risk İncelemesi" });
+  ).send({ tipAdi: "Risk İncelemesi", grupId: 1 });
 
   assert.equal(response.status, 201);
   assert.equal(response.body.taskType.name, "Risk İncelemesi");
@@ -358,10 +398,20 @@ test("task type creation rejects an empty name", async () => {
   const response = await authenticated(
     request(app).post("/api/tasks/types"),
     1,
-  ).send({ tipAdi: "   " });
+  ).send({ tipAdi: "   ", grupId: 1 });
 
   assert.equal(response.status, 400);
   assert.match(response.body.error, /adı zorunludur/i);
+});
+
+test("task type creation requires a responsible group", async () => {
+  const response = await authenticated(
+    request(app).post("/api/tasks/types"),
+    1,
+  ).send({ tipAdi: "Grupsuz Tip" });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /sorumlu grup/i);
 });
 
 test("task type creation rejects an overlong description", async () => {
@@ -371,6 +421,7 @@ test("task type creation rejects an overlong description", async () => {
   ).send({
     tipAdi: "Yeni Tip",
     aciklama: "a".repeat(301),
+    grupId: 1,
   });
 
   assert.equal(response.status, 400);
@@ -383,7 +434,7 @@ test("duplicate task type name returns conflict", async () => {
   const response = await authenticated(
     request(app).post("/api/tasks/types"),
     1,
-  ).send({ tipAdi: "Operasyonel" });
+  ).send({ tipAdi: "Operasyonel", grupId: 2 });
 
   assert.equal(response.status, 409);
   assert.match(response.body.error, /zaten kullanılıyor/i);
@@ -396,6 +447,7 @@ test("admin can update task type name and description", async () => {
   ).send({
     tipAdi: "Sözleşme İncelemesi",
     aciklama: "Sözleşme hazırlama ve kontrol",
+    grupId: 2,
   });
 
   assert.equal(response.status, 200);
@@ -404,6 +456,7 @@ test("admin can update task type name and description", async () => {
     response.body.taskType.description,
     "Sözleşme hazırlama ve kontrol",
   );
+  assert.equal(response.body.taskType.groupName, "KVKK");
   assert.equal(activity[0].action, "GorevTipiGuncelleme");
 });
 
@@ -414,6 +467,7 @@ test("task type update rejects a request without changes", async () => {
   ).send({
     tipAdi: "Operasyonel",
     aciklama: "Günlük operasyonlar",
+    grupId: 2,
   });
 
   assert.equal(response.status, 409);

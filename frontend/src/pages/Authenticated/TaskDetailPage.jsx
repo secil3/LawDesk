@@ -24,6 +24,10 @@ const PRIORITY_LABELS = {
 
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 const PRIORITY_OPTIONS = Object.keys(PRIORITY_LABELS);
+const TERMINAL_ARCHIVE_LABELS = {
+  Tamamlandi: "Tamamlandı",
+  "Iptal Edildi": "İptal edildi",
+};
 
 const STATUS_CLASSNAMES = {
   "Yeni Atandi": "status-badge status-new",
@@ -90,9 +94,9 @@ function TaskDetailPage({ taskId, onNavigate }) {
     dueDate: "",
   });
   const [statusDraft, setStatusDraft] = useState("");
+  const [cancellationReasonDraft, setCancellationReasonDraft] = useState("");
   const [assignmentDraft, setAssignmentDraft] = useState("");
   const [dueDateDraft, setDueDateDraft] = useState("");
-  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -150,6 +154,7 @@ function TaskDetailPage({ taskId, onNavigate }) {
           dueDate: toDateTimeInputValue(loadedTask?.dueDate),
         });
         setStatusDraft(loadedTask?.status || "");
+        setCancellationReasonDraft("");
         setAssignmentDraft(
           loadedTask?.assignedUserId
             ? `user:${loadedTask.assignedUserId}`
@@ -301,6 +306,13 @@ function TaskDetailPage({ taskId, onNavigate }) {
       return;
     }
 
+    const cancellationReason = cancellationReasonDraft.trim();
+
+    if (statusDraft === "Iptal Edildi" && !cancellationReason) {
+      setError("Görevi iptal etmek için iptal nedenini yazınız");
+      return;
+    }
+
     setSaving(true);
     setError("");
 
@@ -309,14 +321,26 @@ function TaskDetailPage({ taskId, onNavigate }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ durum: statusDraft }),
+        body: JSON.stringify({
+          durum: statusDraft,
+          iptalNedeni:
+            statusDraft === "Iptal Edildi" ? cancellationReason : null,
+        }),
       });
 
       const data = await readResponse(response);
       setTask((current) => ({
         ...current,
-        status: statusDraft,
+        ...data.task,
+        canManageLifecycle: data.task?.archived ? false : current.canManageLifecycle,
+        canRestore: data.task?.archived ? true : current.canRestore,
+        canManageAssignment: data.task?.archived
+          ? false
+          : current.canManageAssignment,
+        canEditTask: data.task?.archived ? false : current.canEditTask,
+        canEditDueDate: data.task?.archived ? false : current.canEditDueDate,
       }));
+      setCancellationReasonDraft("");
       showToast(data.message || "Görev durumu güncellendi", "success");
     } catch (requestError) {
       setError(requestError.message || "Görev durumu güncellenemedi");
@@ -360,46 +384,6 @@ function TaskDetailPage({ taskId, onNavigate }) {
     }
   };
 
-  const requestArchive = () => {
-    if (!task) {
-      return;
-    }
-
-    setArchiveConfirmOpen(true);
-  };
-
-  const cancelArchive = () => {
-    setArchiveConfirmOpen(false);
-  };
-
-  const handleArchive = async () => {
-    if (!task) {
-      return;
-    }
-
-    setArchiveConfirmOpen(false);
-    setSaving(true);
-    setError("");
-
-    try {
-      const response = await fetch(`/api/tasks/${task.id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-
-      const data = await readResponse(response);
-      setTask((current) => ({
-        ...current,
-        archived: true,
-      }));
-      showToast(data.message || "Görev arşivlendi", "success");
-    } catch (requestError) {
-      setError(requestError.message || "Görev arşivlenemedi");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleRestore = async () => {
     if (!task) {
       return;
@@ -417,8 +401,20 @@ function TaskDetailPage({ taskId, onNavigate }) {
       const data = await readResponse(response);
       setTask((current) => ({
         ...current,
+        ...data.task,
+        status: data.task?.status || "Devam Ediyor",
+        cancellationReason: null,
+        completedAt: null,
         archived: false,
+        archivedAt: null,
+        canManageLifecycle: true,
+        canRestore: false,
+        canManageAssignment: !current.parentTaskId && current.canManage === true,
+        canEditTask: true,
+        canEditDueDate: true,
       }));
+      setStatusDraft(data.task?.status || "Devam Ediyor");
+      setCancellationReasonDraft("");
       showToast(data.message || "Görev geri yüklendi", "success");
     } catch (requestError) {
       setError(requestError.message || "Görev geri yüklenemedi");
@@ -536,7 +532,12 @@ function TaskDetailPage({ taskId, onNavigate }) {
           </div>
           <div>
             <dt>Bitiş tarihi</dt>
-            <dd>{formatDate(task.dueDate)}</dd>
+            <dd>
+              {formatDate(task.dueDate)}
+              {task.archived && TERMINAL_ARCHIVE_LABELS[task.status]
+                ? ` (${TERMINAL_ARCHIVE_LABELS[task.status]})`
+                : ""}
+            </dd>
           </div>
           <div>
             <dt>Oluşturulma</dt>
@@ -548,6 +549,13 @@ function TaskDetailPage({ taskId, onNavigate }) {
           <div className="task-detail-description">
             <h3>Açıklama</h3>
             <p>{task.description}</p>
+          </div>
+        )}
+
+        {task.status === "Iptal Edildi" && task.cancellationReason && (
+          <div className="task-cancellation-reason-box">
+            <h3>İptal nedeni</h3>
+            <p>{task.cancellationReason}</p>
           </div>
         )}
       </div>
@@ -632,23 +640,15 @@ function TaskDetailPage({ taskId, onNavigate }) {
             <h3>Görev İşlemleri</h3>
 
             <div className="task-operations-grid">
-              {((task.canManageLifecycle && !task.archived) || task.canRestore) && (
+              {task.canRestore && (
                 <div className="task-operation-block">
                   <label>
-                    <span>Görev durumu</span>
+                    <span>Arşiv işlemi</span>
                   </label>
                   <div className="task-operation-actions">
-                    {task.canManageLifecycle && !task.archived && (
-                      <button type="button" className="danger-button" onClick={requestArchive} disabled={saving}>
-                        Arşivle
-                      </button>
-                    )}
-
-                    {task.canRestore && (
-                      <button type="button" className="secondary-button" onClick={handleRestore} disabled={saving}>
-                        Geri yükle
-                      </button>
-                    )}
+                    <button type="button" className="secondary-button" onClick={handleRestore} disabled={saving}>
+                      Geri yükle ve devam et
+                    </button>
                   </div>
                 </div>
               )}
@@ -685,7 +685,15 @@ function TaskDetailPage({ taskId, onNavigate }) {
                     <span>Durum</span>
                     <select
                       value={statusDraft}
-                      onChange={(event) => setStatusDraft(event.target.value)}
+                      onChange={(event) => {
+                        const nextStatus = event.target.value;
+                        setStatusDraft(nextStatus);
+                        setError("");
+
+                        if (nextStatus !== "Iptal Edildi") {
+                          setCancellationReasonDraft("");
+                        }
+                      }}
                     >
                       {STATUS_OPTIONS.map((status) => (
                         <option key={status} value={status}>
@@ -694,8 +702,27 @@ function TaskDetailPage({ taskId, onNavigate }) {
                       ))}
                     </select>
                   </label>
+                  {statusDraft === "Iptal Edildi" && (
+                    <label>
+                      <span>İptal nedeni</span>
+                      <textarea
+                        value={cancellationReasonDraft}
+                        onChange={(event) =>
+                          setCancellationReasonDraft(event.target.value)
+                        }
+                        maxLength={1000}
+                        rows={4}
+                        placeholder="Görevin neden iptal edildiğini açıklayınız"
+                        required
+                      />
+                    </label>
+                  )}
                   <button type="button" className="secondary-button" onClick={handleStatusChange} disabled={saving}>
-                    Güncelle
+                    {statusDraft === "Tamamlandi"
+                      ? "Tamamla ve arşivle"
+                      : statusDraft === "Iptal Edildi"
+                        ? "İptal et ve arşivle"
+                        : "Güncelle"}
                   </button>
                 </div>
               )}
@@ -772,25 +799,6 @@ function TaskDetailPage({ taskId, onNavigate }) {
         </div>
       )}
 
-      {archiveConfirmOpen && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="archive-dialog-title">
-          <div className="confirm-card">
-            <p className="eyebrow">Onay gerektiriyor</p>
-            <h3 id="archive-dialog-title">Görevi arşivlemek üzeresiniz</h3>
-            <p>
-              <strong>#{task.id} {task.title}</strong> adlı görevi arşivlemek istediğinizden emin misiniz?
-            </p>
-            <div className="confirm-actions">
-              <button type="button" className="danger-button" onClick={handleArchive} disabled={saving}>
-                Arşivle
-              </button>
-              <button type="button" className="secondary-button" onClick={cancelArchive} disabled={saving}>
-                Vazgeç
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

@@ -34,6 +34,33 @@ const parsePositiveId = (value) => {
   return id;
 };
 
+const parseGroupId = (value) => {
+  const id = Number(value);
+
+  if (!Number.isInteger(id) || id < 1) {
+    throw createHttpError(400, "Görev tipi için sorumlu grup seçilmelidir");
+  }
+
+  return id;
+};
+
+const findGroup = async (query, groupId) => {
+  const result = await query(
+    `SELECT grupid AS "id", grupadi AS "name"
+     FROM gruplar
+     WHERE grupid = $1`,
+    [groupId],
+  );
+
+  const group = result.rows[0];
+
+  if (!group) {
+    throw createHttpError(400, "Seçilen sorumlu grup bulunamadı");
+  }
+
+  return group;
+};
+
 const normalizeName = (value) => {
   if (typeof value !== "string") {
     throw createHttpError(400, "Görev tipi adı zorunludur");
@@ -91,10 +118,12 @@ const recordActivity = async (query, { actor, action, detail }) => {
 
 const listByArchiveState = async (query, archived) => {
   const result = await query(
-    `SELECT gt.tipid AS "id",
-            gt.tipadi AS "name",
-            gt.aciklama AS "description",
-            gt.aktifmi AS "active",
+     `SELECT gt.tipid AS "id",
+             gt.tipadi AS "name",
+             gt.aciklama AS "description",
+             gt.grupid AS "groupId",
+             responsible_group.grupadi AS "groupName",
+             gt.aktifmi AS "active",
             gt.olusturmatarihi AS "createdAt",
             gt.guncellemetarihi AS "updatedAt",
             gt.arsivlenmetarihi AS "archivedAt",
@@ -102,14 +131,18 @@ const listByArchiveState = async (query, archived) => {
             COUNT(g.gorevid) FILTER (
               WHERE g.arsivlendimi = FALSE
             )::int AS "activeTaskCount"
-     FROM gorevtipleri gt
-     LEFT JOIN gorevler g
+      FROM gorevtipleri gt
+      LEFT JOIN gruplar responsible_group
+        ON responsible_group.grupid = gt.grupid
+      LEFT JOIN gorevler g
        ON g.tipid = gt.tipid
      WHERE gt.aktifmi = $1::boolean
      GROUP BY gt.tipid,
-              gt.tipadi,
-              gt.aciklama,
-              gt.aktifmi,
+               gt.tipadi,
+               gt.aciklama,
+               gt.grupid,
+               responsible_group.grupadi,
+               gt.aktifmi,
               gt.olusturmatarihi,
               gt.guncellemetarihi,
               gt.arsivlenmetarihi
@@ -122,17 +155,21 @@ const listByArchiveState = async (query, archived) => {
 
 const selectForUpdate = async (query, typeId, active) => {
   const result = await query(
-    `SELECT gt.tipid AS "id",
-            gt.tipadi AS "name",
-            gt.aciklama AS "description",
-            gt.aktifmi AS "active",
+     `SELECT gt.tipid AS "id",
+             gt.tipadi AS "name",
+             gt.aciklama AS "description",
+             gt.grupid AS "groupId",
+             responsible_group.grupadi AS "groupName",
+             gt.aktifmi AS "active",
             (
               SELECT COUNT(*)::int
               FROM gorevler g
               WHERE g.tipid = gt.tipid
             ) AS "taskCount"
-     FROM gorevtipleri gt
-     WHERE gt.tipid = $1
+      FROM gorevtipleri gt
+      LEFT JOIN gruplar responsible_group
+        ON responsible_group.grupid = gt.grupid
+      WHERE gt.tipid = $1
        AND gt.aktifmi = $2::boolean
      FOR UPDATE OF gt`,
     [typeId, active],
@@ -146,9 +183,15 @@ exports.listTaskTypes = async (req, res) => {
 
   try {
     const taskTypes = await listByArchiveState(db.query, archived);
+    const groupsResult = await db.query(
+      `SELECT grupid AS "id", grupadi AS "name"
+       FROM gruplar
+       ORDER BY grupadi ASC, grupid ASC`,
+    );
 
     return res.json({
       taskTypes,
+      groups: groupsResult.rows,
       archived,
       limits: {
         maxNameLength: MAX_NAME_LENGTH,
@@ -164,32 +207,37 @@ exports.createTaskType = async (req, res) => {
   try {
     const name = normalizeName(req.body?.tipAdi);
     const description = normalizeDescription(req.body?.aciklama);
+    const groupId = parseGroupId(req.body?.grupId);
 
     const taskType = await db.withTransaction(
       async (transactionQuery) => {
+        const group = await findGroup(transactionQuery, groupId);
         const result = await transactionQuery(
           `INSERT INTO gorevtipleri
-             (tipadi, aciklama, olusturankullaniciid)
-           VALUES ($1, $2, $3)
+             (tipadi, aciklama, grupid, olusturankullaniciid)
+           VALUES ($1, $2, $3, $4)
            RETURNING tipid AS "id",
                      tipadi AS "name",
                      aciklama AS "description",
+                     grupid AS "groupId",
                      aktifmi AS "active",
                      olusturmatarihi AS "createdAt",
                      guncellemetarihi AS "updatedAt",
                      arsivlenmetarihi AS "archivedAt"`,
-          [name, description, req.user.id],
+          [name, description, groupId, req.user.id],
         );
 
         await recordActivity(transactionQuery, {
           actor: req.user,
           action: "GorevTipiOlusturma",
           detail:
-            `${req.user.adSoyad}, "${name}" görev tipini oluşturdu.`,
+            `${req.user.adSoyad}, "${name}" görev tipini ` +
+            `"${group.name}" grubuna bağlı olarak oluşturdu.`,
         });
 
         return {
           ...result.rows[0],
+          groupName: group.name,
           taskCount: 0,
           activeTaskCount: 0,
         };
@@ -216,8 +264,12 @@ exports.updateTaskType = async (req, res) => {
       req.body || {},
       "aciklama",
     );
+    const hasGroupId = Object.prototype.hasOwnProperty.call(
+      req.body || {},
+      "grupId",
+    );
 
-    if (!hasName && !hasDescription) {
+    if (!hasName && !hasDescription && !hasGroupId) {
       throw createHttpError(
         400,
         "Güncellenecek görev tipi bilgisi gönderilmelidir",
@@ -229,6 +281,9 @@ exports.updateTaskType = async (req, res) => {
       : null;
     const requestedDescription = hasDescription
       ? normalizeDescription(req.body.aciklama)
+      : null;
+    const requestedGroupId = hasGroupId
+      ? parseGroupId(req.body.grupId)
       : null;
 
     const taskType = await db.withTransaction(
@@ -250,10 +305,15 @@ exports.updateTaskType = async (req, res) => {
         const nextDescription = hasDescription
           ? requestedDescription
           : current.description || null;
+        const nextGroupId = hasGroupId
+          ? requestedGroupId
+          : Number(current.groupId) || null;
+        const nextGroup = await findGroup(transactionQuery, nextGroupId);
 
         if (
           current.name === nextName &&
-          (current.description || null) === nextDescription
+          (current.description || null) === nextDescription &&
+          Number(current.groupId) === Number(nextGroupId)
         ) {
           throw createHttpError(
             409,
@@ -265,17 +325,19 @@ exports.updateTaskType = async (req, res) => {
           `UPDATE gorevtipleri
            SET tipadi = $1,
                aciklama = $2,
+               grupid = $3,
                guncellemetarihi = NOW()
-           WHERE tipid = $3
+           WHERE tipid = $4
              AND aktifmi = TRUE
            RETURNING tipid AS "id",
                      tipadi AS "name",
                      aciklama AS "description",
+                     grupid AS "groupId",
                      aktifmi AS "active",
                      olusturmatarihi AS "createdAt",
                      guncellemetarihi AS "updatedAt",
                      arsivlenmetarihi AS "archivedAt"`,
-          [nextName, nextDescription, typeId],
+          [nextName, nextDescription, nextGroupId, typeId],
         );
 
         if (!result.rows[0]) {
@@ -295,6 +357,13 @@ exports.updateTaskType = async (req, res) => {
           changes.push("açıklama");
         }
 
+        if (Number(current.groupId) !== Number(nextGroupId)) {
+          changes.push(
+            `sorumlu grup ("${current.groupName || "Atanmamış"}" → ` +
+            `"${nextGroup.name}")`,
+          );
+        }
+
         await recordActivity(transactionQuery, {
           actor: req.user,
           action: "GorevTipiGuncelleme",
@@ -305,6 +374,7 @@ exports.updateTaskType = async (req, res) => {
 
         return {
           ...result.rows[0],
+          groupName: nextGroup.name,
           taskCount: Number(current.taskCount || 0),
         };
       },
@@ -410,6 +480,7 @@ exports.restoreTaskType = async (req, res) => {
            RETURNING tipid AS "id",
                      tipadi AS "name",
                      aciklama AS "description",
+                     grupid AS "groupId",
                      aktifmi AS "active",
                      olusturmatarihi AS "createdAt",
                      guncellemetarihi AS "updatedAt",
@@ -433,6 +504,7 @@ exports.restoreTaskType = async (req, res) => {
 
         return {
           ...result.rows[0],
+          groupName: archived.groupName || null,
           taskCount: Number(archived.taskCount || 0),
         };
       },

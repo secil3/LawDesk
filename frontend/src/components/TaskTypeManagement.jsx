@@ -5,10 +5,12 @@ import { readResponse } from "../api";
 const EMPTY_FORM = {
   name: "",
   description: "",
+  groupId: "",
 };
 
 function TaskTypeManagement({ enabled }) {
   const [taskTypes, setTaskTypes] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [viewMode, setViewMode] = useState("active");
   const [newType, setNewType] = useState(EMPTY_FORM);
   const [editing, setEditing] = useState(null);
@@ -41,6 +43,7 @@ function TaskTypeManagement({ enabled }) {
       setTaskTypes(
         Array.isArray(data.taskTypes) ? data.taskTypes : [],
       );
+      setGroups(Array.isArray(data.groups) ? data.groups : []);
       setLimits({
         maxNameLength: Number(data.limits?.maxNameLength) || 100,
         maxDescriptionLength:
@@ -81,6 +84,11 @@ function TaskTypeManagement({ enabled }) {
       return;
     }
 
+    if (!newType.groupId) {
+      setError("Görev tipi için sorumlu grup seçilmelidir");
+      return;
+    }
+
     setCreating(true);
     setError("");
     setMessage("");
@@ -93,6 +101,7 @@ function TaskTypeManagement({ enabled }) {
         body: JSON.stringify({
           tipAdi: name,
           aciklama: newType.description.trim(),
+          grupId: Number(newType.groupId),
         }),
       });
       const data = await readResponse(response);
@@ -119,6 +128,11 @@ function TaskTypeManagement({ enabled }) {
       return;
     }
 
+    if (!editing.groupId) {
+      setError("Görev tipi için sorumlu grup seçilmelidir");
+      return;
+    }
+
     setBusyId(editing.id);
     setError("");
     setMessage("");
@@ -131,6 +145,7 @@ function TaskTypeManagement({ enabled }) {
         body: JSON.stringify({
           tipAdi: name,
           aciklama: editing.description.trim(),
+          grupId: Number(editing.groupId),
         }),
       });
       const data = await readResponse(response);
@@ -234,8 +249,9 @@ function TaskTypeManagement({ enabled }) {
       </div>
 
       <p className="task-type-guidance">
-        Arşivlenen tipler yeni görevlerde seçilemez; bu tipi kullanan mevcut
-        görevlerin kayıtları ve tip bilgileri korunur.
+        Her görev tipi bir sorumlu gruba bağlanır. Atamasız oluşturulan görevler
+        seçilen tipin grubuna otomatik yönlendirilir. Arşivlenen tiplerin mevcut
+        görev kayıtları korunur.
       </p>
 
       {viewMode === "active" && (
@@ -270,9 +286,31 @@ function TaskTypeManagement({ enabled }) {
               placeholder="Bu görev tipinin kullanım amacını yazın"
             />
           </label>
+          <label>
+            <span>Sorumlu grup</span>
+            <select
+              value={newType.groupId}
+              onChange={(event) =>
+                setNewType((current) => ({
+                  ...current,
+                  groupId: event.target.value,
+                }))
+              }
+              required
+            >
+              <option value="">Grup seçiniz</option>
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="submit"
-            disabled={creating || !newType.name.trim()}
+            disabled={
+              creating || !newType.name.trim() || !newType.groupId
+            }
           >
             {creating ? "Oluşturuluyor..." : "Görev tipi oluştur"}
           </button>
@@ -325,11 +363,35 @@ function TaskTypeManagement({ enabled }) {
                       aria-label="Görev tipi açıklaması"
                     />
                   </label>
+                  <label>
+                    <span>Sorumlu grup</span>
+                    <select
+                      value={editing.groupId}
+                      onChange={(event) =>
+                        setEditing((current) => ({
+                          ...current,
+                          groupId: event.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      <option value="">Grup seçiniz</option>
+                      {groups.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               ) : (
                 <div className="task-type-info">
                   <h4>{taskType.name}</h4>
                   <p>{taskType.description || "Açıklama eklenmedi."}</p>
+                  <p>
+                    <strong>Sorumlu grup:</strong>{" "}
+                    {taskType.groupName || "Henüz atanmadı"}
+                  </p>
                   <small>
                     {Number(taskType.taskCount) || 0} toplam görev ·{" "}
                     {Number(taskType.activeTaskCount) || 0} arşivlenmemiş görev
@@ -347,6 +409,9 @@ function TaskTypeManagement({ enabled }) {
                         id: taskType.id,
                         name: taskType.name,
                         description: taskType.description || "",
+                        groupId: taskType.groupId
+                          ? String(taskType.groupId)
+                          : "",
                       })
                     }
                   >
@@ -360,7 +425,9 @@ function TaskTypeManagement({ enabled }) {
                       type="button"
                       onClick={saveTaskType}
                       disabled={
-                        busyId === taskType.id || !editing.name.trim()
+                        busyId === taskType.id ||
+                        !editing.name.trim() ||
+                        !editing.groupId
                       }
                     >
                       Kaydet

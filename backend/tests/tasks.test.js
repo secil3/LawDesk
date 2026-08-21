@@ -111,6 +111,7 @@ const authenticated = (requestBuilder, userId) => {
 let recorded;
 let manageAllowed;
 let currentTaskStatus;
+let currentTaskCancellationReason;
 let currentTaskCreatorId;
 let currentTaskDueDate;
 let currentTaskTitle;
@@ -160,6 +161,7 @@ beforeEach(() => {
   };
   manageAllowed = true;
   currentTaskStatus = "Yeni Atandi";
+  currentTaskCancellationReason = null;
   currentTaskCreatorId = 3;
   currentTaskDueDate = null;
   currentTaskTitle = "Görülebilen görev";
@@ -200,21 +202,30 @@ beforeEach(() => {
 
     if (
       normalized.includes("from gorevtipleri") &&
-      normalized.includes("where tipid = $1")
+      normalized.includes("tipid = $1")
     ) {
       return Number(params[0]) === 1
-        ? { rows: [{ id: 1, name: "Personel" }] }
+        ? {
+            rows: [
+              {
+                id: 1,
+                name: "Personel",
+                groupId: 2,
+                groupName: "KVKK",
+              },
+            ],
+          }
         : { rows: [] };
     }
 
     if (
       normalized.includes("from gorevtipleri") &&
-      normalized.includes("where aktifmi = true")
+      normalized.includes("aktifmi = true")
     ) {
       return {
         rows: [
-          { id: 1, name: "Personel" },
-          { id: 2, name: "Sözleşme" },
+          { id: 1, name: "Personel", groupId: 2, groupName: "KVKK" },
+          { id: 2, name: "Sözleşme", groupId: 1, groupName: "Uyum" },
         ],
       };
     }
@@ -266,7 +277,8 @@ beforeEach(() => {
     }
 
     if (
-      normalized.includes("select distinct k.kullaniciid") &&
+      normalized.includes('select k.kullaniciid as "id"') &&
+      normalized.includes("managed_membership") &&
       normalized.includes("from kullanicilar k")
     ) {
       const allowedGroupIds = Array.isArray(params[0])
@@ -283,19 +295,26 @@ beforeEach(() => {
           .map((user) => ({
             id: user.kullaniciid,
             name: user.adsoyad,
+            groupIds: (memberships[user.kullaniciid] || []).map(
+              (membership) => membership.grupId,
+            ),
           })),
       };
     }
 
     if (
-      normalized.includes('select kullaniciid as "id"') &&
-      normalized.includes("from kullanicilar") &&
-      normalized.includes("order by adsoyad")
+      normalized.includes('select k.kullaniciid as "id"') &&
+      normalized.includes("from kullanicilar k") &&
+      normalized.includes("left join grupuyelikleri membership") &&
+      normalized.includes("order by k.adsoyad")
     ) {
       return {
         rows: Object.values(users).map((user) => ({
           id: user.kullaniciid,
           name: user.adsoyad,
+          groupIds: (memberships[user.kullaniciid] || []).map(
+            (membership) => membership.grupId,
+          ),
         })),
       };
     }
@@ -385,6 +404,7 @@ beforeEach(() => {
             description: currentTaskDescription,
             priority: currentTaskPriority,
             status: currentTaskStatus,
+            cancellationReason: currentTaskCancellationReason,
             dueDate: currentTaskDueDate,
             typeId: currentTaskTypeId,
             typeName: currentTaskTypeName,
@@ -530,6 +550,10 @@ beforeEach(() => {
       recorded.statusSql = normalized;
       recorded.statusParams = params;
       currentTaskStatus = params[0];
+      currentTaskCancellationReason = params[0] === "Iptal Edildi"
+        ? params[5]
+        : null;
+      currentTaskArchived = params[3] === true;
 
       return {
         rowCount: 1,
@@ -537,10 +561,15 @@ beforeEach(() => {
           {
             id: Number(params[1]),
             status: params[0],
+            cancellationReason: currentTaskCancellationReason,
             completedAt:
               params[0] === "Tamamlandi"
                 ? new Date("2026-08-13T10:00:00.000Z")
                 : null,
+            archived: currentTaskArchived,
+            archivedAt: currentTaskArchived
+              ? new Date("2026-08-13T10:00:00.000Z")
+              : null,
             updatedAt: new Date("2026-08-13T10:00:00.000Z"),
           },
         ],
@@ -557,16 +586,23 @@ beforeEach(() => {
 
     if (
       normalized.includes("update gorevler") &&
-      normalized.includes("set arsivlendimi = false")
+      normalized.includes("set durum = 'devam ediyor'") &&
+      normalized.includes("arsivlendimi = false")
     ) {
       recorded.restoreParams = params;
+      currentTaskStatus = "Devam Ediyor";
+      currentTaskCancellationReason = null;
+      currentTaskArchived = false;
       return {
         rowCount: 1,
         rows: [
           {
             id: Number(params[0]),
-            status: currentTaskStatus,
+            status: "Devam Ediyor",
+            cancellationReason: null,
+            completedAt: null,
             archived: false,
+            archivedAt: null,
             updatedAt: new Date("2026-08-13T10:00:00.000Z"),
           },
         ],
@@ -610,6 +646,7 @@ beforeEach(() => {
             description: currentTaskDescription,
             priority: currentTaskPriority,
             status: currentTaskStatus,
+            cancellationReason: currentTaskCancellationReason,
             dueDate: currentTaskDueDate,
             createdAt: new Date("2026-08-13T09:00:00.000Z"),
             archived: currentTaskArchived,
@@ -647,6 +684,7 @@ beforeEach(() => {
             description: null,
             priority: "Orta",
             status: "Yeni Atandi",
+            cancellationReason: null,
             dueDate: null,
             createdAt: new Date("2026-08-13T09:00:00.000Z"),
             archived: params[5] === true,
@@ -699,28 +737,30 @@ test("task routes require authentication", async () => {
   assert.equal(response.body.error, "Giriş yapmanız gerekiyor");
 });
 
-test("standard user can create an unassigned task", async () => {
+test("standard user task is routed to the task type group", async () => {
   const response = await authenticated(
     request(app).post("/api/tasks"),
     4,
   ).send({
     baslik: "Atamasız görev",
     aciklama: "Daha sonra atanacak",
+    tipId: 1,
     oncelik: "Orta",
   });
 
   assert.equal(response.status, 201);
   assert.equal(response.body.task.title, "Atamasız görev");
   assert.equal(response.body.task.assignedUserId, null);
-  assert.equal(response.body.task.assignedGroupId, null);
+  assert.equal(response.body.task.assignedGroupId, 2);
+  assert.equal(response.body.task.assignedGroupName, "KVKK");
 
   assert.equal(recorded.insertParams[5], null);
-  assert.equal(recorded.insertParams[6], null);
-  assert.equal(recorded.insertParams[7], "Kisi");
-  assert.equal(recorded.insertParams[8], 4);
-  assert.equal(recorded.insertParams[9], null);
+  assert.equal(recorded.insertParams[6], 2);
+  assert.equal(recorded.insertParams[7], "Grup");
+  assert.equal(recorded.insertParams[8], null);
+  assert.equal(recorded.insertParams[9], 2);
   assert.equal(recorded.insertParams[10], 4);
-  assert.equal(recorded.historyCount, 0);
+  assert.equal(recorded.historyCount, 1);
   assert.equal(recorded.activity.length, 1);
   assert.equal(recorded.activity[0].action, "GorevOlusturma");
 });
@@ -731,6 +771,7 @@ test("task rejects a due date in the past", async () => {
     4,
   ).send({
     baslik: "Geçmiş tarihli görev",
+    tipId: 1,
     bitisTarihi: "2020-01-01T12:00:00.000Z",
   });
 
@@ -739,13 +780,25 @@ test("task rejects a due date in the past", async () => {
   assert.equal(recorded.insertParams, null);
 });
 
-test("standard user cannot assign a task", async () => {
+test("task creation requires a task type", async () => {
+  const response = await authenticated(
+    request(app).post("/api/tasks"),
+    4,
+  ).send({ baslik: "Tipsiz görev" });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /görev tipi.*zorunludur/i);
+  assert.equal(recorded.insertParams, null);
+});
+
+test("standard user cannot select a direct assignee", async () => {
   const response = await authenticated(
     request(app).post("/api/tasks"),
     4,
   ).send({
     baslik: "Yetkisiz atama",
-    atananGrupId: 2,
+    tipId: 1,
+    atananKullaniciId: 3,
   });
 
   assert.equal(response.status, 403);
@@ -759,6 +812,7 @@ test("task rejects two assignment targets at the same time", async () => {
     1,
   ).send({
     baslik: "Çift hedefli görev",
+    tipId: 1,
     atananKullaniciId: 3,
     atananGrupId: 2,
   });
@@ -768,7 +822,7 @@ test("task rejects two assignment targets at the same time", async () => {
   assert.equal(recorded.insertParams, null);
 });
 
-test("group manager can assign a new task to managed group", async () => {
+test("group manager can assign a new task to a member of the type group", async () => {
   const response = await authenticated(
     request(app).post("/api/tasks"),
     2,
@@ -776,29 +830,31 @@ test("group manager can assign a new task to managed group", async () => {
     baslik: "KVKK görevi",
     tipId: 1,
     oncelik: "Yuksek",
-    atananGrupId: 2,
+    atananKullaniciId: 3,
   });
 
   assert.equal(response.status, 201);
-  assert.equal(response.body.task.assignedGroupId, 2);
-  assert.equal(response.body.task.assignedGroupName, "KVKK");
-  assert.equal(recorded.insertParams[6], 2);
-  assert.equal(recorded.insertParams[7], "Grup");
-  assert.equal(recorded.insertParams[9], 2);
+  assert.equal(response.body.task.assignedUserId, 3);
+  assert.equal(response.body.task.assignedUserName, "KVKK Üyesi");
+  assert.equal(recorded.insertParams[5], 3);
+  assert.equal(recorded.insertParams[6], null);
+  assert.equal(recorded.insertParams[7], "Kisi");
+  assert.equal(recorded.insertParams[8], 3);
   assert.equal(recorded.historyCount, 1);
 });
 
-test("group manager cannot assign outside managed groups", async () => {
+test("admin cannot assign a task outside the task type group", async () => {
   const response = await authenticated(
     request(app).post("/api/tasks"),
-    2,
+    1,
   ).send({
     baslik: "Yetki dışı görev",
-    atananGrupId: 1,
+    tipId: 1,
+    atananKullaniciId: 5,
   });
 
-  assert.equal(response.status, 403);
-  assert.match(response.body.error, /yönettiğiniz gruplara/i);
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /sorumlu grubunda/i);
   assert.equal(recorded.insertParams, null);
 });
 
@@ -1371,17 +1427,75 @@ test("group manager can close a task in managed scope", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(response.body.task.status, "Tamamlandi");
-  assert.equal(response.body.message, "Görev kapatıldı");
-  assert.deepEqual(recorded.statusParams, ["Tamamlandi", 50, true]);
+  assert.equal(response.body.task.archived, true);
+  assert.equal(
+    response.body.message,
+    "Görev tamamlandı ve otomatik arşivlendi",
+  );
+  assert.deepEqual(recorded.statusParams, [
+    "Tamamlandi",
+    50,
+    true,
+    true,
+    2,
+    null,
+  ]);
   assert.match(recorded.statusSql, /when \$3::boolean/);
+  assert.match(recorded.statusSql, /arsivlendimi = \$4::boolean/);
   assert.doesNotMatch(
     recorded.statusSql,
     /\$1\s*=\s*'tamamlandi'/,
   );
-  assert.equal(recorded.activity.length, 1);
+  assert.equal(recorded.activity.length, 2);
   assert.equal(recorded.activity[0].action, "DurumDegisikligi");
   assert.match(recorded.activity[0].detail, /Yeni Atandi/);
   assert.match(recorded.activity[0].detail, /Tamamlandi/);
+  assert.equal(recorded.activity[1].action, "GorevOtomatikArsivleme");
+  assert.match(recorded.activity[1].detail, /otomatik arşivlendi/i);
+});
+
+test("cancelling a task requires a reason", async () => {
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/status"),
+    2,
+  ).send({ durum: "Iptal Edildi", iptalNedeni: "   " });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /iptal nedenini/i);
+  assert.equal(recorded.statusParams, null);
+});
+
+test("group manager cancellation is recorded and automatically archived", async () => {
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/status"),
+    2,
+  ).send({
+    durum: "Iptal Edildi",
+    iptalNedeni: "Talep sahibi çalışmayı durdurdu.",
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.task.status, "Iptal Edildi");
+  assert.equal(response.body.task.archived, true);
+  assert.equal(
+    response.body.task.cancellationReason,
+    "Talep sahibi çalışmayı durdurdu.",
+  );
+  assert.equal(
+    response.body.message,
+    "Görev iptal edildi ve otomatik arşivlendi",
+  );
+  assert.deepEqual(recorded.statusParams, [
+    "Iptal Edildi",
+    50,
+    false,
+    true,
+    2,
+    "Talep sahibi çalışmayı durdurdu.",
+  ]);
+  assert.equal(recorded.activity.length, 2);
+  assert.equal(recorded.activity[1].action, "GorevOtomatikArsivleme");
+  assert.match(recorded.activity[1].detail, /Talep sahibi çalışmayı durdurdu/);
 });
 
 test("parent task cannot close while a subtask remains open", async () => {
@@ -1397,9 +1511,8 @@ test("parent task cannot close while a subtask remains open", async () => {
   assert.equal(recorded.statusParams, null);
 });
 
-test("subtask cannot reopen while its parent is terminal", async () => {
+test("subtask status cannot change while its parent is terminal", async () => {
   currentTaskParentId = 10;
-  currentTaskStatus = "Tamamlandi";
   parentTaskStatus = "Tamamlandi";
 
   const response = await authenticated(
@@ -1412,7 +1525,7 @@ test("subtask cannot reopen while its parent is terminal", async () => {
   assert.equal(recorded.statusParams, null);
 });
 
-test("group manager can reopen a completed task", async () => {
+test("terminal task status cannot be reopened without restoring it", async () => {
   currentTaskStatus = "Tamamlandi";
 
   const response = await authenticated(
@@ -1422,10 +1535,9 @@ test("group manager can reopen a completed task", async () => {
     durum: "Devam Ediyor",
   });
 
-  assert.equal(response.status, 200);
-  assert.equal(response.body.task.status, "Devam Ediyor");
-  assert.equal(response.body.task.completedAt, null);
-  assert.deepEqual(recorded.statusParams, ["Devam Ediyor", 50, false]);
+  assert.equal(response.status, 409);
+  assert.match(response.body.error, /arşivden geri yükleyin/i);
+  assert.equal(recorded.statusParams, null);
 });
 
 test("group manager cannot change status outside managed scope", async () => {
@@ -1444,51 +1556,34 @@ test("group manager cannot change status outside managed scope", async () => {
   assert.equal(recorded.activity.length, 0);
 });
 
-test("group manager can soft archive a task in managed scope", async () => {
+test("manual task archive endpoint is not available", async () => {
   const response = await authenticated(
     request(app).delete("/api/tasks/50"),
     2,
   );
 
-  assert.equal(response.status, 200);
-  assert.equal(response.body.message, "Görev arşivlendi");
-  assert.deepEqual(recorded.archiveParams, [2, 50]);
-  assert.equal(recorded.activity.length, 1);
-  assert.equal(recorded.activity[0].action, "GorevArsivleme");
-});
-
-test("parent task cannot archive before its subtasks", async () => {
-  unarchivedSubtaskCount = 2;
-
-  const response = await authenticated(
-    request(app).delete("/api/tasks/50"),
-    2,
-  );
-
-  assert.equal(response.status, 409);
-  assert.match(response.body.error, /2 alt görevi arşivleyin/i);
-  assert.equal(recorded.archiveParams, null);
-});
-
-test("standard user cannot archive a task", async () => {
-  const response = await authenticated(
-    request(app).delete("/api/tasks/50"),
-    3,
-  );
-
-  assert.equal(response.status, 403);
-  assert.match(response.body.error, /grup yöneticisi/i);
+  assert.equal(response.status, 404);
   assert.equal(recorded.archiveParams, null);
 });
 
 test("group manager can restore a task in managed scope", async () => {
+  currentTaskStatus = "Iptal Edildi";
+  currentTaskCancellationReason = "Önceki iptal nedeni";
+  currentTaskArchived = true;
+
   const response = await authenticated(
     request(app).patch("/api/tasks/50/restore"),
     2,
   );
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.message, "Görev geri yüklendi");
+  assert.equal(response.body.task.status, "Devam Ediyor");
+  assert.equal(response.body.task.archived, false);
+  assert.equal(response.body.task.cancellationReason, null);
+  assert.equal(
+    response.body.message,
+    "Görev geri yüklendi ve Devam Ediyor durumuna alındı",
+  );
   assert.deepEqual(recorded.restoreParams, [50]);
   assert.deepEqual(recorded.findParams.at(-1), [50, false, [2], true]);
   assert.equal(recorded.activity.length, 1);

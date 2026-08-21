@@ -23,6 +23,10 @@ const STATUS_LABELS = {
 };
 
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
+const TERMINAL_ARCHIVE_LABELS = {
+  Tamamlandi: "Tamamlandı",
+  "Iptal Edildi": "İptal edildi",
+};
 
 const PRIORITY_LABELS = {
   Kritik: "Kritik",
@@ -91,6 +95,10 @@ const assignmentLabel = (task) => {
     return `Kullanıcı: ${task.assignedUserName}`;
   }
 
+  if (task.assignedGroupName) {
+    return `Grup: ${task.assignedGroupName}`;
+  }
+
   return "Henüz atanmadı";
 };
 
@@ -134,10 +142,20 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
   const [assigningTaskId, setAssigningTaskId] = useState(null);
   const [updatingStatusTaskId, setUpdatingStatusTaskId] = useState(null);
   const [savingTaskId, setSavingTaskId] = useState(null);
-  const [archivingTaskId, setArchivingTaskId] = useState(null);
   const [restoringTaskId, setRestoringTaskId] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  const selectedTaskType = options.types.find(
+    (type) => Number(type.id) === Number(taskForm.tipId),
+  );
+  const selectedTaskTypeGroupId = Number(selectedTaskType?.groupId) || null;
+  const assignableUsersForType = options.users.filter((user) =>
+    Array.isArray(user.groupIds) &&
+    user.groupIds.some(
+      (groupId) => Number(groupId) === selectedTaskTypeGroupId,
+    ),
+  );
 
   const buildTaskQueryString = (
     mode = taskListMode,
@@ -319,6 +337,9 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
       ...(field === "assignmentType"
         ? { assignmentId: "" }
         : {}),
+      ...(field === "tipId"
+        ? { assignmentType: "none", assignmentId: "" }
+        : {}),
     }));
   };
 
@@ -326,6 +347,11 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
     event.preventDefault();
     setError("");
     setMessage("");
+
+    if (!taskForm.tipId) {
+      setError("Görev tipi seçimi zorunludur");
+      return;
+    }
 
     if (
       taskForm.assignmentType !== "none" &&
@@ -358,10 +384,7 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
             taskForm.assignmentType === "user"
               ? Number(taskForm.assignmentId)
               : null,
-          atananGrupId:
-            taskForm.assignmentType === "group"
-              ? Number(taskForm.assignmentId)
-              : null,
+          atananGrupId: null,
         }),
       });
 
@@ -476,38 +499,6 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
       );
     } finally {
       setUpdatingStatusTaskId(null);
-    }
-  };
-
-  const handleArchive = async (task) => {
-    const confirmed = window.confirm(
-      `"${task.title}" görevini arşivlemek istediğinizden emin misiniz?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setError("");
-    setMessage("");
-    setArchivingTaskId(task.id);
-
-    try {
-      const response = await fetch(`/api/tasks/${task.id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-
-      const data = await readResponse(response);
-      const successMessage = data.message || "Görev arşivlendi";
-      setMessage(successMessage);
-      showToast(successMessage, "success");
-      setTaskListMode("archived");
-      await loadTasks("archived");
-    } catch (requestError) {
-      setError(requestError.message || "Görev arşivlenemedi");
-    } finally {
-      setArchivingTaskId(null);
     }
   };
 
@@ -675,8 +666,9 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
       <form className="task-form" onSubmit={handleCreateTask}>
         <h3>Yeni görev oluştur</h3>
         <p className="form-hint">
-          Her kullanıcı görev oluşturabilir. Atama alanları yalnızca grup
-          yöneticisi, yönetici ve admin rollerinde açılır.
+          Görev, seçilen görev tipinin sorumlu grubuna otomatik yönlendirilir.
+          Atama yetkisi olan kullanıcılar isterse doğrudan bu grubun bir
+          üyesini seçebilir.
         </p>
 
         <div className="task-form-grid">
@@ -711,8 +703,9 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
               onChange={(event) =>
                 updateTaskForm("tipId", event.target.value)
               }
+              required
             >
-              <option value="">Tip seçilmedi</option>
+              <option value="">Görev tipi seçiniz</option>
               {options.types.map((type) => (
                 <option key={type.id} value={type.id}>
                   {type.name}
@@ -761,9 +754,10 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
                     )
                   }
                 >
-                  <option value="none">Atamasız oluştur</option>
+                  <option value="none">
+                    Görev tipi grubuna otomatik ata
+                  </option>
                   <option value="user">Kullanıcıya ata</option>
-                  <option value="group">Gruba ata</option>
                 </select>
               </label>
 
@@ -781,35 +775,17 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
                     required
                   >
                     <option value="">Kullanıcı seçiniz</option>
-                    {options.users.map((optionUser) => (
+                    {assignableUsersForType.map((optionUser) => (
                       <option key={optionUser.id} value={optionUser.id}>
                         {optionUser.name}
                       </option>
                     ))}
                   </select>
-                </label>
-              )}
-
-              {taskForm.assignmentType === "group" && (
-                <label className="task-field">
-                  <span>Atanacak grup</span>
-                  <select
-                    value={taskForm.assignmentId}
-                    onChange={(event) =>
-                      updateTaskForm(
-                        "assignmentId",
-                        event.target.value,
-                      )
-                    }
-                    required
-                  >
-                    <option value="">Grup seçiniz</option>
-                    {options.groups.map((optionGroup) => (
-                      <option key={optionGroup.id} value={optionGroup.id}>
-                        {optionGroup.name}
-                      </option>
-                    ))}
-                  </select>
+                  {selectedTaskType && assignableUsersForType.length === 0 && (
+                    <small>
+                      Bu görev tipi grubunda seçebileceğiniz kullanıcı yok.
+                    </small>
+                  )}
                 </label>
               )}
             </>
@@ -1052,6 +1028,13 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
                         </small>
                       )}
                       <span>{task.title}</span>
+                      {taskListMode === "archived" &&
+                        task.status === "Iptal Edildi" &&
+                        task.cancellationReason && (
+                          <small className="task-cancellation-reason">
+                            İptal nedeni: {task.cancellationReason}
+                          </small>
+                        )}
                     </div>
                     {Array.isArray(task.tags) && task.tags.length > 0 && (
                       <div className="task-table-tags">
@@ -1066,7 +1049,13 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
                       </div>
                     )}
                   </td>
-                  <td>{formatDate(task.dueDate)}</td>
+                  <td>
+                    {formatDate(task.dueDate)}
+                    {taskListMode === "archived" &&
+                    TERMINAL_ARCHIVE_LABELS[task.status]
+                      ? ` (${TERMINAL_ARCHIVE_LABELS[task.status]})`
+                      : ""}
+                  </td>
                 </tr>
               ))}
             </tbody>
