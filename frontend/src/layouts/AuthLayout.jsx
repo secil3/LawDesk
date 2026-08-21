@@ -9,12 +9,19 @@ function AuthLayout({
     return userRecord?.rol === "admin";
   };
 
+  const canManageSystem = (userRecord) => {
+    return ["admin", "yonetici"].includes(userRecord?.rol);
+  };
+
   const menuItems = [
     { label: "Ana Sayfa", path: "/dashboard" },
     { label: "Görevler", path: "/tasks" },
     { label: "Gruplar", path: "/groups" },
     ...(canCreateUsers(user)
       ? [{ label: "Kullanıcılar", path: "/users/create" }]
+      : []),
+    ...(canManageSystem(user)
+      ? [{ label: "Yönetim", path: "/management" }]
       : []),
     { label: "Bildirimler", path: "/notifications" },
     { label: "Ayarlar", path: "/settings" },

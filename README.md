@@ -34,6 +34,9 @@ Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrul
 - Seçilen döneme göre görev oluşturma, tamamlama oranı ve ortalama tamamlanma süresi raporu
 - Öncelik, görev tipi ve atama yükü dağılımlarını rol ve görünürlük kapsamına göre görüntüleme
 - Dashboard görev raporunu Excel uyumlu UTF-8 CSV olarak dışa aktarma
+- Görev, kullanıcı ve grup listelerinde sunucu taraflı sayfalama
+- Ana sayfadan görev, yorum, ek dosya adı, grup, yetkili kullanıcı, etiket, görev tipi ve denetim kayıtlarında yetki kapsamlı genel arama
+- Etiket ve görev tipi işlemleri için ayrı, rol korumalı Yönetim sayfası
 
 ## Roller ve temel yetkiler
 
@@ -41,8 +44,8 @@ Sistem rolleri `admin`, `yonetici` ve `kullanici` olarak saklanır. Grup yöneti
 
 | Rol | Temel yetkiler |
 | --- | --- |
-| Admin | Kullanıcı ve grup yönetimi; tüm görevleri görüntüleme, atama, düzenleme, kapatma, arşivleme ve denetim izini görüntüleme |
-| Yönetici | Tüm görevleri görüntüleme ve yönetme; görev atama, yaşam döngüsü işlemleri ve denetim izini görüntüleme |
+| Admin | Kullanıcı ve grup yönetimi; görev tipi ve etiket yönetimi; tüm görevleri görüntüleme, atama, düzenleme, kapatma, arşivleme ve denetim izini görüntüleme |
+| Yönetici | Görev tipi ve etiket yönetimi; tüm görevleri görüntüleme ve yönetme; görev atama, yaşam döngüsü işlemleri ve denetim izini görüntüleme |
 | Grup yöneticisi | Yönettiği grupların görevlerini ve üyelerini kapsayan görev atama, durum, kapatma, arşivleme ve geri yükleme işlemleri |
 | Grup üyesi | Kendi oluşturduğu, kendisine atanan veya grubuna görünür görevleri görüntüleme; kendi aktif görevlerini düzenleme |
 | Kullanıcı | Görev oluşturma; kendi oluşturduğu veya doğrudan kendisine görünür görevleri görüntüleme ve kendi aktif görevlerini düzenleme |
@@ -218,7 +221,7 @@ cd backend
 npm test
 ```
 
-Güncel test paketi 164 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
+Güncel test paketi 171 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
 
 Frontend production build kontrolü:
 
@@ -251,13 +254,13 @@ Bu endpoint'lerin tamamı `admin` sistem rolü gerektirir.
 
 | Method | Endpoint | Açıklama |
 | --- | --- | --- |
-| GET | `/api/admin/users` | Arşivlenmemiş veya `?archived=true` ile arşivlenmiş kullanıcıları listeler |
+| GET | `/api/admin/users` | Arşivlenmemiş veya `?archived=true` ile arşivlenmiş kullanıcıları; isteğe bağlı `page` ve `limit` ile sayfalanmış olarak listeler |
 | POST | `/api/admin/users` | Kullanıcı oluşturur |
 | PATCH | `/api/admin/users/:id` | Kullanıcıyı aktif veya pasif yapar |
 | DELETE | `/api/admin/users/:id` | Kullanıcıyı fiziksel silmeden arşivler |
 | PATCH | `/api/admin/users/:id/restore` | Kullanıcıyı pasif olarak geri yükler |
 | PUT | `/api/admin/users/:id/memberships` | Grup üyeliklerini ve grup rollerini atomik olarak günceller |
-| GET | `/api/admin/groups` | Grupları ve üye sayılarını listeler |
+| GET | `/api/admin/groups` | Grupları ve üye sayılarını; isteğe bağlı `page` ve `limit` ile sayfalanmış olarak listeler |
 | POST | `/api/admin/groups` | Grup oluşturur |
 | PATCH | `/api/admin/groups/:id` | Grup adı ve açıklamasını günceller |
 
@@ -267,7 +270,7 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 
 | Method | Endpoint | Açıklama |
 | --- | --- | --- |
-| GET | `/api/tasks` | Görünür aktif görevleri veya `?archived=true` ile yetkili arşiv görünümünü döndürür |
+| GET | `/api/tasks` | Görünür aktif görevleri veya `?archived=true` ile yetkili arşiv görünümünü; arama, filtre, sıralama ve sayfalama desteğiyle döndürür |
 | GET | `/api/tasks/dashboard-summary` | Görünür görevlerden dashboard risk, performans ve dağılım özetini döndürür |
 | GET | `/api/tasks/dashboard-report/export` | Seçilen dönem için görünürlük kapsamlı görev raporunu UTF-8 CSV olarak dışa aktarır |
 | GET | `/api/tasks/:id` | Yetkili kullanıcının görev detayını döndürür |
@@ -305,6 +308,12 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | PUT | `/api/tasks/:id/tags` | Yetkili kullanıcının görev etiketlerini atomik olarak değiştirir |
 | GET | `/api/tasks/activity` | Admin ve yöneticiler için filtrelenmiş ve sayfalanmış işlem kayıtlarını döndürür |
 | GET | `/api/tasks/activity/export` | Aynı filtrelerle en fazla 5000 işlem kaydını Excel uyumlu UTF-8 CSV olarak dışa aktarır |
+
+### Genel arama
+
+| Method | Endpoint | Açıklama |
+| --- | --- | --- |
+| GET | `/api/search?q=...` | En az iki karakterle, yalnızca oturum sahibinin görmeye yetkili olduğu görev ve grupları; role göre kullanıcı, etiket, görev tipi ve denetim izi sonuçlarını döndürür |
 
 Kapalı veya iptal edilmiş görevlerin bilgileri değiştirilemez; önce görev yeniden açılmalıdır. Arşivlenmiş görevler düzenlenmeden önce geri yüklenmelidir. Alt görevler ana görevin atamasını ve görünürlüğünü devralır; bağımsız olarak yeniden atanamaz. Ana görev kapatılmadan önce açık alt görevler kapatılmalı, arşivlenmeden önce de bütün alt görevler arşivlenmelidir.
 

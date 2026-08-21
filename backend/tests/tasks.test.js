@@ -1016,6 +1016,18 @@ test("task list paginates database results and returns metadata", async () => {
   assert.match(recorded.listSql, /limit\s+\$11\s+offset\s+\$12/i);
 });
 
+test("task pagination clamps a page above the available range", async () => {
+  const response = await authenticated(
+    request(app).get("/api/tasks?page=99&limit=10"),
+    3,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.pagination.page, 5);
+  assert.equal(response.body.pagination.totalPages, 5);
+  assert.deepEqual(recorded.listParams.slice(-2), [10, 40]);
+});
+
 test("group manager can list archived tasks in managed scope", async () => {
   const response = await authenticated(
     request(app).get("/api/tasks?archived=true"),

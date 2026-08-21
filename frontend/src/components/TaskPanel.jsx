@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { readResponse } from "../api";
+import PaginationControls from "./PaginationControls";
 import TaskAttachments from "./TaskAttachments";
 
 const EMPTY_TASK_FORM = {
@@ -667,34 +668,6 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
     }));
   };
 
-  const getVisiblePageNumbers = (currentPage, totalPages) => {
-    if (totalPages <= 1) {
-      return [1];
-    }
-
-    const pages = new Set([1, totalPages, currentPage]);
-    const window = [currentPage - 1, currentPage, currentPage + 1];
-
-    window.forEach((page) => {
-      if (page > 1 && page < totalPages) {
-        pages.add(page);
-      }
-    });
-
-    const sortedPages = [...pages].sort((a, b) => a - b);
-    const visiblePages = [];
-
-    sortedPages.forEach((page, index) => {
-      if (index > 0 && page - sortedPages[index - 1] > 1) {
-        visiblePages.push("...");
-      }
-
-      visiblePages.push(page);
-    });
-
-    return visiblePages;
-  };
-
   return (
     <section className="task-panel" aria-labelledby="task-panel-title">
       <div className="task-panel-heading">
@@ -703,7 +676,7 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
           <h2 id="task-panel-title">Görevler</h2>
         </div>
         <span className="task-count">
-          {tasks.length} {taskListMode === "archived" ? "arşivlenmiş" : "aktif"} görev
+          {pagination.total} {taskListMode === "archived" ? "arşivlenmiş" : "aktif"} görev
         </span>
       </div>
 
@@ -1032,78 +1005,16 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
         </div>
       </form>
 
-      {pagination.totalPages > 1 && (
-        <div className="task-pagination" aria-label="Görev sayfalama">
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() =>
-              setQueryState((current) => ({
-                ...current,
-                page: Math.max(1, current.page - 1),
-              }))
-            }
-            disabled={queryState.page <= 1 || loading}
-          >
-            Önceki
-          </button>
-
-          {getVisiblePageNumbers(
-            queryState.page,
-            pagination.totalPages,
-          ).map((page, index) => {
-            if (page === "...") {
-              return (
-                <span key={`ellipsis-${index}`} className="pagination-ellipsis">
-                  ...
-                </span>
-              );
-            }
-
-            const pageNumber = Number(page);
-
-            return (
-              <button
-                key={`page-${pageNumber}`}
-                type="button"
-                className={
-                  pageNumber === queryState.page
-                    ? "pagination-page active"
-                    : "pagination-page"
-                }
-                onClick={() =>
-                  setQueryState((current) => ({
-                    ...current,
-                    page: pageNumber,
-                  }))
-                }
-                disabled={loading || pageNumber === queryState.page}
-              >
-                {pageNumber}
-              </button>
-            );
-          })}
-
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() =>
-              setQueryState((current) => ({
-                ...current,
-                page: Math.min(
-                  pagination.totalPages,
-                  current.page + 1,
-                ),
-              }))
-            }
-            disabled={
-              queryState.page >= pagination.totalPages || loading
-            }
-          >
-            Sonraki
-          </button>
-        </div>
-      )}
+      <PaginationControls
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        total={pagination.total}
+        disabled={loading}
+        label="Görev sayfalama"
+        onPageChange={(page) =>
+          setQueryState((current) => ({ ...current, page }))
+        }
+      />
 
       {loading ? (
         <p className="task-empty-state">Görevler yükleniyor...</p>

@@ -35,6 +35,30 @@ const normalizeText = (value, maxLength) => {
   return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
 };
 
+const normalizePositiveInteger = (value, fallback) => {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return fallback;
+  }
+
+  return parsed;
+};
+
+const paginationFor = (requestedPage, limit, total) => {
+  const totalPages = Math.ceil(total / limit);
+  const page = totalPages === 0
+    ? 1
+    : Math.min(requestedPage, totalPages);
+
+  return {
+    page,
+    limit,
+    total,
+    totalPages,
+  };
+};
+
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -105,6 +129,13 @@ exports.listGroups = async (req, res) => {
         .map((group) => Number(group.grupId))
         .filter((groupId) => Number.isInteger(groupId) && groupId > 0)
     : [];
+  const hasPagination =
+    req.query?.page !== undefined || req.query?.limit !== undefined;
+  const requestedPage = normalizePositiveInteger(req.query?.page, 1);
+  const limit = Math.min(
+    normalizePositiveInteger(req.query?.limit, 10),
+    100,
+  );
 
   try {
     let query = `SELECT g.grupid AS "id",
@@ -127,18 +158,57 @@ exports.listGroups = async (req, res) => {
 
     if (!isSystemViewer) {
       if (visibleGroupIds.length === 0) {
-        return res.json({ groups: [] });
+        return res.json({
+          groups: [],
+          ...(hasPagination
+            ? {
+                pagination: {
+                  page: 1,
+                  limit,
+                  total: 0,
+                  totalPages: 0,
+                },
+              }
+            : {}),
+        });
       }
 
       query += ` WHERE g.grupid = ANY($1::int[])`;
       params.push([...new Set(visibleGroupIds)]);
     }
 
+    const visibilityWhere = !isSystemViewer
+      ? `WHERE g.grupid = ANY($1::int[])`
+      : "";
+
     query += ` GROUP BY g.grupid, g.grupadi, g.aciklama ORDER BY g.grupadi ASC`;
 
-    const result = await db.query(query, params);
+    if (!hasPagination) {
+      const result = await db.query(query, params);
 
-    return res.json({ groups: result.rows });
+      return res.json({ groups: result.rows });
+    }
+
+    const countResult = await db.query(
+      `SELECT COUNT(*)::int AS "total"
+       FROM gruplar g
+       ${visibilityWhere}`,
+      params,
+    );
+    const total = Number(countResult.rows[0]?.total || 0);
+    const pagination = paginationFor(requestedPage, limit, total);
+    const offset = (pagination.page - 1) * limit;
+    const limitPlaceholder = `$${params.length + 1}`;
+    const offsetPlaceholder = `$${params.length + 2}`;
+
+    query += ` LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`;
+
+    const result = await db.query(query, [...params, limit, offset]);
+
+    return res.json({
+      groups: result.rows,
+      pagination,
+    });
   } catch (error) {
     console.error("List groups failed:", error);
 
@@ -327,8 +397,35 @@ exports.updateGroup = async (req, res) => {
 
 exports.listUsers = async (req, res) => {
   const archived = req.query?.archived === "true";
+  const hasPagination =
+    req.query?.page !== undefined || req.query?.limit !== undefined;
+  const requestedPage = normalizePositiveInteger(req.query?.page, 1);
+  const limit = Math.min(
+    normalizePositiveInteger(req.query?.limit, 10),
+    100,
+  );
 
   try {
+    const baseParams = [archived];
+    const countResult = hasPagination
+      ? await db.query(
+          `SELECT COUNT(*)::int AS "total"
+           FROM kullanicilar k
+           WHERE k.rol IN ('kullanici', 'yonetici')
+             AND k.silindimi = $1::boolean`,
+          baseParams,
+        )
+      : null;
+    const total = Number(countResult?.rows[0]?.total || 0);
+    const pagination = hasPagination
+      ? paginationFor(requestedPage, limit, total)
+      : null;
+    const offset = pagination ? (pagination.page - 1) * limit : 0;
+    const paginationSql = hasPagination ? "LIMIT $2 OFFSET $3" : "";
+    const queryParams = hasPagination
+      ? [...baseParams, limit, offset]
+      : baseParams;
+
     const result = await db.query(
       `SELECT k.kullaniciid AS "id",
               k.adsoyad AS "adSoyad",
@@ -361,8 +458,9 @@ exports.listUsers = async (req, res) => {
                 k.rol,
                 k.aktifmi,
                 k.silinmetarihi
-       ORDER BY k.kullaniciid ASC`,
-      [archived],
+       ORDER BY k.kullaniciid ASC
+       ${paginationSql}`,
+      queryParams,
     );
 
     return res.json({
@@ -377,6 +475,7 @@ exports.listUsers = async (req, res) => {
           ? user.groups
           : [],
       })),
+      ...(pagination ? { pagination } : {}),
     });
   } catch (error) {
     console.error("List users failed:", error);
