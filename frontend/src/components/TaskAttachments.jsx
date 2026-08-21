@@ -48,6 +48,12 @@ const formatUploadDate = (value) => {
   });
 };
 
+const getFileExtensionLabel = (fileName) => {
+  const extension = String(fileName || "").split(".").pop();
+
+  return extension ? extension.slice(0, 4).toUpperCase() : "DOSYA";
+};
+
 function TaskAttachments({ task, onError, onSuccess }) {
   const fileInputRef = useRef(null);
   const [expanded, setExpanded] = useState(false);
@@ -246,7 +252,7 @@ function TaskAttachments({ task, onError, onSuccess }) {
         onClick={toggleExpanded}
         aria-expanded={expanded}
       >
-        <span>Ekler{loaded ? ` (${attachments.length})` : ""}</span>
+        <span>Dosyalar / Ekler{loaded ? ` (${attachments.length})` : ""}</span>
         <span aria-hidden="true">{expanded ? "−" : "+"}</span>
       </button>
 
@@ -272,26 +278,35 @@ function TaskAttachments({ task, onError, onSuccess }) {
           </div>
 
           {loading ? (
-            <p className="attachment-empty">Ekler yükleniyor...</p>
+            <div className="attachment-loading">
+              <span className="spinner spinner-sm" aria-hidden="true" />
+              <span>Ekler yükleniyor...</span>
+            </div>
           ) : attachments.length === 0 ? (
-            <p className="attachment-empty">
-              {viewMode === "removed"
-                ? "Bu görevde kaldırılmış ek bulunmuyor."
-                : "Bu göreve henüz dosya eklenmedi."}
-            </p>
+            <div className="attachment-empty-state">
+              <p className="attachment-empty">
+                {viewMode === "removed"
+                  ? "Bu görevde kaldırılmış ek bulunmuyor."
+                  : "Bu göreve henüz dosya eklenmedi."}
+              </p>
+            </div>
           ) : (
             <ul className="attachment-list">
               {attachments.map((attachment) => (
                 <li key={attachment.id} className="attachment-item">
+                  <div className="attachment-file-icon" aria-hidden="true">
+                    {getFileExtensionLabel(attachment.fileName)}
+                  </div>
+
                   <div className="attachment-info">
                     <strong>{attachment.fileName}</strong>
-                    <span>
-                      {formatFileSize(attachment.size)} · {attachment.uploaderName}
-                      {" · "}
-                      {formatUploadDate(attachment.uploadedAt)}
-                      {viewMode === "removed" && attachment.removedAt
-                        ? ` · Kaldırılma: ${formatUploadDate(attachment.removedAt)}`
-                        : ""}
+                    <span className="attachment-meta">
+                      <span className="attachment-size-pill">{formatFileSize(attachment.size)}</span>
+                      <span>{attachment.uploaderName}</span>
+                      <span>{formatUploadDate(attachment.uploadedAt)}</span>
+                      {viewMode === "removed" && attachment.removedAt && (
+                        <span>Kaldırılma: {formatUploadDate(attachment.removedAt)}</span>
+                      )}
                     </span>
                   </div>
 
@@ -338,7 +353,7 @@ function TaskAttachments({ task, onError, onSuccess }) {
           )}
 
           {canUpload && viewMode === "active" && (
-            <div className="attachment-upload-row">
+            <div className="attachment-upload-zone">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -346,20 +361,27 @@ function TaskAttachments({ task, onError, onSuccess }) {
                 onChange={handleFileSelection}
                 hidden
               />
+
+              <div className="attachment-upload-zone-icon" aria-hidden="true">↑</div>
+
+              <div className="attachment-upload-zone-text">
+                <strong>Dosya ekleyin</strong>
+                <span>
+                  {limits.allowedExtensions.join(", ")} · en fazla {limits.maxFileSizeMb} MB
+                </span>
+              </div>
+
               <button
                 type="button"
-                className="secondary-button attachment-upload-button"
+                className="btn-primary attachment-upload-button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={
                   uploading ||
                   attachments.length >= Number(limits.maxFilesPerTask)
                 }
               >
-                {uploading ? "Yükleniyor..." : "Dosya ekle"}
+                {uploading ? "Yükleniyor..." : "Dosya Seç"}
               </button>
-              <small>
-                En fazla {limits.maxFileSizeMb} MB · PDF, Word, Excel, JPG, PNG
-              </small>
             </div>
           )}
         </div>

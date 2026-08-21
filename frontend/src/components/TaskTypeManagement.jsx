@@ -21,6 +21,7 @@ function TaskTypeManagement({ enabled }) {
   });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [archiveConfirm, setArchiveConfirm] = useState(null);
 
   const loadTaskTypes = async (mode = viewMode) => {
     if (!enabled) {
@@ -144,18 +145,16 @@ function TaskTypeManagement({ enabled }) {
     }
   };
 
+  const requestArchiveTaskType = (taskType) => {
+    setArchiveConfirm(taskType);
+  };
+
+  const cancelArchiveTaskType = () => {
+    setArchiveConfirm(null);
+  };
+
   const archiveTaskType = async (taskType) => {
-    const usageText = Number(taskType.taskCount) > 0
-      ? ` Bu tipi kullanan ${taskType.taskCount} mevcut görev korunacaktır.`
-      : "";
-    const confirmed = window.confirm(
-      `"${taskType.name}" görev tipini arşivlemek istiyor musunuz?${usageText}`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
+    setArchiveConfirm(null);
     setBusyId(taskType.id);
     setError("");
     setMessage("");
@@ -381,7 +380,7 @@ function TaskTypeManagement({ enabled }) {
                   <button
                     type="button"
                     className="danger-button"
-                    onClick={() => archiveTaskType(taskType)}
+                    onClick={() => requestArchiveTaskType(taskType)}
                     disabled={busyId === taskType.id}
                   >
                     {busyId === taskType.id ? "Arşivleniyor..." : "Arşivle"}
@@ -401,6 +400,39 @@ function TaskTypeManagement({ enabled }) {
             </li>
           ))}
         </ul>
+      )}
+
+      {archiveConfirm && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="task-type-archive-dialog-title">
+          <div className="confirm-card">
+            <p className="eyebrow">Onay gerektiriyor</p>
+            <h3 id="task-type-archive-dialog-title">Görev tipini arşivlemek üzeresiniz</h3>
+            <p>
+              <strong>{archiveConfirm.name}</strong> görev tipi arşivlenecek ve yeni görev atamalarında seçilemeyecektir.
+              {Number(archiveConfirm.taskCount) > 0 && (
+                <> Bu tipi kullanan {archiveConfirm.taskCount} mevcut görev korunacaktır.</>
+              )}
+            </p>
+            <div className="confirm-actions">
+              <button
+                type="button"
+                className="danger-button"
+                onClick={() => archiveTaskType(archiveConfirm)}
+                disabled={busyId === archiveConfirm.id}
+              >
+                Arşivle
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={cancelArchiveTaskType}
+                disabled={busyId === archiveConfirm.id}
+              >
+                Vazgeç
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );

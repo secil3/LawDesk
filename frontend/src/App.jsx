@@ -1082,102 +1082,131 @@ function App() {
 
                   return (
                     <article className="group-management-card" key={group.id}>
-                      <div className="group-stat-row">
-                        <span>{group.memberCount || 0} üye</span>
-                        <span>{group.managerCount || 0} grup yöneticisi</span>
+                      <div className="group-card-header">
+                        <h4>{group.name}</h4>
                       </div>
 
-                      <div className="group-assignment-block">
-                        <label>
-                          <span>Kişi ata</span>
-                          <select
-                            value={groupAssignmentDrafts[group.id]?.userId || ""}
-                            onChange={(event) =>
-                              updateGroupAssignmentDraft(group.id, {
-                                userId: event.target.value,
-                              })
-                            }
-                          >
-                            <option value="">Kullanıcı seçiniz</option>
-                            {users.map((userItem) => (
-                              <option key={userItem.id} value={userItem.id}>
-                                {userItem.adSoyad}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                      <div className="group-card-section group-card-section-info">
+                        <p className="group-card-section-label">Grup bilgileri</p>
 
                         <label>
-                          <span>Rol</span>
-                          <select
-                            value={groupAssignmentDrafts[group.id]?.role || "grup_uyesi"}
+                          <span>Grup adı</span>
+                          <input
+                            value={draft.name}
                             onChange={(event) =>
-                              updateGroupAssignmentDraft(group.id, {
-                                role: event.target.value,
-                              })
+                              setGroupDrafts((current) => ({
+                                ...current,
+                                [group.id]: {
+                                  ...draft,
+                                  name: event.target.value,
+                                },
+                              }))
                             }
-                          >
-                            <option value="grup_uyesi">Grup üyesi</option>
-                            <option value="grup_yoneticisi">Grup yöneticisi</option>
-                          </select>
+                            maxLength={100}
+                          />
                         </label>
-
+                        <label>
+                          <span>Açıklama</span>
+                          <input
+                            value={draft.description}
+                            onChange={(event) =>
+                              setGroupDrafts((current) => ({
+                                ...current,
+                                [group.id]: {
+                                  ...draft,
+                                  description: event.target.value,
+                                },
+                              }))
+                            }
+                            maxLength={500}
+                          />
+                        </label>
                         <button
                           type="button"
-                          className="secondary-button"
-                          onClick={() => handleAssignUserToGroup(group.id)}
-                          disabled={!groupAssignmentDrafts[group.id]?.userId}
+                          className="btn-primary"
+                          onClick={() => handleUpdateGroup(group.id)}
+                          disabled={
+                            unchanged ||
+                            !draft.name.trim() ||
+                            savingGroupId === group.id
+                          }
                         >
-                          Gruba ekle
+                          {savingGroupId === group.id
+                            ? "Kaydediliyor..."
+                            : "Grubu güncelle"}
                         </button>
                       </div>
 
-                      <label>
-                        <span>Grup adı</span>
-                        <input
-                          value={draft.name}
-                          onChange={(event) =>
-                            setGroupDrafts((current) => ({
-                              ...current,
-                              [group.id]: {
-                                ...draft,
-                                name: event.target.value,
-                              },
-                            }))
-                          }
-                          maxLength={100}
-                        />
-                      </label>
-                      <label>
-                        <span>Açıklama</span>
-                        <input
-                          value={draft.description}
-                          onChange={(event) =>
-                            setGroupDrafts((current) => ({
-                              ...current,
-                              [group.id]: {
-                                ...draft,
-                                description: event.target.value,
-                              },
-                            }))
-                          }
-                          maxLength={500}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => handleUpdateGroup(group.id)}
-                        disabled={
-                          unchanged ||
-                          !draft.name.trim() ||
-                          savingGroupId === group.id
-                        }
-                      >
-                        {savingGroupId === group.id
-                          ? "Kaydediliyor..."
-                          : "Grubu güncelle"}
-                      </button>
+                      <div className="group-card-section group-card-section-members">
+                        <p className="group-card-section-label">Üyeler</p>
+                        <div className="group-stat-row">
+                          <span>{group.memberCount || 0} üye</span>
+                          <span>{group.managerCount || 0} grup yöneticisi</span>
+                        </div>
+                      </div>
+
+                      <div className="group-card-section group-card-section-assign">
+                        <p className="group-card-section-label">Üye ekle</p>
+
+                        <div className="group-assignment-block">
+                          <label>
+                            <span>Kişi ata</span>
+                            <select
+                              value={groupAssignmentDrafts[group.id]?.userId || ""}
+                              onChange={(event) =>
+                                updateGroupAssignmentDraft(group.id, {
+                                  userId: event.target.value,
+                                })
+                              }
+                            >
+                              <option value="">Kullanıcı seçiniz</option>
+                              {users.map((userItem) => (
+                                <option key={userItem.id} value={userItem.id}>
+                                  {userItem.adSoyad}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label>
+                            <span>Rol</span>
+                            <select
+                              value={groupAssignmentDrafts[group.id]?.role || "grup_uyesi"}
+                              onChange={(event) =>
+                                updateGroupAssignmentDraft(group.id, {
+                                  role: event.target.value,
+                                })
+                              }
+                            >
+                              <option value="grup_uyesi">Grup üyesi</option>
+                              <option value="grup_yoneticisi">Grup yöneticisi</option>
+                            </select>
+                          </label>
+
+                          <button
+                            type="button"
+                            className="group-add-member-button"
+                            onClick={() => handleAssignUserToGroup(group.id)}
+                            disabled={!groupAssignmentDrafts[group.id]?.userId}
+                          >
+                            Gruba ekle
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="group-card-section group-card-section-danger">
+                        <p className="group-card-section-label">Tehlikeli bölge</p>
+                        <div className="group-danger-row">
+                          <span>Grubu kalıcı olarak kaldırın.</span>
+                          <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() => openGroupDeleteConfirmation(group.id, group.name)}
+                          >
+                            Grubu sil
+                          </button>
+                        </div>
+                      </div>
                     </article>
                   );
                 })}
@@ -1216,6 +1245,26 @@ function App() {
               <li>Grup üyelerini takip et</li>
               <li>Grup görevlerini incele</li>
             </ul>
+          </div>
+        )}
+
+        {groupDeleteState.open && (
+          <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="group-delete-dialog-title">
+            <div className="confirm-card">
+              <p className="eyebrow">Onay gerektiriyor</p>
+              <h3 id="group-delete-dialog-title">Grubu silmek üzeresiniz</h3>
+              <p>
+                <strong>{groupDeleteState.groupName}</strong> grubu kalıcı olarak silinecektir. Bu işlem geri alınamaz.
+              </p>
+              <div className="confirm-actions">
+                <button type="button" className="danger-button" onClick={confirmDeleteGroup}>
+                  Sil
+                </button>
+                <button type="button" className="secondary-button" onClick={closeGroupDeleteConfirmation}>
+                  Vazgeç
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </>

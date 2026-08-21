@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const { createNotification } = require("./notificationController");
 
 const MAX_COMMENT_LENGTH = 4000;
 const TERMINAL_STATUSES = new Set(["Tamamlandi", "Iptal Edildi"]);
@@ -84,6 +85,7 @@ const findVisibleTask = async (query, actor, taskId) => {
             g.durum AS "status",
             g.arsivlendimi AS "archived",
             g.olusturankullaniciid AS "creatorId",
+            g.atanankullaniciid AS "assignedUserId",
             (
               (
                 $3::boolean
@@ -313,6 +315,34 @@ exports.createTaskComment = async (req, res) => {
         action: "YorumEkleme",
         detail: `${req.user.adSoyad}, "${task.title}" görevine yorum ekledi.`,
       });
+
+      const notifiedUserIds = new Set([Number(req.user.id)]);
+
+      if (
+        task.assignedUserId &&
+        !notifiedUserIds.has(Number(task.assignedUserId))
+      ) {
+        notifiedUserIds.add(Number(task.assignedUserId));
+        await createNotification(transactionQuery, {
+          userId: task.assignedUserId,
+          taskId,
+          type: "Guncelleme",
+          message: `"${task.title}" görevine yeni bir yorum eklendi.`,
+        });
+      }
+
+      if (
+        task.creatorId &&
+        !notifiedUserIds.has(Number(task.creatorId))
+      ) {
+        notifiedUserIds.add(Number(task.creatorId));
+        await createNotification(transactionQuery, {
+          userId: task.creatorId,
+          taskId,
+          type: "Guncelleme",
+          message: `Oluşturduğunuz "${task.title}" görevine yeni bir yorum eklendi.`,
+        });
+      }
 
       return {
         comment: insertResult.rows[0],

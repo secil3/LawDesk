@@ -14,6 +14,7 @@ function TagManagement({ enabled }) {
   const [maxNameLength, setMaxNameLength] = useState(50);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [archiveConfirm, setArchiveConfirm] = useState(null);
 
   const loadTags = async (mode = viewMode) => {
     if (!enabled) {
@@ -122,11 +123,16 @@ function TagManagement({ enabled }) {
     }
   };
 
-  const archiveTag = async (tag) => {
-    if (!window.confirm(`"${tag.name}" etiketini arşivlemek istiyor musunuz?`)) {
-      return;
-    }
+  const requestArchiveTag = (tag) => {
+    setArchiveConfirm(tag);
+  };
 
+  const cancelArchiveTag = () => {
+    setArchiveConfirm(null);
+  };
+
+  const archiveTag = async (tag) => {
+    setArchiveConfirm(null);
     setBusyId(tag.id);
     setError("");
     setMessage("");
@@ -282,7 +288,7 @@ function TagManagement({ enabled }) {
                   <button
                     type="button"
                     className="danger-button"
-                    onClick={() => archiveTag(tag)}
+                    onClick={() => requestArchiveTag(tag)}
                     disabled={busyId === tag.id}
                   >
                     {busyId === tag.id ? "Arşivleniyor..." : "Arşivle"}
@@ -302,6 +308,36 @@ function TagManagement({ enabled }) {
             </li>
           ))}
         </ul>
+      )}
+
+      {archiveConfirm && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="tag-archive-dialog-title">
+          <div className="confirm-card">
+            <p className="eyebrow">Onay gerektiriyor</p>
+            <h3 id="tag-archive-dialog-title">Etiketi arşivlemek üzeresiniz</h3>
+            <p>
+              <strong>{archiveConfirm.name}</strong> etiketi arşivlenecek ve aktif etiket listesinden kaldırılacaktır. Bu etikete sahip görevler etkilenmeye devam eder, ancak etiket yeni atamalar için kullanılamaz.
+            </p>
+            <div className="confirm-actions">
+              <button
+                type="button"
+                className="danger-button"
+                onClick={() => archiveTag(archiveConfirm)}
+                disabled={busyId === archiveConfirm.id}
+              >
+                Arşivle
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={cancelArchiveTag}
+                disabled={busyId === archiveConfirm.id}
+              >
+                Vazgeç
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
