@@ -72,6 +72,8 @@ beforeEach(() => {
     updatedGroupParams: null,
     deletedMembershipUserId: null,
     insertedMemberships: [],
+    userListParams: null,
+    groupListParams: null,
   };
 
   db.query = async (text, params) => {
@@ -234,9 +236,17 @@ beforeEach(() => {
     }
 
     if (
+      t.includes('count(*)::int as "total"') &&
+      t.includes("from kullanicilar k")
+    ) {
+      return { rows: [{ total: 23 }] };
+    }
+
+    if (
       t.includes("from kullanicilar k") &&
       t.includes("k.silindimi = $1::boolean")
     ) {
+      recorded.userListParams = params;
       return {
         rows: [
           {
@@ -294,7 +304,15 @@ beforeEach(() => {
       };
     }
 
+    if (
+      t.includes('count(*)::int as "total"') &&
+      t.includes("from gruplar g")
+    ) {
+      return { rows: [{ total: 14 }] };
+    }
+
     if (t.includes("from gruplar")) {
+      recorded.groupListParams = params;
       return {
         rows: [
           {
@@ -410,6 +428,29 @@ test(
 );
 
 test(
+  "admin user list supports server-side pagination",
+  async () => {
+    const token = createAdminToken();
+
+    const response = await request(app)
+      .get("/api/admin/users?page=2&limit=10")
+      .set(
+        "Cookie",
+        `${process.env.AUTH_COOKIE_NAME}=${token}`,
+      );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body.pagination, {
+      page: 2,
+      limit: 10,
+      total: 23,
+      totalPages: 3,
+    });
+    assert.deepEqual(recorded.userListParams, [false, 10, 10]);
+  },
+);
+
+test(
   "admin restores an archived user as inactive",
   async () => {
     const token = createAdminToken();
@@ -461,6 +502,29 @@ test(
         managerCount: 1,
       },
     ]);
+  },
+);
+
+test(
+  "admin group list supports server-side pagination",
+  async () => {
+    const token = createAdminToken();
+
+    const response = await request(app)
+      .get("/api/admin/groups?page=2&limit=10")
+      .set(
+        "Cookie",
+        `${process.env.AUTH_COOKIE_NAME}=${token}`,
+      );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body.pagination, {
+      page: 2,
+      limit: 10,
+      total: 14,
+      totalPages: 2,
+    });
+    assert.deepEqual(recorded.groupListParams, [10, 10]);
   },
 );
 

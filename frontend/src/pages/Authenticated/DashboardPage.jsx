@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { readResponse } from "../../api";
+import GlobalSearch from "../../components/GlobalSearch";
 
 const EMPTY_SUMMARY = {
   reportPeriod: "30",
@@ -284,6 +285,8 @@ function DashboardPage({ user, onNavigate }) {
           <small>işlem bekliyor</small>
         </div>
       </header>
+
+      <GlobalSearch onNavigate={onNavigate} />
 
       <section className="dashboard-report-toolbar" aria-label="Rapor seçenekleri">
         <div>

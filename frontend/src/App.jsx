@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 
 import { readResponse } from "./api";
+import PaginationControls from "./components/PaginationControls";
 import AppRouter from "./router/AppRouter";
+
+const LIST_PAGE_LIMIT = 9;
+const EMPTY_LIST_PAGINATION = {
+  page: 1,
+  limit: LIST_PAGE_LIMIT,
+  total: 0,
+  totalPages: 0,
+};
 
 function App() {
   const [user, setUser] = useState(null);
@@ -21,8 +30,15 @@ function App() {
   const [creatingUser, setCreatingUser] = useState(false);
   const [creationMessage, setCreationMessage] = useState("");
   const [users, setUsers] = useState([]);
+  const [listedUsers, setListedUsers] = useState([]);
+  const [userPagination, setUserPagination] = useState({
+    ...EMPTY_LIST_PAGINATION,
+  });
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [archivedUsers, setArchivedUsers] = useState([]);
+  const [archivedUserPagination, setArchivedUserPagination] = useState({
+    ...EMPTY_LIST_PAGINATION,
+  });
   const [loadingArchivedUsers, setLoadingArchivedUsers] = useState(false);
   const [userListMode, setUserListMode] = useState("active");
   const [restoringUserId, setRestoringUserId] = useState(null);
@@ -36,6 +52,11 @@ function App() {
   );
 
   const [groupOptions, setGroupOptions] = useState([]);
+  const [groupList, setGroupList] = useState([]);
+  const [groupPagination, setGroupPagination] = useState({
+    ...EMPTY_LIST_PAGINATION,
+  });
+  const [loadingGroups, setLoadingGroups] = useState(false);
   const [groupForm, setGroupForm] = useState({
     name: "",
     description: "",
@@ -110,8 +131,6 @@ function App() {
   };
 
   const loadUsers = async () => {
-    setLoadingUsers(true);
-
     try {
       const response = await fetch("/api/admin/users", {
         credentials: "include",
@@ -120,23 +139,64 @@ function App() {
       const data = await readResponse(response);
       setUsers(data.users || []);
     } catch (requestError) {
+      setUsers([]);
+      setError(requestError.message || "Kullanıcı listesi yüklenemedi");
+    }
+  };
+
+  const loadUserPage = async (page = 1) => {
+    setLoadingUsers(true);
+
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(LIST_PAGE_LIMIT),
+      });
+      const response = await fetch(`/api/admin/users?${params}`, {
+        credentials: "include",
+      });
+      const data = await readResponse(response);
+
+      setListedUsers(Array.isArray(data.users) ? data.users : []);
+      setUserPagination({
+        page: Number(data.pagination?.page) || 1,
+        limit: Number(data.pagination?.limit) || LIST_PAGE_LIMIT,
+        total: Number(data.pagination?.total) || 0,
+        totalPages: Number(data.pagination?.totalPages) || 0,
+      });
+    } catch (requestError) {
+      setListedUsers([]);
+      setUserPagination({ ...EMPTY_LIST_PAGINATION });
       setError(requestError.message || "Kullanıcı listesi yüklenemedi");
     } finally {
       setLoadingUsers(false);
     }
   };
 
-  const loadArchivedUsers = async () => {
+  const loadArchivedUsers = async (page = 1) => {
     setLoadingArchivedUsers(true);
 
     try {
-      const response = await fetch("/api/admin/users?archived=true", {
+      const params = new URLSearchParams({
+        archived: "true",
+        page: String(page),
+        limit: String(LIST_PAGE_LIMIT),
+      });
+      const response = await fetch(`/api/admin/users?${params}`, {
         credentials: "include",
       });
 
       const data = await readResponse(response);
-      setArchivedUsers(data.users || []);
+      setArchivedUsers(Array.isArray(data.users) ? data.users : []);
+      setArchivedUserPagination({
+        page: Number(data.pagination?.page) || 1,
+        limit: Number(data.pagination?.limit) || LIST_PAGE_LIMIT,
+        total: Number(data.pagination?.total) || 0,
+        totalPages: Number(data.pagination?.totalPages) || 0,
+      });
     } catch (requestError) {
+      setArchivedUsers([]);
+      setArchivedUserPagination({ ...EMPTY_LIST_PAGINATION });
       setError(
         requestError.message || "Kullanıcı arşivi yüklenemedi",
       );
@@ -176,6 +236,40 @@ function App() {
     }
   };
 
+  const loadGroupPage = async (page = 1) => {
+    setLoadingGroups(true);
+
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(LIST_PAGE_LIMIT),
+      });
+      const response = await fetch(`/api/groups?${params}`, {
+        credentials: "include",
+      });
+
+      if (response.status === 401) {
+        await handleExpiredSession();
+        return;
+      }
+
+      const data = await readResponse(response);
+      setGroupList(Array.isArray(data.groups) ? data.groups : []);
+      setGroupPagination({
+        page: Number(data.pagination?.page) || 1,
+        limit: Number(data.pagination?.limit) || LIST_PAGE_LIMIT,
+        total: Number(data.pagination?.total) || 0,
+        totalPages: Number(data.pagination?.totalPages) || 0,
+      });
+    } catch (requestError) {
+      setGroupList([]);
+      setGroupPagination({ ...EMPTY_LIST_PAGINATION });
+      setError(requestError.message || "Grup listesi yüklenemedi");
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
   const handleCreateGroup = async (event) => {
     event.preventDefault();
     setError("");
@@ -204,7 +298,10 @@ function App() {
       const successMessage = data.message || "Grup başarıyla oluşturuldu";
       setCreationMessage(successMessage);
       setGroupForm({ name: "", description: "" });
-      await loadGroups();
+      await Promise.all([
+        loadGroups(),
+        loadGroupPage(groupPagination.page),
+      ]);
       refreshTaskPanel();
     } catch (requestError) {
       setError(requestError.message || "Grup oluşturulamadı");
@@ -240,7 +337,12 @@ function App() {
       const data = await readResponse(response);
       const successMessage = data.message || "Grup güncellendi";
       setCreationMessage(successMessage);
-      await Promise.all([loadGroups(), loadUsers()]);
+      await Promise.all([
+        loadGroups(),
+        loadGroupPage(groupPagination.page),
+        loadUsers(),
+        loadUserPage(userPagination.page),
+      ]);
       refreshTaskPanel();
     } catch (requestError) {
       setError(
@@ -284,7 +386,12 @@ function App() {
       const data = await readResponse(response);
       const successMessage = data.message || "Grup silindi";
       setCreationMessage(successMessage);
-      await Promise.all([loadGroups(), loadUsers()]);
+      await Promise.all([
+        loadGroups(),
+        loadGroupPage(groupPagination.page),
+        loadUsers(),
+        loadUserPage(userPagination.page),
+      ]);
       refreshTaskPanel();
     } catch (requestError) {
       setError(requestError.message || "Grup silinemedi");
@@ -430,7 +537,12 @@ function App() {
           role: "grup_uyesi",
         },
       }));
-      await Promise.all([loadUsers(), loadGroups()]);
+      await Promise.all([
+        loadUsers(),
+        loadUserPage(userPagination.page),
+        loadGroups(),
+        loadGroupPage(groupPagination.page),
+      ]);
       refreshTaskPanel();
     } catch (requestError) {
       setError(
@@ -469,7 +581,12 @@ function App() {
       const successMessage =
         data.message || "Grup üyelikleri güncellendi";
       setCreationMessage(successMessage);
-      await Promise.all([loadUsers(), loadGroups()]);
+      await Promise.all([
+        loadUsers(),
+        loadUserPage(userPagination.page),
+        loadGroups(),
+        loadGroupPage(groupPagination.page),
+      ]);
       refreshTaskPanel();
       setMembershipEditor({
         open: false,
@@ -516,8 +633,9 @@ function App() {
 
           await Promise.all([
             loadGroups(),
+            loadGroupPage(),
             ...(canCreateUsers(data.user)
-              ? [loadUsers(), loadArchivedUsers()]
+              ? [loadUsers(), loadUserPage(), loadArchivedUsers()]
               : []),
           ]);
         }
@@ -584,8 +702,9 @@ function App() {
 
       await Promise.all([
         loadGroups(),
+        loadGroupPage(),
         ...(canCreateUsers(data.user)
-          ? [loadUsers(), loadArchivedUsers()]
+          ? [loadUsers(), loadUserPage(), loadArchivedUsers()]
           : []),
       ]);
     } catch (requestError) {
@@ -630,7 +749,11 @@ function App() {
       const data = await readResponse(response);
       const successMessage = data.message || "Kullanıcı arşivlendi";
       setCreationMessage(successMessage);
-      await Promise.all([loadUsers(), loadArchivedUsers()]);
+      await Promise.all([
+        loadUsers(),
+        loadUserPage(userPagination.page),
+        loadArchivedUsers(1),
+      ]);
       refreshTaskPanel();
       setUserListMode("archived");
     } catch (requestError) {
@@ -657,7 +780,11 @@ function App() {
       const data = await readResponse(response);
       const successMessage = data.message || "Kullanıcı geri yüklendi";
       setCreationMessage(successMessage);
-      await Promise.all([loadUsers(), loadArchivedUsers()]);
+      await Promise.all([
+        loadUsers(),
+        loadUserPage(userPagination.page),
+        loadArchivedUsers(archivedUserPagination.page),
+      ]);
       refreshTaskPanel();
     } catch (requestError) {
       setError(requestError.message || "Kullanıcı geri yüklenemedi");
@@ -687,6 +814,16 @@ function App() {
           u.id === userId ? { ...u, aktifMi: data.user?.aktifMi ?? newActive } : u,
         ),
       );
+      setListedUsers((current) =>
+        current.map((listedUser) =>
+          listedUser.id === userId
+            ? {
+                ...listedUser,
+                aktifMi: data.user?.aktifMi ?? newActive,
+              }
+            : listedUser,
+        ),
+      );
       refreshTaskPanel();
     } catch (requestError) {
       setError(requestError.message || "Kullanıcı durumu güncellenemedi");
@@ -710,9 +847,14 @@ function App() {
       setPassword("");
       setCreationMessage("");
       setUsers([]);
+      setListedUsers([]);
+      setUserPagination({ ...EMPTY_LIST_PAGINATION });
       setArchivedUsers([]);
+      setArchivedUserPagination({ ...EMPTY_LIST_PAGINATION });
       setUserListMode("active");
       setGroupOptions([]);
+      setGroupList([]);
+      setGroupPagination({ ...EMPTY_LIST_PAGINATION });
       setGroupForm({ name: "", description: "" });
       setGroupDrafts({});
       setMembershipEditor({
@@ -769,7 +911,10 @@ function App() {
         aktifMi: true,
         grupIds: [],
       });
-      await loadUsers();
+      await Promise.all([
+        loadUsers(),
+        loadUserPage(userPagination.page),
+      ]);
       refreshTaskPanel();
     } catch (requestError) {
       setError(
@@ -816,18 +961,20 @@ function App() {
                 {isAdmin || isSystemManager ? "Tüm Gruplar" : "Grup üyeliklerim"}
               </h3>
             </div>
-            <span className="info-chip">{groupOptions.length} grup</span>
+            <span className="info-chip">{groupPagination.total} grup</span>
           </div>
 
           <div className="group-overview-grid">
-            {groupOptions.length === 0 ? (
+            {loadingGroups ? (
+              <div className="empty-state-box">Gruplar yükleniyor...</div>
+            ) : groupList.length === 0 ? (
               <div className="empty-state-box">
                 {isAdmin || isSystemManager
                   ? "Henüz gösterilecek grup yok."
                   : "Üyesi olduğunuz bir grup bulunmuyor."}
               </div>
             ) : (
-              groupOptions.map((group) => (
+              groupList.map((group) => (
                 <article className="group-overview-card" key={group.id}>
                   <div className="group-overview-header">
                     <div>
@@ -854,6 +1001,15 @@ function App() {
               ))
             )}
           </div>
+
+          <PaginationControls
+            page={groupPagination.page}
+            totalPages={groupPagination.totalPages}
+            total={groupPagination.total}
+            disabled={loadingGroups}
+            label="Grup sayfalama"
+            onPageChange={loadGroupPage}
+          />
         </section>
 
         {isAdmin && (
@@ -914,7 +1070,7 @@ function App() {
               </div>
 
               <div className="group-management-grid">
-                {groupOptions.map((group) => {
+                {groupList.map((group) => {
                   const draft = groupDrafts[group.id] || {
                     name: group.name || "",
                     description: group.description || "",
@@ -1099,10 +1255,14 @@ function App() {
       toggleGroupSelection={toggleGroupSelection}
       creatingUser={creatingUser}
       handleCreateUser={handleCreateUser}
-      users={users}
+      users={listedUsers}
       archivedUsers={archivedUsers}
       loadingUsers={loadingUsers}
       loadingArchivedUsers={loadingArchivedUsers}
+      userPagination={userPagination}
+      archivedUserPagination={archivedUserPagination}
+      onUserPageChange={loadUserPage}
+      onArchivedUserPageChange={loadArchivedUsers}
       userListMode={userListMode}
       setUserListMode={setUserListMode}
       openMembershipEditor={openMembershipEditor}

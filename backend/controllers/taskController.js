@@ -815,8 +815,6 @@ exports.listTasks = async (req, res) => {
   const requestedLimit = normalizePagination(req.query?.limit, 10);
   const maxLimit = 100;
   const limit = Math.min(requestedLimit, maxLimit);
-  const page = requestedPage;
-  const offset = (page - 1) * limit;
 
   if (!tagIdFilter.valid) {
     return res.status(400).json({
@@ -1065,7 +1063,11 @@ exports.listTasks = async (req, res) => {
 
     const countResult = await db.query(countQuery, queryParams);
     const total = Number(countResult.rows[0]?.total || 0);
-    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const totalPages = Math.ceil(total / limit);
+    const page = totalPages === 0
+      ? 1
+      : Math.min(requestedPage, totalPages);
+    const offset = (page - 1) * limit;
 
     const result = await db.query(
       `SELECT g.gorevid AS "id",

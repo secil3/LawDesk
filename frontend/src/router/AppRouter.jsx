@@ -15,6 +15,7 @@ import GroupsPage from "../pages/Authenticated/GroupsPage";
 import UserCreatePage from "../pages/Authenticated/UserCreatePage";
 import SettingsPage from "../pages/Authenticated/SettingsPage";
 import NotificationsPage from "../pages/Authenticated/NotificationsPage";
+import ManagementPage from "../pages/Authenticated/ManagementPage";
 
 const PUBLIC_ROUTES = ["/", "/features", "/login"];
 
@@ -24,6 +25,7 @@ const AUTHENTICATED_ROUTES = [
   "/groups",
   "/users/create",
   "/notifications",
+  "/management",
   "/settings",
 ];
 
@@ -31,6 +33,10 @@ const isTaskPath = (path) => /^\/tasks(?:\/\d+)?$/.test(path || "");
 
 const canCreateUsers = (user) => {
   return user?.rol === "admin";
+};
+
+const canManageSystem = (user) => {
+  return ["admin", "yonetici"].includes(user?.rol);
 };
 
 function AppRouter({
@@ -58,6 +64,10 @@ function AppRouter({
   archivedUsers,
   loadingUsers,
   loadingArchivedUsers,
+  userPagination,
+  archivedUserPagination,
+  onUserPageChange,
+  onArchivedUserPageChange,
   userListMode,
   setUserListMode,
   openMembershipEditor,
@@ -81,6 +91,15 @@ function AppRouter({
       !checkingSession &&
       user &&
       PUBLIC_ROUTES.includes(currentPath)
+    ) {
+      navigate("/dashboard");
+    }
+
+    if (
+      !checkingSession &&
+      user &&
+      currentPath === "/management" &&
+      !canManageSystem(user)
     ) {
       navigate("/dashboard");
     }
@@ -158,6 +177,10 @@ function AppRouter({
             archivedUsers={archivedUsers}
             loadingUsers={loadingUsers}
             loadingArchivedUsers={loadingArchivedUsers}
+            userPagination={userPagination}
+            archivedUserPagination={archivedUserPagination}
+            onUserPageChange={onUserPageChange}
+            onArchivedUserPageChange={onArchivedUserPageChange}
             userListMode={userListMode}
             setUserListMode={setUserListMode}
             openMembershipEditor={openMembershipEditor}
@@ -182,6 +205,12 @@ function AppRouter({
         );
       case "/notifications":
         return <NotificationsPage />;
+      case "/management":
+        return canManageSystem(user) ? (
+          <ManagementPage user={user} />
+        ) : (
+          <DashboardPage user={user} onNavigate={navigate} />
+        );
       case "/settings":
         return <SettingsPage user={user} />;
       case "/dashboard":

@@ -1,3 +1,5 @@
+import PaginationControls from "../../components/PaginationControls";
+
 function UserCreatePage({
   user,
   userForm,
@@ -10,6 +12,10 @@ function UserCreatePage({
   archivedUsers,
   loadingUsers,
   loadingArchivedUsers,
+  userPagination,
+  archivedUserPagination,
+  onUserPageChange,
+  onArchivedUserPageChange,
   userListMode,
   setUserListMode,
   openMembershipEditor,
@@ -31,6 +37,12 @@ function UserCreatePage({
 }) {
   const displayedUsers = userListMode === "archived" ? archivedUsers : users;
   const isUserListLoading = userListMode === "archived" ? loadingArchivedUsers : loadingUsers;
+  const displayedPagination = userListMode === "archived"
+    ? archivedUserPagination
+    : userPagination;
+  const changeDisplayedPage = userListMode === "archived"
+    ? onArchivedUserPageChange
+    : onUserPageChange;
 
   return (
     <section className="page-shell">
@@ -182,14 +194,14 @@ function UserCreatePage({
               className={userListMode === "active" ? "active" : ""}
               onClick={() => setUserListMode("active")}
             >
-              Aktif ({users.length})
+              Aktif ({Number(userPagination?.total) || 0})
             </button>
             <button
               type="button"
               className={userListMode === "archived" ? "active" : ""}
               onClick={() => setUserListMode("archived")}
             >
-              Arşiv ({archivedUsers.length})
+              Arşiv ({Number(archivedUserPagination?.total) || 0})
             </button>
           </div>
         </div>
@@ -291,6 +303,15 @@ function UserCreatePage({
             ))}
           </div>
         )}
+
+        <PaginationControls
+          page={displayedPagination?.page}
+          totalPages={displayedPagination?.totalPages}
+          total={displayedPagination?.total}
+          disabled={isUserListLoading}
+          label={`${userListMode === "archived" ? "Arşivlenmiş" : "Aktif"} kullanıcı sayfalama`}
+          onPageChange={changeDisplayedPage}
+        />
       </div>
 
       {deleteConfirmation.open && (

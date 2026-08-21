@@ -1,6 +1,4 @@
 import ActivityLogPanel from "../../components/ActivityLogPanel";
-import TagManagement from "../../components/TagManagement";
-import TaskTypeManagement from "../../components/TaskTypeManagement";
 
 const SYSTEM_ROLE_LABELS = {
   admin: "Admin",
@@ -67,14 +65,6 @@ function SettingsPage({ user }) {
           eklenecektir.
         </p>
       </div>
-
-      <TaskTypeManagement
-        enabled={["admin", "yonetici"].includes(user?.rol)}
-      />
-
-      <TagManagement
-        enabled={["admin", "yonetici"].includes(user?.rol)}
-      />
 
       <ActivityLogPanel enabled={canViewActivity} />
     </section>
