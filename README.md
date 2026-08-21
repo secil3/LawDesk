@@ -2,7 +2,7 @@
 
 LawDesk, Hukuk ve Uyum Başkanlığı ekiplerinin kullanıcı, grup ve görev süreçlerini tek bir web uygulamasından yönetebilmesi için geliştirilen bir görev yönetim sistemidir.
 
-Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, tek seviyeli alt görevler, yorumlar, dosya ekleri, etiketler, arşivleme, filtrelenebilir denetim izi ve görünürlük kapsamlı görev raporları uygulanmıştır. Üretim ortamına geçiş için güvenlik sertleştirmesi, gerçek PostgreSQL entegrasyon testleri ve kurulum/operasyon çalışmaları hâlâ gereklidir.
+Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, tek seviyeli alt görevler, yorumlar, dosya ekleri, etiketler, arşivleme, filtrelenebilir denetim izi ve görünürlük kapsamlı görev raporları uygulanmıştır. Kritik auth, görünürlük, transaction ve dashboard akışları gerçek PostgreSQL üzerinde de doğrulanmaktadır. Üretim ortamına geçiş için güvenlik sertleştirmesi, entegrasyon kapsamının genişletilmesi ve kurulum/operasyon çalışmaları hâlâ gereklidir.
 
 ## Mevcut özellikler
 
@@ -34,6 +34,8 @@ Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrul
 - Seçilen döneme göre görev oluşturma, tamamlama oranı ve ortalama tamamlanma süresi raporu
 - Öncelik, görev tipi ve atama yükü dağılımlarını rol ve görünürlük kapsamına göre görüntüleme
 - Dashboard görev raporunu Excel uyumlu UTF-8 CSV olarak dışa aktarma
+- Kritik API akışlarını ayrı bir PostgreSQL test veritabanında doğrulayan entegrasyon testleri
+- GitHub Actions üzerinde PostgreSQL servisli birim, entegrasyon ve frontend build kontrolleri
 - Görev, kullanıcı ve grup listelerinde sunucu taraflı sayfalama
 - Ana sayfadan görev, yorum, ek dosya adı, grup, yetkili kullanıcı, etiket, görev tipi ve denetim kayıtlarında yetki kapsamlı genel arama
 - Etiket ve görev tipi işlemleri için ayrı, rol korumalı Yönetim sayfası
@@ -70,6 +72,7 @@ LawDesk/
 │   ├── middleware/      Oturum ve rol kontrolleri
 │   ├── routes/          Auth, admin ve görev endpoint'leri
 │   ├── scripts/         Admin ve migration komutları
+│   ├── integration/     Gerçek PostgreSQL kullanan entegrasyon testleri
 │   └── tests/           Backend otomatik testleri
 ├── frontend/
 │   └── src/             React arayüzü ve API yardımcıları
@@ -133,6 +136,7 @@ Windows Komut İstemi kullanıyorsanız kopyalama için `copy .env.example .env`
 PORT=3001
 NODE_ENV=development
 DATABASE_URL=postgresql://postgres:PAROLANIZ@localhost:5432/gys_lawdesk
+INTEGRATION_DATABASE_URL=postgresql://postgres:PAROLANIZ@localhost:5432/gys_lawdesk_test
 AUTH_TOKEN_SECRET=EN_AZ_64_KARAKTERLIK_RASTGELE_BIR_DEGER
 AUTH_TOKEN_TTL_HOURS=8
 AUTH_COOKIE_NAME=lawdesk_session
@@ -221,7 +225,32 @@ cd backend
 npm test
 ```
 
-Güncel test paketi 171 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
+Güncel birim test paketi 171 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
+
+### Gerçek PostgreSQL entegrasyon testleri
+
+Entegrasyon testleri geliştirme veritabanını kullanmaz. pgAdmin veya `psql` ile bir kez, adı `_test` ile biten ayrı bir veritabanı oluşturun:
+
+```sql
+CREATE DATABASE gys_lawdesk_test;
+```
+
+`backend/.env` içindeki `INTEGRATION_DATABASE_URL` değerini bu veritabanına yönlendirdikten sonra:
+
+```bash
+cd backend
+npm run test:integration
+```
+
+Komut, `gys_lawdesk_test` veritabanının `public` şemasını silip güncel SQL şemasından yeniden kurar ve 7 gerçek PostgreSQL senaryosu çalıştırır. Güvenlik kontrolü nedeniyle veritabanı adı `_test` ile bitmiyorsa işlem tablo değişikliği yapmadan durur. `INTEGRATION_DATABASE_URL` hiçbir zaman geliştirme veya üretim veritabanını göstermemelidir.
+
+Birim ve entegrasyon testlerini birlikte çalıştırmak için:
+
+```bash
+npm run test:all
+```
+
+GitHub Actions, pull request ve `main` push işlemlerinde geçici PostgreSQL servisini otomatik oluşturur; ayrıca yerel veritabanı hazırlığı gerekmez.
 
 Frontend production build kontrolü:
 
@@ -333,7 +362,7 @@ Mevcut CORS ayarı geliştirme kolaylığı için dinamiktir. Üretime geçmeden
 - Uygulama içi bildirimler ve e-posta hatırlatmaları
 - Genel sistem ayarları yönetimi
 - Kullanıcının kendi parolasını değiştirmesi
-- Gerçek PostgreSQL kullanan API entegrasyon testleri
+- PostgreSQL entegrasyon kapsamının yorum, ek, etiket ve alt görev akışlarına genişletilmesi
 - Kurum sunucusu kurulum, yedekleme ve operasyon dokümanı
 
 Veritabanı şemasında bu alanların bir kısmına ait tablolar bulunsa da ilgili backend endpoint'leri ve frontend ekranları henüz tamamlanmamıştır.

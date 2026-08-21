@@ -6,6 +6,8 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node --test --test-concurrency=1",
+    "test:integration": "node --test --test-concurrency=1 integration/postgresql.integration.js",
+    "test:all": "npm test && npm run test:integration",
     "migrate:dashboard-reports": "node scripts/migrateDashboardReports.js",
     "migrate:activity-log-filters": "node scripts/migrateActivityLogFilters.js",
     "migrate:task-type-management": "node scripts/migrateTaskTypeManagement.js",

@@ -12,10 +12,26 @@ jobs:
   backend-tests:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lawdesk
+          POSTGRES_PASSWORD: lawdesk_integration_password
+          POSTGRES_DB: gys_lawdesk_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lawdesk -d gys_lawdesk_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     env:
       AUTH_TOKEN_SECRET: test-secret-test-secret-test-secret-test-secret-test-secret-test-secret
       AUTH_TOKEN_TTL_HOURS: 1
       AUTH_COOKIE_NAME: lawdesk_test_session
+      INTEGRATION_DATABASE_URL: postgresql://lawdesk:lawdesk_integration_password@127.0.0.1:5432/gys_lawdesk_test
       NODE_ENV: test
 
     steps:
@@ -36,6 +52,10 @@ jobs:
       - name: Backend testlerini çalıştır
         working-directory: backend
         run: npm test
+
+      - name: PostgreSQL entegrasyon testlerini çalıştır
+        working-directory: backend
+        run: npm run test:integration
 
   frontend-build:
     runs-on: ubuntu-latest
