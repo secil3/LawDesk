@@ -149,10 +149,10 @@ const DASHBOARD_SUMMARY_SQL = `
           AND durum NOT IN ('Tamamlandi', 'Iptal Edildi')
       )
     )::int AS "openTasks",
-    (
+        (
       COUNT(*) FILTER (
-        WHERE arsivlendimi = FALSE
-          AND durum IN ('Tamamlandi', 'Iptal Edildi')
+        WHERE durum IN ('Tamamlandi', 'Iptal Edildi')
+          AND (arsivlendimi = FALSE OR $5::boolean)
       )
     )::int AS "closedTasks",
     (
@@ -173,16 +173,16 @@ const DASHBOARD_SUMMARY_SQL = `
           AND durum = 'Beklemede'
       )
     )::int AS "waiting",
-    (
+        (
       COUNT(*) FILTER (
-        WHERE arsivlendimi = FALSE
-          AND durum = 'Tamamlandi'
+        WHERE durum = 'Tamamlandi'
+          AND (arsivlendimi = FALSE OR $5::boolean)
       )
     )::int AS "completed",
-    (
+        (
       COUNT(*) FILTER (
-        WHERE arsivlendimi = FALSE
-          AND durum = 'Iptal Edildi'
+        WHERE durum = 'Iptal Edildi'
+          AND (arsivlendimi = FALSE OR $5::boolean)
       )
     )::int AS "cancelled",
     (
