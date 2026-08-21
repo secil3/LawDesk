@@ -115,9 +115,10 @@ const downloadFilename = (response) => {
   return match?.[1] || "lawdesk-denetim-izi.csv";
 };
 
-function ActivityLogPanel({ enabled }) {
-  const [draftFilters, setDraftFilters] = useState({ ...EMPTY_FILTERS });
-  const [appliedFilters, setAppliedFilters] = useState({ ...EMPTY_FILTERS });
+function ActivityLogPanel({ enabled, initialFilters }) {
+  const startingFilters = { ...EMPTY_FILTERS, ...initialFilters };
+  const [draftFilters, setDraftFilters] = useState(startingFilters);
+  const [appliedFilters, setAppliedFilters] = useState(startingFilters);
   const [activity, setActivity] = useState([]);
   const [pagination, setPagination] = useState({ ...EMPTY_PAGINATION });
   const [loading, setLoading] = useState(false);
@@ -155,8 +156,9 @@ function ActivityLogPanel({ enabled }) {
 
   useEffect(() => {
     if (enabled) {
-      loadActivity(EMPTY_FILTERS, 1);
+      loadActivity(startingFilters, 1);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, loadActivity]);
 
   if (!enabled) {

@@ -333,6 +333,17 @@ beforeEach(() => {
       return { rows: [] };
     }
 
+    if (normalized.includes("insert into bildirimler")) {
+      recorded.notifications = recorded.notifications || [];
+      recorded.notifications.push({
+        userId: params[0],
+        taskId: params[1],
+        type: params[2],
+        message: params[3],
+      });
+      return { rows: [] };
+    }
+
     if (
       normalized.includes("from aktiviteloglari al") &&
       normalized.includes('count(*)::int as "total"')

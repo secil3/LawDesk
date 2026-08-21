@@ -59,17 +59,17 @@ function LoginPage({
           <button type="submit" disabled={submitting}>
             {submitting ? "Giriş yapılıyor..." : "Giriş yap"}
           </button>
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => onNavigate("/")}
-            >
-              Ana Sayfa
-            </button>
-          </div>
         </form>
+
+        <div className="auth-footer-actions">
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => onNavigate("/")}
+          >
+            Ana Sayfaya Dön
+          </button>
+        </div>
       </section>
     </main>
   );

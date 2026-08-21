@@ -21,10 +21,11 @@ function RegisterPage({ onNavigate }) {
             Bu uygulama için kayıt işlemi mevcut sistem yöneticisi tarafından yönetilir.
             Lütfen giriş ekranından mevcut hesabınızla devam edin.
           </p>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="button" onClick={() => onNavigate("/login")}>Giriş Sayfasına Dön</button>
-            <button type="button" className="secondary-button" onClick={() => onNavigate("/")}>Ana Sayfa</button>
-          </div>
+        </div>
+
+        <div className="auth-footer-actions" style={{ gap: 12 }}>
+          <button type="button" onClick={() => onNavigate("/login")}>Giriş Sayfasına Dön</button>
+          <button type="button" className="btn-ghost" onClick={() => onNavigate("/")}>Ana Sayfa</button>
         </div>
       </section>
     </main>

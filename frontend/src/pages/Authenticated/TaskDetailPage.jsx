@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { readResponse } from "../../api";
+import ActivityLogPanel from "../../components/ActivityLogPanel";
 import TaskAttachments from "../../components/TaskAttachments";
 import TaskComments from "../../components/TaskComments";
 import TaskSubtasks from "../../components/TaskSubtasks";
@@ -72,6 +73,7 @@ function TaskDetailPage({ taskId, onNavigate }) {
   const [options, setOptions] = useState({
     canAssign: false,
     canManageLifecycle: false,
+    canViewActivity: false,
     types: [],
     groups: [],
     users: [],
@@ -90,6 +92,7 @@ function TaskDetailPage({ taskId, onNavigate }) {
   const [statusDraft, setStatusDraft] = useState("");
   const [assignmentDraft, setAssignmentDraft] = useState("");
   const [dueDateDraft, setDueDateDraft] = useState("");
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -131,6 +134,7 @@ function TaskDetailPage({ taskId, onNavigate }) {
         const normalizedOptions = {
           canAssign: optionsData.canAssign === true,
           canManageLifecycle: optionsData.canManageLifecycle === true,
+          canViewActivity: optionsData.canViewActivity === true,
           types: Array.isArray(optionsData.types) ? optionsData.types : [],
           groups: Array.isArray(optionsData.groups) ? optionsData.groups : [],
           users: Array.isArray(optionsData.users) ? optionsData.users : [],
@@ -356,17 +360,24 @@ function TaskDetailPage({ taskId, onNavigate }) {
     }
   };
 
+  const requestArchive = () => {
+    if (!task) {
+      return;
+    }
+
+    setArchiveConfirmOpen(true);
+  };
+
+  const cancelArchive = () => {
+    setArchiveConfirmOpen(false);
+  };
+
   const handleArchive = async () => {
     if (!task) {
       return;
     }
 
-    const confirmed = window.confirm(`"${task.title}" görevini arşivlemek istediğinizden emin misiniz?`);
-
-    if (!confirmed) {
-      return;
-    }
-
+    setArchiveConfirmOpen(false);
     setSaving(true);
     setError("");
 
@@ -502,20 +513,6 @@ function TaskDetailPage({ taskId, onNavigate }) {
             </span>
             {task.archived && <span className="archive-chip">Arşivlendi</span>}
           </div>
-
-          <div className="task-detail-actions-inline">
-            {task.canManageLifecycle && !task.archived && (
-              <button type="button" className="danger-button" onClick={handleArchive} disabled={saving}>
-                Arşivle
-              </button>
-            )}
-
-            {task.canRestore && (
-              <button type="button" className="secondary-button" onClick={handleRestore} disabled={saving}>
-                Geri yükle
-              </button>
-            )}
-          </div>
         </div>
 
         <dl className="task-meta task-detail-meta">
@@ -553,51 +550,20 @@ function TaskDetailPage({ taskId, onNavigate }) {
             <p>{task.description}</p>
           </div>
         )}
-
-        {!task.parentTaskId && (
-          <TaskSubtasks
-            task={task}
-            types={options.types}
-            onNavigate={onNavigate}
-            onError={(message) => setError(message)}
-            onSuccess={(message) => {
-              setError("");
-              showToast(message, "success");
-            }}
-          />
-        )}
-
-        <TaskTags
-          task={task}
-          onError={(message) => setError(message)}
-          onSuccess={(message) => {
-            setError("");
-            showToast(message, "success");
-          }}
-        />
-
-        <TaskAttachments
-          task={task}
-          onError={(message) => setError(message)}
-          onSuccess={(message) => showToast(message, "success")}
-        />
-
-        <TaskComments
-          task={task}
-          onError={(message) => setError(message)}
-          onSuccess={(message) => {
-            setError("");
-            showToast(message, "success");
-          }}
-        />
       </div>
 
       {error && <p className="error-message" role="alert">{error}</p>}
 
       <div className="task-detail-stack">
-        {task.canEditTask && (
-          <form className="task-form detail-form" onSubmit={saveBasicInfo}>
-            <h3>Görev bilgileri</h3>
+        {(task.canEditTask ||
+          task.canManageAssignment ||
+          task.canManageLifecycle ||
+          task.canEditDueDate ||
+          task.canRestore) && (
+          <div className="task-primary-card">
+            {task.canEditTask && (
+              <form className="task-detail-edit-form" onSubmit={saveBasicInfo}>
+                <h3>Görev Bilgileri Düzenle</h3>
             <div className="task-form-grid compact-task-form-grid">
               <label className="task-field task-field-wide">
                 <span>Başlık</span>
@@ -661,11 +627,31 @@ function TaskDetailPage({ taskId, onNavigate }) {
           </form>
         )}
 
-        {(task.canManageAssignment || task.canManageLifecycle || task.canEditDueDate) && (
-          <section className="detail-panel task-operations-panel">
-            <h3>Görev işlemleri</h3>
+        {(task.canManageAssignment || task.canManageLifecycle || task.canEditDueDate || task.canRestore) && (
+          <section className="task-operations-section">
+            <h3>Görev İşlemleri</h3>
 
             <div className="task-operations-grid">
+              {((task.canManageLifecycle && !task.archived) || task.canRestore) && (
+                <div className="task-operation-block">
+                  <label>
+                    <span>Görev durumu</span>
+                  </label>
+                  <div className="task-operation-actions">
+                    {task.canManageLifecycle && !task.archived && (
+                      <button type="button" className="danger-button" onClick={requestArchive} disabled={saving}>
+                        Arşivle
+                      </button>
+                    )}
+
+                    {task.canRestore && (
+                      <button type="button" className="secondary-button" onClick={handleRestore} disabled={saving}>
+                        Geri yükle
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               {task.canManageAssignment && (
                 <div className="task-operation-block">
                   <label>
@@ -732,12 +718,76 @@ function TaskDetailPage({ taskId, onNavigate }) {
             </div>
           </section>
         )}
+        </div>
+        )}
+
+        {!task.parentTaskId && (
+          <TaskSubtasks
+            task={task}
+            types={options.types}
+            onNavigate={onNavigate}
+            onError={(message) => setError(message)}
+            onSuccess={(message) => {
+              setError("");
+              showToast(message, "success");
+            }}
+          />
+        )}
+
+        <TaskAttachments
+          task={task}
+          onError={(message) => setError(message)}
+          onSuccess={(message) => showToast(message, "success")}
+        />
+
+        <TaskTags
+          task={task}
+          onError={(message) => setError(message)}
+          onSuccess={(message) => {
+            setError("");
+            showToast(message, "success");
+          }}
+        />
+
+        <TaskComments
+          task={task}
+          onError={(message) => setError(message)}
+          onSuccess={(message) => {
+            setError("");
+            showToast(message, "success");
+          }}
+        />
+
+        <ActivityLogPanel
+          enabled={options.canViewActivity}
+          initialFilters={{ task: String(task.id) }}
+        />
       </div>
 
       {toast && (
         <div className="toast-stack" aria-live="polite" aria-atomic="true">
           <div className={`toast toast-${toast.type}`}>
             {toast.message}
+          </div>
+        </div>
+      )}
+
+      {archiveConfirmOpen && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="archive-dialog-title">
+          <div className="confirm-card">
+            <p className="eyebrow">Onay gerektiriyor</p>
+            <h3 id="archive-dialog-title">Görevi arşivlemek üzeresiniz</h3>
+            <p>
+              <strong>#{task.id} {task.title}</strong> adlı görevi arşivlemek istediğinizden emin misiniz?
+            </p>
+            <div className="confirm-actions">
+              <button type="button" className="danger-button" onClick={handleArchive} disabled={saving}>
+                Arşivle
+              </button>
+              <button type="button" className="secondary-button" onClick={cancelArchive} disabled={saving}>
+                Vazgeç
+              </button>
+            </div>
           </div>
         </div>
       )}

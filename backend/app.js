@@ -12,6 +12,7 @@ const adminRoutes = require("./routes/admin");
 const groupsRoutes = require("./routes/groups");
 const taskRoutes = require("./routes/tasks");
 const searchRoutes = require("./routes/search");
+const notificationRoutes = require("./routes/notifications");
 const { getAuthConfig } = require("./config/auth");
 
 const app = express();
@@ -40,5 +41,6 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/groups", groupsRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/search", searchRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 module.exports = app;

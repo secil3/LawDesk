@@ -204,7 +204,7 @@ function AppRouter({
           <DashboardPage user={user} onNavigate={navigate} />
         );
       case "/notifications":
-        return <NotificationsPage />;
+        return <NotificationsPage onNavigate={navigate} />;
       case "/management":
         return canManageSystem(user) ? (
           <ManagementPage user={user} />

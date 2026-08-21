@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const { createNotification } = require("./notificationController");
 
 const ALLOWED_PRIORITIES = new Set([
   "Kritik",
@@ -307,6 +308,7 @@ const findTaskWithManagement = async (
             g.tipid AS "typeId",
             current_type.tipadi AS "typeName",
             g.olusturankullaniciid AS "creatorId",
+            g.atanankullaniciid AS "assignedUserId",
             g.arsivlendimi AS "archived",
             CASE
               WHEN $2::boolean THEN TRUE
@@ -1490,6 +1492,18 @@ exports.updateTaskAssignment = async (req, res) => {
               : ""),
         });
 
+        if (
+          target.type === "user" &&
+          Number(target.id) !== Number(req.user.id)
+        ) {
+          await createNotification(transactionQuery, {
+            userId: target.id,
+            taskId,
+            type: "Atama",
+            message: `"${task.title}" göreviniz size atandı.`,
+          });
+        }
+
         return target;
       },
     );
@@ -2004,6 +2018,38 @@ exports.updateTaskStatus = async (req, res) => {
             `${req.user.adSoyad}, "${task.title}" görevinin durumunu ` +
             `"${task.status}" durumundan "${status}" durumuna değiştirdi.`,
         });
+
+        const notifiedUserIds = new Set([Number(req.user.id)]);
+
+        if (
+          task.assignedUserId &&
+          !notifiedUserIds.has(Number(task.assignedUserId))
+        ) {
+          notifiedUserIds.add(Number(task.assignedUserId));
+          await createNotification(transactionQuery, {
+            userId: task.assignedUserId,
+            taskId,
+            type: status === "Tamamlandi" ? "Kapanis" : "Guncelleme",
+            message:
+              status === "Tamamlandi"
+                ? `"${task.title}" göreviniz tamamlandı olarak işaretlendi.`
+                : `"${task.title}" görevinizin durumu "${status}" olarak güncellendi.`,
+          });
+        }
+
+        if (
+          status === "Tamamlandi" &&
+          task.creatorId &&
+          !notifiedUserIds.has(Number(task.creatorId))
+        ) {
+          notifiedUserIds.add(Number(task.creatorId));
+          await createNotification(transactionQuery, {
+            userId: task.creatorId,
+            taskId,
+            type: "Kapanis",
+            message: `Oluşturduğunuz "${task.title}" görevi tamamlandı.`,
+          });
+        }
 
         return updated;
       },

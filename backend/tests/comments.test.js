@@ -296,6 +296,10 @@ beforeEach(() => {
       return { rows: [] };
     }
 
+    if (normalized.includes("insert into bildirimler")) {
+      return { rows: [] };
+    }
+
     throw new Error(`Unexpected database query in comment test: ${sql}`);
   };
 

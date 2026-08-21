@@ -1,3 +1,7 @@
+import { useEffect, useState } from "react";
+
+import { readResponse } from "../api";
+
 function AuthLayout({
   user,
   children,
@@ -5,6 +9,35 @@ function AuthLayout({
   onNavigate,
   onLogout,
 }) {
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadUnreadCount = async () => {
+      try {
+        const response = await fetch("/api/notifications/unread-count", {
+          credentials: "include",
+        });
+        const data = await readResponse(response);
+
+        if (isMounted) {
+          setUnreadCount(Number(data.unreadCount) || 0);
+        }
+      } catch {
+        // Sessizce yok say; badge sadece iyileştirme amaçlıdır.
+      }
+    };
+
+    loadUnreadCount();
+    const timer = window.setInterval(loadUnreadCount, 60_000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(timer);
+    };
+  }, [currentPath]);
+
   const canCreateUsers = (userRecord) => {
     return userRecord?.rol === "admin";
   };
@@ -23,7 +56,11 @@ function AuthLayout({
     ...(canManageSystem(user)
       ? [{ label: "Yönetim", path: "/management" }]
       : []),
-    { label: "Bildirimler", path: "/notifications" },
+    {
+      label: "Bildirimler",
+      path: "/notifications",
+      badge: unreadCount > 0 ? unreadCount : null,
+    },
     { label: "Ayarlar", path: "/settings" },
   ];
 
@@ -58,7 +95,10 @@ function AuthLayout({
               }
               onClick={() => onNavigate(item.path)}
             >
-              {item.label}
+              <span>{item.label}</span>
+              {Boolean(item.badge) && (
+                <span className="sidebar-link-badge">{item.badge}</span>
+              )}
             </button>
           ))}
         </nav>
