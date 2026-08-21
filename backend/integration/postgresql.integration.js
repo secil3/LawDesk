@@ -149,9 +149,9 @@ const seedDatabase = async () => {
 
   await db.query(
     `INSERT INTO gorevtipleri
-       (tipadi, aciklama, olusturankullaniciid)
+       (tipadi, aciklama, grupid, olusturankullaniciid)
      VALUES
-       ('Operasyonel', 'Entegrasyon testi görev tipi', 1)`,
+       ('Operasyonel', 'Entegrasyon testi görev tipi', 1, 1)`,
   );
 
   await db.query(
@@ -193,7 +193,7 @@ const seedDatabase = async () => {
        ('Tamamlanan Uyum görevi', 'Üyeden gizlenen tamamlanmış görev', 1,
         'Orta', 'Tamamlandi', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day',
         NULL, 1, 'Grup', NULL, 1, 2, NOW() - INTERVAL '10 days',
-        FALSE, NULL, NULL),
+        TRUE, NOW() - INTERVAL '1 day', 2),
        ('Geciken Uyum görevi', 'Takip edilmesi gereken gecikmiş görev', 1,
         'Kritik', 'Devam Ediyor', NOW() - INTERVAL '2 days', NULL,
         NULL, 1, 'Grup', NULL, 1, 2, NOW() - INTERVAL '4 days',
@@ -323,7 +323,6 @@ test("task lists enforce member manager and system visibility in PostgreSQL", as
   assert.equal(managerTasks.status, 200);
   assert.deepEqual(sortedTitles(managerTasks), [
     "Geciken Uyum görevi",
-    "Tamamlanan Uyum görevi",
     "Uyum grup görevi",
     "Üyeye doğrudan görev",
   ].sort());
@@ -334,14 +333,52 @@ test("task lists enforce member manager and system visibility in PostgreSQL", as
   assert.equal(managerArchive.status, 200);
   assert.deepEqual(sortedTitles(managerArchive), [
     "Arşivlenen Uyum görevi",
+    "Tamamlanan Uyum görevi",
   ]);
 
   const adminTasks = await adminAgent.get("/api/tasks");
   assert.equal(adminTasks.status, 200);
-  assert.equal(adminTasks.body.tasks.length, 7);
+  assert.equal(adminTasks.body.tasks.length, 6);
   assert.ok(
     adminTasks.body.tasks.some((task) => task.title === "KVKK grup görevi"),
   );
+});
+
+test("task creation without a direct assignee routes to the type group", async () => {
+  const { agent: outsiderAgent } = await loginAs(
+    "outsider.integration@lawdesk.test",
+  );
+
+  const response = await outsiderAgent
+    .post("/api/tasks")
+    .send({
+      baslik: "Otomatik grup yönlendirme görevi",
+      aciklama: "Görev tipi grubuna otomatik atanır",
+      tipId: 1,
+      oncelik: "Orta",
+    });
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.task.assignedUserId, null);
+  assert.equal(response.body.task.assignedGroupId, 1);
+  assert.equal(response.body.task.assignedGroupName, "Uyum");
+
+  const persistedResult = await db.query(
+    `SELECT atanankullaniciid AS "assignedUserId",
+            atanangrupid AS "assignedGroupId",
+            gorunurluktipi AS "visibilityType",
+            gorunurlukgrupid AS "visibilityGroupId"
+     FROM gorevler
+     WHERE gorevid = $1`,
+    [response.body.task.id],
+  );
+
+  assert.deepEqual(persistedResult.rows[0], {
+    assignedUserId: null,
+    assignedGroupId: 1,
+    visibilityType: "Grup",
+    visibilityGroupId: 1,
+  });
 });
 
 test("task creation commits task assignment history and activity atomically", async () => {
@@ -400,6 +437,75 @@ test("task creation commits task assignment history and activity atomically", as
   assert.equal(detailResponse.body.task.title, "Transaction entegrasyon görevi");
 });
 
+test("terminal task status is atomically archived and restore reopens it", async () => {
+  const { agent } = await loginAs("manager.integration@lawdesk.test");
+
+  const cancelResponse = await agent
+    .patch("/api/tasks/2/status")
+    .send({
+      durum: "Iptal Edildi",
+      iptalNedeni: "İhtiyaç sahibi talebi geri çekti.",
+    });
+
+  assert.equal(cancelResponse.status, 200);
+  assert.equal(cancelResponse.body.task.status, "Iptal Edildi");
+  assert.equal(cancelResponse.body.task.archived, true);
+  assert.equal(
+    cancelResponse.body.task.cancellationReason,
+    "İhtiyaç sahibi talebi geri çekti.",
+  );
+
+  const archivedResult = await db.query(
+    `SELECT durum AS "status",
+            iptalnedeni AS "cancellationReason",
+            arsivlendimi AS "archived",
+            arsivlenmetarihi AS "archivedAt"
+     FROM gorevler
+     WHERE gorevid = 2`,
+  );
+  assert.equal(archivedResult.rows[0]?.status, "Iptal Edildi");
+  assert.equal(archivedResult.rows[0]?.archived, true);
+  assert.ok(archivedResult.rows[0]?.archivedAt);
+  assert.equal(
+    archivedResult.rows[0]?.cancellationReason,
+    "İhtiyaç sahibi talebi geri çekti.",
+  );
+
+  const activeList = await agent.get("/api/tasks");
+  assert.equal(activeList.status, 200);
+  assert.ok(
+    !activeList.body.tasks.some((task) => Number(task.id) === 2),
+  );
+
+  const archiveList = await agent.get("/api/tasks?archived=true");
+  assert.equal(archiveList.status, 200);
+  const archivedTask = archiveList.body.tasks.find(
+    (task) => Number(task.id) === 2,
+  );
+  assert.equal(archivedTask?.status, "Iptal Edildi");
+  assert.equal(
+    archivedTask?.cancellationReason,
+    "İhtiyaç sahibi talebi geri çekti.",
+  );
+
+  const restoreResponse = await agent.patch("/api/tasks/2/restore");
+  assert.equal(restoreResponse.status, 200);
+  assert.equal(restoreResponse.body.task.status, "Devam Ediyor");
+  assert.equal(restoreResponse.body.task.archived, false);
+  assert.equal(restoreResponse.body.task.cancellationReason, null);
+
+  const restoredResult = await db.query(
+    `SELECT durum AS "status",
+            iptalnedeni AS "cancellationReason",
+            arsivlendimi AS "archived"
+     FROM gorevler
+     WHERE gorevid = 2`,
+  );
+  assert.equal(restoredResult.rows[0]?.status, "Devam Ediyor");
+  assert.equal(restoredResult.rows[0]?.cancellationReason, null);
+  assert.equal(restoredResult.rows[0]?.archived, false);
+});
+
 test("dashboard metrics execute real scoped SQL for member and manager", async () => {
   const { agent: memberAgent } = await loginAs(
     "member.integration@lawdesk.test",
@@ -428,8 +534,8 @@ test("dashboard metrics execute real scoped SQL for member and manager", async (
   );
   assert.equal(managerResponse.status, 200);
   assert.equal(managerResponse.body.totalTasks, 5);
-  assert.equal(managerResponse.body.activeTasks, 4);
-  assert.equal(managerResponse.body.archivedTasks, 1);
+  assert.equal(managerResponse.body.activeTasks, 3);
+  assert.equal(managerResponse.body.archivedTasks, 2);
   assert.equal(managerResponse.body.openTasks, 3);
   assert.equal(managerResponse.body.closedTasks, 1);
   assert.equal(managerResponse.body.canViewArchive, true);

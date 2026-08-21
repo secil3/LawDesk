@@ -11,7 +11,7 @@ Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrul
 - Aktif, pasif ve arşivlenmiş kullanıcı kontrolü
 - Admin, yönetici, grup yöneticisi, grup üyesi ve kullanıcı yetki seviyeleri
 - Kullanıcı oluşturma, aktif/pasif yapma, arşivleme ve geri yükleme
-- Grup oluşturma; grup adı ve açıklaması düzenleme
+- Grup oluşturma; grup adı ve açıklaması düzenleme; grupları kalıcı silme işleminin kapalı tutulması
 - Kullanıcının birden fazla gruba eklenmesi
 - Kullanıcının grup üyeliklerini ve grup rollerini sonradan değiştirme
 - Her kullanıcının görev oluşturabilmesi
@@ -19,15 +19,16 @@ Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrul
 - Rol ve grup üyeliğine göre görev görünürlüğü
 - Görev başlığı, açıklaması, tipi, önceliği ve bitiş tarihini düzenleme
 - Geçmiş tarih ve saat için bitiş tarihi oluşturmayı engelleme
-- Görev durumunu değiştirme, kapatma ve yeniden açma
-- Görevleri arşivleme ve geri yükleme
+- Görev durumunu değiştirme; tamamlanan veya iptal edilen görevi atomik olarak otomatik arşivleme
+- İptal sırasında zorunlu neden kaydı; arşivden geri yüklenen görevi `Devam Ediyor` durumunda yeniden açma
 - Ana görev altında tek seviyeli alt görev oluşturma; atama ve görünürlüğü ana görevden devralma
-- Ana görev ile alt görevler arasında bitiş tarihi, kapatma, arşivleme ve geri yükleme bütünlüğü
+- Ana görev ile alt görevler arasında bitiş tarihi, kapatma ve geri yükleme bütünlüğü
 - Göreve yorum ekleme; yorumu düzenleme, geçmişini görüntüleme, arşivleme ve geri yükleme
 - Doğrulanmış dosyaları göreve ekleme, indirme, kaldırma ve geri yükleme
 - Etiket oluşturma, yeniden adlandırma, arşivleme ve geri yükleme
 - Görevlere etiket atama ve görev listesini etikete göre filtreleme
-- Görev tipi oluşturma, açıklamasını düzenleme, kullanım sayılarını görüntüleme, arşivleme ve geri yükleme
+- Görev tipini zorunlu sorumlu grupla oluşturma; adını, açıklamasını ve grubunu düzenleme; kullanım sayılarını görüntüleme, arşivleme ve geri yükleme
+- Atamasız oluşturulan görevi görev tipinin grubuna otomatik yönlendirme; doğrudan atamada yalnızca ilgili grup üyelerini kabul etme
 - Kullanıcı, grup, görev ve yaşam döngüsü işlemleri için kullanıcı, görev, işlem türü ve tarih aralığıyla filtrelenebilen denetim kayıtları
 - Filtrelenmiş denetim kayıtlarını Excel uyumlu UTF-8 CSV olarak dışa aktarma
 - Dashboard üzerinde geciken, yaklaşan ve bitiş tarihi olmayan görev risklerini görüntüleme
@@ -46,9 +47,9 @@ Sistem rolleri `admin`, `yonetici` ve `kullanici` olarak saklanır. Grup yöneti
 
 | Rol | Temel yetkiler |
 | --- | --- |
-| Admin | Kullanıcı ve grup yönetimi; görev tipi ve etiket yönetimi; tüm görevleri görüntüleme, atama, düzenleme, kapatma, arşivleme ve denetim izini görüntüleme |
+| Admin | Kullanıcı ve grup yönetimi; görev tipi ve etiket yönetimi; tüm görevleri görüntüleme, atama, düzenleme, kapatma, geri yükleme ve denetim izini görüntüleme |
 | Yönetici | Görev tipi ve etiket yönetimi; tüm görevleri görüntüleme ve yönetme; görev atama, yaşam döngüsü işlemleri ve denetim izini görüntüleme |
-| Grup yöneticisi | Yönettiği grupların görevlerini ve üyelerini kapsayan görev atama, durum, kapatma, arşivleme ve geri yükleme işlemleri |
+| Grup yöneticisi | Yönettiği grupların görevlerini ve üyelerini kapsayan görev atama, durum, otomatik kapanış ve geri yükleme işlemleri |
 | Grup üyesi | Kendi oluşturduğu, kendisine atanan veya grubuna görünür görevleri görüntüleme; kendi aktif görevlerini düzenleme |
 | Kullanıcı | Görev oluşturma; kendi oluşturduğu veya doğrudan kendisine görünür görevleri görüntüleme ve kendi aktif görevlerini düzenleme |
 
@@ -166,6 +167,8 @@ npm run migrate:task-comments
 npm run migrate:task-tags
 npm run migrate:task-subtasks
 npm run migrate:task-type-management
+npm run migrate:task-type-group-routing
+npm run migrate:task-terminal-auto-archive
 npm run migrate:activity-log-filters
 npm run migrate:dashboard-reports
 ```
@@ -225,7 +228,7 @@ cd backend
 npm test
 ```
 
-Güncel birim test paketi 171 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
+Güncel birim test paketi 173 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, görev tipi-grup yönlendirmesi, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
 
 ### Gerçek PostgreSQL entegrasyon testleri
 
@@ -242,7 +245,7 @@ cd backend
 npm run test:integration
 ```
 
-Komut, `gys_lawdesk_test` veritabanının `public` şemasını silip güncel SQL şemasından yeniden kurar ve 7 gerçek PostgreSQL senaryosu çalıştırır. Güvenlik kontrolü nedeniyle veritabanı adı `_test` ile bitmiyorsa işlem tablo değişikliği yapmadan durur. `INTEGRATION_DATABASE_URL` hiçbir zaman geliştirme veya üretim veritabanını göstermemelidir.
+Komut, `gys_lawdesk_test` veritabanının `public` şemasını silip güncel SQL şemasından yeniden kurar ve 9 gerçek PostgreSQL senaryosu çalıştırır. Güvenlik kontrolü nedeniyle veritabanı adı `_test` ile bitmiyorsa işlem tablo değişikliği yapmadan durur. `INTEGRATION_DATABASE_URL` hiçbir zaman geliştirme veya üretim veritabanını göstermemelidir.
 
 Birim ve entegrasyon testlerini birlikte çalıştırmak için:
 
@@ -306,15 +309,14 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | GET | `/api/tasks/options` | Görev tiplerini ve yetkiye uygun atama seçeneklerini döndürür |
 | POST | `/api/tasks` | Görev oluşturur |
 | GET | `/api/tasks/types` | Admin/yönetici için aktif veya `?archived=true` ile arşivlenmiş görev tiplerini ve kullanım sayılarını döndürür |
-| POST | `/api/tasks/types` | Admin/yönetici için görev tipi oluşturur |
-| PATCH | `/api/tasks/types/:typeId` | Görev tipinin adını ve açıklamasını günceller |
+| POST | `/api/tasks/types` | Admin/yönetici için sorumlu grubu zorunlu görev tipi oluşturur |
+| PATCH | `/api/tasks/types/:typeId` | Görev tipinin adını, açıklamasını ve sorumlu grubunu günceller |
 | DELETE | `/api/tasks/types/:typeId` | Görev tipini mevcut görevlerden silmeden arşivler |
 | PATCH | `/api/tasks/types/:typeId/restore` | Arşivlenmiş görev tipini geri yükler |
 | PATCH | `/api/tasks/:id` | Başlık, açıklama, tip, öncelik ve bitiş tarihini günceller |
 | PATCH | `/api/tasks/:id/assignment` | Görevin atamasını günceller |
-| PATCH | `/api/tasks/:id/status` | Durumu değiştirir, kapatır veya yeniden açar |
-| DELETE | `/api/tasks/:id` | Görevi fiziksel silmeden arşivler |
-| PATCH | `/api/tasks/:id/restore` | Arşivlenmiş görevi geri yükler |
+| PATCH | `/api/tasks/:id/status` | Durumu değiştirir; `Tamamlandi` veya neden zorunlu `Iptal Edildi` seçiminde görevi aynı transaction içinde arşivler |
+| PATCH | `/api/tasks/:id/restore` | Arşivlenmiş görevi `Devam Ediyor` durumunda geri yükler |
 | GET | `/api/tasks/:id/subtasks` | Aktif veya `?archived=true` ile arşivlenmiş alt görevleri döndürür |
 | POST | `/api/tasks/:id/subtasks` | Ana görevin altında tek seviyeli bir alt görev oluşturur |
 | GET | `/api/tasks/:id/comments` | Aktif veya `?archived=true` ile arşivlenmiş yorumları döndürür |
@@ -344,7 +346,7 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | --- | --- | --- |
 | GET | `/api/search?q=...` | En az iki karakterle, yalnızca oturum sahibinin görmeye yetkili olduğu görev ve grupları; role göre kullanıcı, etiket, görev tipi ve denetim izi sonuçlarını döndürür |
 
-Kapalı veya iptal edilmiş görevlerin bilgileri değiştirilemez; önce görev yeniden açılmalıdır. Arşivlenmiş görevler düzenlenmeden önce geri yüklenmelidir. Alt görevler ana görevin atamasını ve görünürlüğünü devralır; bağımsız olarak yeniden atanamaz. Ana görev kapatılmadan önce açık alt görevler kapatılmalı, arşivlenmeden önce de bütün alt görevler arşivlenmelidir.
+Tamamlanan veya iptal edilen görevler otomatik arşivlenir; iptal işlemi açıklama olmadan kabul edilmez. Arşivde bitiş tarihinin yanında kapanış nedeni gösterilir. Görev geri yüklendiğinde durumu `Devam Ediyor` olur ve önceki iptal nedeni aktif kayıttan temizlenir; ayrıntılı geçmiş denetim izinde korunur. Alt görevler ana görevin atamasını ve görünürlüğünü devralır; bağımsız olarak yeniden atanamaz. Ana görev kapatılmadan önce açık alt görevler tamamlanmalı veya iptal edilmelidir.
 
 ## Güvenlik notları
 

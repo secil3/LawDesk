@@ -11,6 +11,7 @@
    kodunda (Node.js/Express) yönetilmeli:
    - Görev atandığında Bildirimler tablosuna kayıt eklemek
    - Atama değiştiğinde GorevAtamaGecmisi tablosuna kayıt eklemek
+   - Tamamlanan/iptal edilen görevi arşivlemek; iptal nedenini doğrulamak
    - Durum "Tamamlandi" olduğunda TamamlanmaTarihi'ni set etmek
    - Görev güncellendiğinde GuncellemeTarihi'ni set etmek
    - Görev numarası gösterimi/üretimi
@@ -73,6 +74,7 @@ CREATE TABLE GorevTipleri (
     TipID                       SERIAL PRIMARY KEY,
     TipAdi                      VARCHAR(100) NOT NULL UNIQUE,
     Aciklama                    VARCHAR(300),
+    GrupID                      INT NOT NULL REFERENCES Gruplar(GrupID),
     AktifMi                     BOOLEAN NOT NULL DEFAULT TRUE,
     OlusturanKullaniciID        INT REFERENCES Kullanicilar(KullaniciID),
     OlusturmaTarihi             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -86,6 +88,9 @@ CREATE UNIQUE INDEX idx_gorevtipleri_adi_lower
 
 CREATE INDEX idx_gorevtipleri_aktif_adi
     ON GorevTipleri (AktifMi, LOWER(TipAdi), TipID);
+
+CREATE INDEX idx_gorevtipleri_grup_aktif
+    ON GorevTipleri (GrupID, AktifMi, TipID);
 
 /* ============================================================
    5. ETİKETLER  (örn: KVKK, sözleşme, uyum)
@@ -123,6 +128,7 @@ CREATE TABLE Gorevler (
 
     Durum                   VARCHAR(30) NOT NULL DEFAULT 'Yeni Atandi'
                                 CHECK (Durum IN ('Yeni Atandi','Devam Ediyor','Beklemede','Tamamlandi','Iptal Edildi')),
+    IptalNedeni             VARCHAR(1000),
 
     BitisTarihi             TIMESTAMP,      -- deadline
     TahminiBitisTarihi      TIMESTAMP,      -- alt görevler için
@@ -153,6 +159,11 @@ CREATE TABLE Gorevler (
         AtananKullaniciID IS NOT NULL
         AND AtananGrupID IS NOT NULL
     )),
+    CONSTRAINT gorevler_iptal_nedeni_tutarliligi
+        CHECK (
+            (Durum = 'Iptal Edildi' AND NULLIF(BTRIM(IptalNedeni), '') IS NOT NULL)
+            OR (Durum <> 'Iptal Edildi' AND IptalNedeni IS NULL)
+        ),
     CONSTRAINT gorevler_ustgorev_farkli
         CHECK (UstGorevID IS NULL OR UstGorevID <> GorevID)
 );
@@ -303,12 +314,17 @@ INSERT INTO Gruplar (GrupAdi, Aciklama) VALUES
 ('Uyum', 'Uyum ekibi'),
 ('KVKK', 'KVKK ekibi');
 
-INSERT INTO GorevTipleri (TipAdi, Aciklama) VALUES
-('Personel', 'Personel ve insan kaynakları süreçleri'),
-('Sözleşme', 'Sözleşme hazırlama ve inceleme süreçleri'),
-('Proje', 'Proje bazlı hukuk ve uyum çalışmaları'),
-('Danışmanlık', 'Hukuki görüş ve danışmanlık talepleri'),
-('Operasyonel', 'Günlük operasyonel iş ve kontroller');
+INSERT INTO GorevTipleri (TipAdi, Aciklama, GrupID) VALUES
+('Personel', 'Personel ve insan kaynakları süreçleri',
+ (SELECT GrupID FROM Gruplar WHERE GrupAdi = 'KVKK')),
+('Sözleşme', 'Sözleşme hazırlama ve inceleme süreçleri',
+ (SELECT GrupID FROM Gruplar WHERE GrupAdi = 'Uyum')),
+('Proje', 'Proje bazlı hukuk ve uyum çalışmaları',
+ (SELECT GrupID FROM Gruplar WHERE GrupAdi = 'Uyum')),
+('Danışmanlık', 'Hukuki görüş ve danışmanlık talepleri',
+ (SELECT GrupID FROM Gruplar WHERE GrupAdi = 'Uyum')),
+('Operasyonel', 'Günlük operasyonel iş ve kontroller',
+ (SELECT GrupID FROM Gruplar WHERE GrupAdi = 'KVKK'));
 
 INSERT INTO Etiketler (EtiketAdi) VALUES
 ('KVKK'), ('Sözleşme'), ('Uyum');

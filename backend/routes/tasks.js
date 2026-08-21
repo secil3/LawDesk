@@ -1,7 +1,6 @@
 const express = require("express");
 
 const {
-  archiveTask,
   createTask,
   getTaskById,
   getTaskOptions,
@@ -179,6 +178,5 @@ router.patch("/:id/assignment", updateTaskAssignment);
 router.patch("/:id/due-date", updateTaskDueDate);
 router.patch("/:id/restore", restoreTask);
 router.patch("/:id/status", updateTaskStatus);
-router.delete("/:id", archiveTask);
 
 module.exports = router;

@@ -133,15 +133,27 @@ const validateTaskType = async (query, typeId) => {
   }
 
   const result = await query(
-    `SELECT tipid AS "id", tipadi AS "name"
-     FROM gorevtipleri
-     WHERE tipid = $1
-       AND aktifmi = TRUE`,
+    `SELECT task_type.tipid AS "id",
+            task_type.tipadi AS "name",
+            task_type.grupid AS "groupId",
+            responsible_group.grupadi AS "groupName"
+     FROM gorevtipleri task_type
+     LEFT JOIN gruplar responsible_group
+       ON responsible_group.grupid = task_type.grupid
+     WHERE task_type.tipid = $1
+       AND task_type.aktifmi = TRUE`,
     [typeId],
   );
 
   if (!result.rows[0]) {
     throw createHttpError(400, "Seçilen görev tipi bulunamadı");
+  }
+
+  if (!result.rows[0].groupId || !result.rows[0].groupName) {
+    throw createHttpError(
+      400,
+      "Seçilen görev tipi için sorumlu grup henüz belirlenmemiş",
+    );
   }
 
   return result.rows[0];
@@ -237,6 +249,7 @@ const validateAssignmentTarget = async (
     type: "user",
     id: Number(targetUser.id),
     name: targetUser.name,
+    groupIds: targetGroupIds,
   };
 };
 
@@ -304,6 +317,7 @@ const findTaskWithManagement = async (
             g.aciklama AS "description",
             g.oncelik AS "priority",
             g.durum AS "status",
+            g.iptalnedeni AS "cancellationReason",
             g.bitisTarihi AS "dueDate",
             g.tipid AS "typeId",
             current_type.tipadi AS "typeName",
@@ -580,10 +594,15 @@ exports.getTaskOptions = async (req, res) => {
 
   try {
     const typesResult = await db.query(
-      `SELECT tipid AS "id", tipadi AS "name"
-       FROM gorevtipleri
-       WHERE aktifmi = TRUE
-       ORDER BY tipadi ASC`,
+      `SELECT task_type.tipid AS "id",
+              task_type.tipadi AS "name",
+              task_type.grupid AS "groupId",
+              responsible_group.grupadi AS "groupName"
+       FROM gorevtipleri task_type
+       JOIN gruplar responsible_group
+         ON responsible_group.grupid = task_type.grupid
+       WHERE task_type.aktifmi = TRUE
+       ORDER BY task_type.tipadi ASC`,
     );
 
     if (!canAssign) {
@@ -613,20 +632,38 @@ exports.getTaskOptions = async (req, res) => {
 
     const usersResult = systemAssigner
       ? await db.query(
-          `SELECT kullaniciid AS "id", adsoyad AS "name"
-           FROM kullanicilar
-           WHERE aktifmi = TRUE
-             AND silindimi = FALSE
-           ORDER BY adsoyad ASC`,
-        )
-      : await db.query(
-          `SELECT DISTINCT k.kullaniciid AS "id", k.adsoyad AS "name"
+          `SELECT k.kullaniciid AS "id",
+                  k.adsoyad AS "name",
+                  COALESCE(
+                    array_agg(DISTINCT membership.grupid)
+                      FILTER (WHERE membership.grupid IS NOT NULL),
+                    ARRAY[]::int[]
+                  ) AS "groupIds"
            FROM kullanicilar k
-           JOIN grupuyelikleri gu
-             ON gu.kullaniciid = k.kullaniciid
+           LEFT JOIN grupuyelikleri membership
+             ON membership.kullaniciid = k.kullaniciid
            WHERE k.aktifmi = TRUE
              AND k.silindimi = FALSE
-             AND gu.grupid = ANY($1::int[])
+           GROUP BY k.kullaniciid, k.adsoyad
+           ORDER BY k.adsoyad ASC`,
+        )
+      : await db.query(
+          `SELECT k.kullaniciid AS "id",
+                  k.adsoyad AS "name",
+                  COALESCE(
+                    array_agg(DISTINCT all_membership.grupid)
+                      FILTER (WHERE all_membership.grupid IS NOT NULL),
+                    ARRAY[]::int[]
+                  ) AS "groupIds"
+           FROM kullanicilar k
+           JOIN grupuyelikleri managed_membership
+             ON managed_membership.kullaniciid = k.kullaniciid
+           LEFT JOIN grupuyelikleri all_membership
+             ON all_membership.kullaniciid = k.kullaniciid
+           WHERE k.aktifmi = TRUE
+             AND k.silindimi = FALSE
+             AND managed_membership.grupid = ANY($1::int[])
+           GROUP BY k.kullaniciid, k.adsoyad
            ORDER BY k.adsoyad ASC`,
           [managedGroupIds],
         );
@@ -667,6 +704,7 @@ exports.getTaskById = async (req, res) => {
               g.aciklama AS "description",
               g.oncelik AS "priority",
               g.durum AS "status",
+              g.iptalnedeni AS "cancellationReason",
               g.bitisTarihi AS "dueDate",
               g.olusturmaTarihi AS "createdAt",
               g.arsivlendimi AS "archived",
@@ -772,7 +810,7 @@ exports.getTaskById = async (req, res) => {
       task: {
         ...task,
         canManage: canManage,
-        canManageAssignment: !task.parentTaskId && canManage,
+        canManageAssignment: !task.archived && !task.parentTaskId && canManage,
         canManageLifecycle: canManage && !task.archived,
         canRestore: canManage && task.archived === true,
         canEditTask:
@@ -916,6 +954,7 @@ exports.listTasks = async (req, res) => {
                 g.aciklama AS "description",
                 g.oncelik AS "priority",
                 g.durum AS "status",
+                g.iptalnedeni AS "cancellationReason",
                 g.bitisTarihi AS "dueDate",
                 g.olusturmaTarihi AS "createdAt",
                 g.arsivlendimi AS "archived",
@@ -1010,7 +1049,7 @@ exports.listTasks = async (req, res) => {
           return {
             ...task,
             tags: normalizeTaskTags(task.tags),
-            canManageAssignment: !task.parentTaskId && canManage,
+            canManageAssignment: !task.archived && !task.parentTaskId && canManage,
             canManageLifecycle: canManage && !task.archived,
             canRestore: canManage && task.archived === true,
             canEditTask:
@@ -1079,6 +1118,7 @@ exports.listTasks = async (req, res) => {
               g.aciklama AS "description",
               g.oncelik AS "priority",
               g.durum AS "status",
+              g.iptalnedeni AS "cancellationReason",
               g.bitisTarihi AS "dueDate",
               g.olusturmaTarihi AS "createdAt",
               g.arsivlendimi AS "archived",
@@ -1175,7 +1215,7 @@ exports.listTasks = async (req, res) => {
         return {
           ...task,
           tags: normalizeTaskTags(task.tags),
-          canManageAssignment: !task.parentTaskId && canManage,
+          canManageAssignment: !task.archived && !task.parentTaskId && canManage,
           canManageLifecycle: canManage && !task.archived,
           canRestore: canManage && task.archived === true,
           canEditTask:
@@ -1218,9 +1258,9 @@ exports.createTask = async (req, res) => {
     });
   }
 
-  if (!typeId.valid) {
+  if (!typeId.valid || !typeId.value) {
     return res.status(400).json({
-      error: "Geçerli bir görev tipi seçiniz",
+      error: "Görev tipi seçimi zorunludur",
     });
   }
 
@@ -1245,17 +1285,44 @@ exports.createTask = async (req, res) => {
   try {
     const assignment = parseAssignment(req.body);
 
+    if (assignment.groupId) {
+      throw createHttpError(
+        400,
+        "Görev oluştururken grup elle seçilemez; görev tipi grubu otomatik belirler",
+      );
+    }
+
     const transactionResult = await db.withTransaction(
       async (transactionQuery) => {
         const taskType = await validateTaskType(
           transactionQuery,
           typeId.value,
         );
-        const target = await validateAssignmentTarget(
-          transactionQuery,
-          req.user,
-          assignment,
-        );
+        let target = null;
+
+        if (assignment.userId) {
+          target = await validateAssignmentTarget(
+            transactionQuery,
+            req.user,
+            assignment,
+          );
+
+          if (
+            !target.groupIds.includes(Number(taskType.groupId))
+          ) {
+            throw createHttpError(
+              400,
+              "Seçilen kullanıcı görev tipinin sorumlu grubunda yer almıyor",
+            );
+          }
+        } else {
+          target = {
+            type: "group",
+            id: Number(taskType.groupId),
+            name: taskType.groupName,
+          };
+        }
+
         const visibility = assignmentVisibility(req.user.id, target);
 
         const insertResult = await transactionQuery(
@@ -1911,6 +1978,11 @@ exports.updateTaskDueDate = async (req, res) => {
 exports.updateTaskStatus = async (req, res) => {
   const taskId = Number(req.params?.id);
   const status = normalizeText(req.body?.durum, 30);
+  const cancellationReason = normalizeText(
+    req.body?.iptalNedeni,
+    1000,
+  );
+  const terminal = ["Tamamlandi", "Iptal Edildi"].includes(status);
 
   if (!Number.isInteger(taskId) || taskId < 1) {
     return res.status(400).json({
@@ -1921,6 +1993,12 @@ exports.updateTaskStatus = async (req, res) => {
   if (!ALLOWED_STATUSES.has(status)) {
     return res.status(400).json({
       error: "Geçerli bir görev durumu seçiniz",
+    });
+  }
+
+  if (status === "Iptal Edildi" && !cancellationReason) {
+    return res.status(400).json({
+      error: "Görevi iptal etmek için iptal nedenini yazınız",
     });
   }
 
@@ -1944,7 +2022,14 @@ exports.updateTaskStatus = async (req, res) => {
           throw createHttpError(409, "Görev zaten seçilen durumda");
         }
 
-        if (!task.parentTaskId && ["Tamamlandi", "Iptal Edildi"].includes(status)) {
+        if (["Tamamlandi", "Iptal Edildi"].includes(task.status)) {
+          throw createHttpError(
+            409,
+            "Kapanmış görevin durumunu değiştirmek için arşivden geri yükleyin",
+          );
+        }
+
+        if (!task.parentTaskId && terminal) {
           const openSubtasksResult = await transactionQuery(
             `SELECT COUNT(*)::int AS "total"
              FROM gorevler
@@ -1965,7 +2050,7 @@ exports.updateTaskStatus = async (req, res) => {
           }
         }
 
-        if (task.parentTaskId && !["Tamamlandi", "Iptal Edildi"].includes(status)) {
+        if (task.parentTaskId && !terminal) {
           const parentResult = await transactionQuery(
             `SELECT durum AS "status", arsivlendimi AS "archived"
              FROM gorevler
@@ -1988,10 +2073,24 @@ exports.updateTaskStatus = async (req, res) => {
 
         const updateResult = await transactionQuery(
           `UPDATE gorevler
-           SET durum = $1,
+           SET durum = $1::varchar,
+               iptalnedeni = CASE
+                 WHEN $1::varchar = 'Iptal Edildi'
+                   THEN $6::varchar
+                 ELSE NULL
+               END,
                tamamlanmatarihi = CASE
                  WHEN $3::boolean
                    THEN COALESCE(tamamlanmatarihi, NOW())
+                 ELSE NULL
+               END,
+               arsivlendimi = $4::boolean,
+               arsivlenmetarihi = CASE
+                 WHEN $4::boolean THEN NOW()
+                 ELSE NULL
+               END,
+               arsivleyenkullaniciid = CASE
+                 WHEN $4::boolean THEN $5::int
                  ELSE NULL
                END,
                guncellemetarihi = NOW()
@@ -1999,9 +2098,19 @@ exports.updateTaskStatus = async (req, res) => {
              AND arsivlendimi = FALSE
            RETURNING gorevid AS "id",
                      durum AS "status",
+                     iptalnedeni AS "cancellationReason",
                      tamamlanmatarihi AS "completedAt",
+                     arsivlendimi AS "archived",
+                     arsivlenmetarihi AS "archivedAt",
                      guncellemetarihi AS "updatedAt"`,
-          [status, taskId, status === "Tamamlandi"],
+          [
+            status,
+            taskId,
+            status === "Tamamlandi",
+            terminal,
+            req.user.id,
+            status === "Iptal Edildi" ? cancellationReason : null,
+          ],
         );
 
         const updated = updateResult.rows[0];
@@ -2019,6 +2128,20 @@ exports.updateTaskStatus = async (req, res) => {
             `"${task.status}" durumundan "${status}" durumuna değiştirdi.`,
         });
 
+        if (terminal) {
+          await recordActivity(transactionQuery, {
+            actor: req.user,
+            taskId,
+            action: "GorevOtomatikArsivleme",
+            detail:
+              status === "Iptal Edildi"
+                ? `${req.user.adSoyad}, "${task.title}" görevini ` +
+                  `"${cancellationReason}" nedeniyle iptal etti; görev otomatik arşivlendi.`
+                : `${req.user.adSoyad}, "${task.title}" görevini tamamladı; ` +
+                  "görev otomatik arşivlendi.",
+          });
+        }
+
         const notifiedUserIds = new Set([Number(req.user.id)]);
 
         if (
@@ -2029,16 +2152,18 @@ exports.updateTaskStatus = async (req, res) => {
           await createNotification(transactionQuery, {
             userId: task.assignedUserId,
             taskId,
-            type: status === "Tamamlandi" ? "Kapanis" : "Guncelleme",
+            type: terminal ? "Kapanis" : "Guncelleme",
             message:
               status === "Tamamlandi"
                 ? `"${task.title}" göreviniz tamamlandı olarak işaretlendi.`
-                : `"${task.title}" görevinizin durumu "${status}" olarak güncellendi.`,
+                : status === "Iptal Edildi"
+                  ? `"${task.title}" göreviniz iptal edildi.`
+                  : `"${task.title}" görevinizin durumu "${status}" olarak güncellendi.`,
           });
         }
 
         if (
-          status === "Tamamlandi" &&
+          terminal &&
           task.creatorId &&
           !notifiedUserIds.has(Number(task.creatorId))
         ) {
@@ -2047,7 +2172,10 @@ exports.updateTaskStatus = async (req, res) => {
             userId: task.creatorId,
             taskId,
             type: "Kapanis",
-            message: `Oluşturduğunuz "${task.title}" görevi tamamlandı.`,
+            message:
+              status === "Tamamlandi"
+                ? `Oluşturduğunuz "${task.title}" görevi tamamlandı.`
+                : `Oluşturduğunuz "${task.title}" görevi iptal edildi.`,
           });
         }
 
@@ -2059,84 +2187,13 @@ exports.updateTaskStatus = async (req, res) => {
       task: updatedTask,
       message:
         status === "Tamamlandi"
-          ? "Görev kapatıldı"
-          : "Görev durumu güncellendi",
+          ? "Görev tamamlandı ve otomatik arşivlendi"
+          : status === "Iptal Edildi"
+            ? "Görev iptal edildi ve otomatik arşivlendi"
+            : "Görev durumu güncellendi",
     });
   } catch (error) {
     return sendError(res, error, "Görev durumu güncellenemedi");
-  }
-};
-
-exports.archiveTask = async (req, res) => {
-  const taskId = Number(req.params?.id);
-
-  if (!Number.isInteger(taskId) || taskId < 1) {
-    return res.status(400).json({
-      error: "Geçersiz görev id",
-    });
-  }
-
-  if (!canAssignTasks(req.user)) {
-    return res.status(403).json({
-      error:
-        "Görev arşivlemek için grup yöneticisi veya üstü olmalısınız",
-    });
-  }
-
-  try {
-    await db.withTransaction(async (transactionQuery) => {
-      const task = await findManageableTask(
-        transactionQuery,
-        req.user,
-        taskId,
-      );
-
-      if (!task.parentTaskId) {
-        const childResult = await transactionQuery(
-          `SELECT COUNT(*)::int AS "total"
-           FROM gorevler
-           WHERE ustgorevid = $1
-             AND arsivlendimi = FALSE`,
-          [taskId],
-        );
-        const childCount = Number(childResult.rows[0]?.total || 0);
-
-        if (childCount > 0) {
-          throw createHttpError(
-            409,
-            `Ana görevi arşivlemeden önce ${childCount} alt görevi arşivleyin`,
-          );
-        }
-      }
-
-      const updateResult = await transactionQuery(
-        `UPDATE gorevler
-         SET arsivlendimi = TRUE,
-             arsivlenmetarihi = NOW(),
-             arsivleyenkullaniciid = $1,
-             guncellemetarihi = NOW()
-         WHERE gorevid = $2
-           AND arsivlendimi = FALSE`,
-        [req.user.id, taskId],
-      );
-
-      if (updateResult.rowCount !== 1) {
-        throw createHttpError(404, "Görev bulunamadı");
-      }
-
-      await recordActivity(transactionQuery, {
-        actor: req.user,
-        taskId,
-        action: "GorevArsivleme",
-        detail: `${req.user.adSoyad}, "${task.title}" görevini arşivledi.`,
-      });
-    });
-
-    return res.json({
-      message: "Görev arşivlendi",
-    });
-  } catch (error) {
-    return sendError(res, error, "Görev arşivlenemedi");
   }
 };
 
@@ -2184,13 +2241,10 @@ exports.restoreTask = async (req, res) => {
             );
           }
 
-          if (
-            !["Tamamlandi", "Iptal Edildi"].includes(task.status) &&
-            ["Tamamlandi", "Iptal Edildi"].includes(parent.status)
-          ) {
+          if (["Tamamlandi", "Iptal Edildi"].includes(parent.status)) {
             throw createHttpError(
               409,
-              "Açık alt görevi geri yüklemeden önce ana görevi aktif duruma getirin",
+              "Alt görevi geri yüklemeden önce ana görevi aktif duruma getirin",
             );
           }
 
@@ -2209,7 +2263,10 @@ exports.restoreTask = async (req, res) => {
 
         const updateResult = await transactionQuery(
           `UPDATE gorevler
-           SET arsivlendimi = FALSE,
+           SET durum = 'Devam Ediyor',
+               iptalnedeni = NULL,
+               tamamlanmatarihi = NULL,
+               arsivlendimi = FALSE,
                arsivlenmetarihi = NULL,
                arsivleyenkullaniciid = NULL,
                guncellemetarihi = NOW()
@@ -2217,7 +2274,10 @@ exports.restoreTask = async (req, res) => {
              AND arsivlendimi = TRUE
            RETURNING gorevid AS "id",
                      durum AS "status",
+                     iptalnedeni AS "cancellationReason",
+                     tamamlanmatarihi AS "completedAt",
                      arsivlendimi AS "archived",
+                     arsivlenmetarihi AS "archivedAt",
                      guncellemetarihi AS "updatedAt"`,
           [taskId],
         );
@@ -2232,7 +2292,9 @@ exports.restoreTask = async (req, res) => {
           actor: req.user,
           taskId,
           action: "GorevGeriYukleme",
-          detail: `${req.user.adSoyad}, "${task.title}" görevini geri yükledi.`,
+          detail:
+            `${req.user.adSoyad}, "${task.title}" görevini arşivden geri ` +
+            `yükledi ve "Devam Ediyor" durumuna aldı.`,
         });
 
         return restored;
@@ -2241,7 +2303,7 @@ exports.restoreTask = async (req, res) => {
 
     return res.json({
       task: restoredTask,
-      message: "Görev geri yüklendi",
+      message: "Görev geri yüklendi ve Devam Ediyor durumuna alındı",
     });
   } catch (error) {
     return sendError(res, error, "Görev geri yüklenemedi");

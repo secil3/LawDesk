@@ -64,11 +64,6 @@ function App() {
   const [groupDrafts, setGroupDrafts] = useState({});
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [savingGroupId, setSavingGroupId] = useState(null);
-  const [groupDeleteState, setGroupDeleteState] = useState({
-    open: false,
-    groupId: null,
-    groupName: "",
-  });
   const [membershipEditor, setMembershipEditor] = useState({
     open: false,
     userId: null,
@@ -350,53 +345,6 @@ function App() {
       );
     } finally {
       setSavingGroupId(null);
-    }
-  };
-
-  const openGroupDeleteConfirmation = (groupId, groupName) => {
-    setGroupDeleteState({
-      open: true,
-      groupId,
-      groupName,
-    });
-  };
-
-  const closeGroupDeleteConfirmation = () => {
-    setGroupDeleteState({
-      open: false,
-      groupId: null,
-      groupName: "",
-    });
-  };
-
-  const confirmDeleteGroup = async () => {
-    if (!groupDeleteState.open || !groupDeleteState.groupId) {
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `/api/admin/groups/${groupDeleteState.groupId}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        },
-      );
-
-      const data = await readResponse(response);
-      const successMessage = data.message || "Grup silindi";
-      setCreationMessage(successMessage);
-      await Promise.all([
-        loadGroups(),
-        loadGroupPage(groupPagination.page),
-        loadUsers(),
-        loadUserPage(userPagination.page),
-      ]);
-      refreshTaskPanel();
-    } catch (requestError) {
-      setError(requestError.message || "Grup silinemedi");
-    } finally {
-      closeGroupDeleteConfirmation();
     }
   };
 
@@ -1194,19 +1142,6 @@ function App() {
                         </div>
                       </div>
 
-                      <div className="group-card-section group-card-section-danger">
-                        <p className="group-card-section-label">Tehlikeli bölge</p>
-                        <div className="group-danger-row">
-                          <span>Grubu kalıcı olarak kaldırın.</span>
-                          <button
-                            type="button"
-                            className="danger-button"
-                            onClick={() => openGroupDeleteConfirmation(group.id, group.name)}
-                          >
-                            Grubu sil
-                          </button>
-                        </div>
-                      </div>
                     </article>
                   );
                 })}
@@ -1248,25 +1183,6 @@ function App() {
           </div>
         )}
 
-        {groupDeleteState.open && (
-          <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="group-delete-dialog-title">
-            <div className="confirm-card">
-              <p className="eyebrow">Onay gerektiriyor</p>
-              <h3 id="group-delete-dialog-title">Grubu silmek üzeresiniz</h3>
-              <p>
-                <strong>{groupDeleteState.groupName}</strong> grubu kalıcı olarak silinecektir. Bu işlem geri alınamaz.
-              </p>
-              <div className="confirm-actions">
-                <button type="button" className="danger-button" onClick={confirmDeleteGroup}>
-                  Sil
-                </button>
-                <button type="button" className="secondary-button" onClick={closeGroupDeleteConfirmation}>
-                  Vazgeç
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </>
     );
   };
