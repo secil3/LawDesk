@@ -1,13 +1,8 @@
 import PaginationControls from "../../components/PaginationControls";
 
 function UserCreatePage({
-  user,
-  userForm,
-  setUserForm,
   groupOptions,
-  toggleGroupSelection,
-  creatingUser,
-  handleCreateUser,
+  onNavigate,
   users,
   archivedUsers,
   loadingUsers,
@@ -54,11 +49,16 @@ function UserCreatePage({
       </div>
 
       <div className="panel-shell">
-        <form className="admin-form" onSubmit={handleCreateUser}>
+        <div className="admin-form">
           <div className="form-header-row">
             <div>
-              <p className="eyebrow">Yönetici</p>
-              <h3>Yeni kullanıcı ekle</h3>
+              <p className="eyebrow">Güvenli hesap açılışı</p>
+              <h3>Kullanıcılar kayıt talebiyle oluşturulur</h3>
+              <p className="form-hint">
+                Yönetici kullanıcı adına parola belirlemez. Başvuruyu inceleyip
+                rol ve grup üyeliklerini seçtikten sonra 24 saatlik aktivasyon
+                bağlantısını kullanıcının gerçek e-posta adresine gönderir.
+              </p>
             </div>
           </div>
 
@@ -74,111 +74,16 @@ function UserCreatePage({
             </p>
           )}
 
-          <div className="form-grid two-column">
-            <label className="field-block">
-              <span>Ad soyad</span>
-              <input
-                value={userForm.adSoyad}
-                onChange={(event) =>
-                  setUserForm((current) => ({
-                    ...current,
-                    adSoyad: event.target.value,
-                  }))
-                }
-                maxLength={150}
-                required
-              />
-            </label>
-
-            <label className="field-block">
-              <span>E-posta</span>
-              <input
-                type="email"
-                value={userForm.email}
-                onChange={(event) =>
-                  setUserForm((current) => ({
-                    ...current,
-                    email: event.target.value,
-                  }))
-                }
-                maxLength={150}
-                required
-              />
-            </label>
-
-            <label className="field-block full-width">
-              <span>Şifre</span>
-              <input
-                type="password"
-                value={userForm.password}
-                onChange={(event) =>
-                  setUserForm((current) => ({
-                    ...current,
-                    password: event.target.value,
-                  }))
-                }
-                minLength={8}
-                maxLength={256}
-                required
-              />
-            </label>
-
-            <label className="field-block">
-              <span>Kayıt tipi</span>
-              <select
-                value={userForm.roleMode}
-                onChange={(event) =>
-                  setUserForm((current) => ({
-                    ...current,
-                    roleMode: event.target.value,
-                  }))
-                }
-              >
-                <option value="kullanici">Standart kullanıcı</option>
-                <option value="grup_uyesi">Grup üyesi</option>
-                <option value="grup_yoneticisi">Grup yöneticisi</option>
-                <option value="yonetici">Yönetici</option>
-              </select>
-            </label>
-          </div>
-
-          {(userForm.roleMode === "grup_uyesi" || userForm.roleMode === "grup_yoneticisi") && (
-            <div className="field-block full-width">
-              <span>Grup seçimi</span>
-              <div className="group-toggle" role="group" aria-label="Grup seçimi">
-                {groupOptions.map((group) => {
-                  const isSelected = Array.isArray(userForm.grupIds)
-                    ? userForm.grupIds.map(String).includes(String(group.id))
-                    : false;
-
-                  return (
-                    <label
-                      key={group.id}
-                      className={`group-chip ${isSelected ? "selected" : ""}`}
-                    >
-                      <input
-                        type="checkbox"
-                        value={group.id}
-                        checked={isSelected}
-                        onChange={() => toggleGroupSelection(group.id)}
-                      />
-                      <span>{group.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-              <p className="form-hint">
-                Birden fazla grup seçebilirsiniz. Kullanıcıya hangi gruplar üzerinden erişim verileceğini buradan belirleyin.
-              </p>
-            </div>
-          )}
-
           <div className="form-actions">
-            <button type="submit" className="btn-primary" disabled={creatingUser}>
-              {creatingUser ? "Oluşturuluyor..." : "Kullanıcı oluştur"}
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => onNavigate("/registration-requests")}
+            >
+              Kayıt taleplerini aç
             </button>
           </div>
-        </form>
+        </div>
       </div>
 
       <div className="panel-shell">
@@ -257,6 +162,10 @@ function UserCreatePage({
                       Arşiv: {new Date(item.archivedAt).toLocaleString("tr-TR")}
                     </span>
                   )}
+
+                  {userListMode === "active" && item.aktivasyonBekliyorMu && (
+                    <span className="archive-chip">Aktivasyon bekliyor</span>
+                  )}
                 </div>
 
                 <div className="user-card-actions">
@@ -266,10 +175,15 @@ function UserCreatePage({
                         type="button"
                         className={item.aktifMi ? "state-button active" : "state-button inactive"}
                         onClick={() => handleToggleActive(item.id, !item.aktifMi)}
+                        disabled={item.aktivasyonBekliyorMu}
                         aria-pressed={item.aktifMi}
                         title={item.aktifMi ? "Kullanıcı aktif - tıklayarak pasifleştir" : "Kullanıcı pasif - tıklayarak aktifleştir"}
                       >
-                        {item.aktifMi ? "Aktif" : "Pasif"}
+                        {item.aktivasyonBekliyorMu
+                          ? "Aktivasyon bekliyor"
+                          : item.aktifMi
+                            ? "Aktif"
+                            : "Pasif"}
                       </button>
 
                       <button

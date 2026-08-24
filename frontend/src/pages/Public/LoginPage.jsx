@@ -64,6 +64,12 @@ function LoginPage({
         <div className="auth-footer-actions">
           <button
             type="button"
+            onClick={() => onNavigate("/register")}
+          >
+            Kayıt Ol
+          </button>
+          <button
+            type="button"
             className="btn-ghost"
             onClick={() => onNavigate("/")}
           >

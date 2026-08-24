@@ -23,6 +23,16 @@
 -- CREATE DATABASE gys_lawdesk;
 
 /* ============================================================
+   0. ŞEMA MIGRATION KAYITLARI
+   npm run migrate tarafından yönetilir.
+   ============================================================ */
+CREATE TABLE SchemaMigrations (
+    MigrationAdi       VARCHAR(255) PRIMARY KEY,
+    Checksum           CHAR(64)     NOT NULL,
+    UygulanmaTarihi    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+/* ============================================================
    1. KULLANICILAR
    Sistem rolü burada tutulur: admin / yonetici / kullanici.
    Grup içindeki rol GrupUyelikleri tablosunda tutulur.
@@ -31,14 +41,77 @@ CREATE TABLE Kullanicilar (
     KullaniciID     SERIAL PRIMARY KEY,
     AdSoyad         VARCHAR(150)    NOT NULL,
     Email           VARCHAR(150)    NOT NULL UNIQUE,
-    SifreHash       VARCHAR(255)    NOT NULL,
+    SifreHash       VARCHAR(255),
     Rol             VARCHAR(20)     NOT NULL DEFAULT 'kullanici'
                         CHECK (Rol IN ('admin','yonetici','kullanici')),
     AktifMi         BOOLEAN         NOT NULL DEFAULT TRUE,
+    AktivasyonBekliyorMu BOOLEAN    NOT NULL DEFAULT FALSE,
+    EmailDogrulamaTarihi TIMESTAMPTZ,
     SilindiMi       BOOLEAN         NOT NULL DEFAULT FALSE,
     SilinmeTarihi   TIMESTAMP,
-    OlusturmaTarihi TIMESTAMP       NOT NULL DEFAULT NOW()
+    OlusturmaTarihi TIMESTAMP       NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT kullanicilar_aktivasyon_tutarliligi
+        CHECK (
+            (AktivasyonBekliyorMu = TRUE
+             AND AktifMi = FALSE
+             AND SifreHash IS NULL)
+            OR
+            (AktivasyonBekliyorMu = FALSE
+             AND SifreHash IS NOT NULL)
+        )
 );
+
+CREATE UNIQUE INDEX idx_kullanicilar_email_lower
+    ON Kullanicilar (LOWER(Email));
+
+/* ============================================================
+   1A. KAYIT TALEPLERİ VE TEK KULLANIMLIK AKTİVASYON
+   ============================================================ */
+CREATE TABLE Kayit_Talepleri (
+    KayitTalepID                    SERIAL PRIMARY KEY,
+    AdSoyad                         VARCHAR(150) NOT NULL,
+    Email                           VARCHAR(150) NOT NULL,
+    Durum                           VARCHAR(20) NOT NULL DEFAULT 'Bekliyor'
+                                        CHECK (Durum IN ('Bekliyor','Onaylandi','Reddedildi')),
+    OlusturmaTarihi                 TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    InceleyenKullaniciID            INT REFERENCES Kullanicilar(KullaniciID),
+    IncelemeTarihi                  TIMESTAMPTZ,
+    RedNedeni                       VARCHAR(500),
+    OnaylananRol                    VARCHAR(20)
+                                        CHECK (OnaylananRol IN ('yonetici','kullanici')),
+    OlusturulanKullaniciID          INT REFERENCES Kullanicilar(KullaniciID),
+    AktivasyonEpostaGonderimTarihi  TIMESTAMPTZ,
+    AktivasyonEpostaHatasi          VARCHAR(500)
+);
+
+CREATE UNIQUE INDEX idx_kayit_talepleri_bekleyen_email
+    ON Kayit_Talepleri (LOWER(Email))
+    WHERE Durum = 'Bekliyor';
+
+CREATE INDEX idx_kayit_talepleri_durum_tarih
+    ON Kayit_Talepleri (Durum, OlusturmaTarihi DESC, KayitTalepID DESC);
+
+CREATE TABLE KullaniciAktivasyonTokenlari (
+    TokenID                 SERIAL PRIMARY KEY,
+    KullaniciID             INT NOT NULL REFERENCES Kullanicilar(KullaniciID),
+    KayitTalepID            INT NOT NULL REFERENCES Kayit_Talepleri(KayitTalepID),
+    TokenHash               CHAR(64) NOT NULL UNIQUE,
+    SonKullanmaTarihi       TIMESTAMPTZ NOT NULL,
+    KullanilmaTarihi        TIMESTAMPTZ,
+    IptalTarihi             TIMESTAMPTZ,
+    OlusturmaTarihi         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    OlusturanKullaniciID    INT NOT NULL REFERENCES Kullanicilar(KullaniciID)
+);
+
+CREATE UNIQUE INDEX idx_aktivasyontokenlari_aktif_kullanici
+    ON KullaniciAktivasyonTokenlari (KullaniciID)
+    WHERE KullanilmaTarihi IS NULL AND IptalTarihi IS NULL;
+
+CREATE INDEX idx_aktivasyontokenlari_hash_gecerlilik
+    ON KullaniciAktivasyonTokenlari
+       (TokenHash, SonKullanmaTarihi)
+    WHERE KullanilmaTarihi IS NULL AND IptalTarihi IS NULL;
 
 /* ============================================================
    2. GRUPLAR  (en az 2 grup: Uyum, KVKK)
@@ -155,7 +228,7 @@ CREATE TABLE Gorevler (
     ArsivlenmeTarihi        TIMESTAMP,
     ArsivleyenKullaniciID   INT REFERENCES Kullanicilar(KullaniciID),
 
-    CHECK (NOT (
+    CONSTRAINT gorevler_tek_atama_hedefi CHECK (NOT (
         AtananKullaniciID IS NOT NULL
         AND AtananGrupID IS NOT NULL
     )),
@@ -271,8 +344,9 @@ CREATE TABLE Bildirimler (
     BildirimID          SERIAL PRIMARY KEY,
     KullaniciID         INT NOT NULL REFERENCES Kullanicilar(KullaniciID),
     GorevID             INT REFERENCES Gorevler(GorevID),
+    KayitTalepID        INT REFERENCES Kayit_Talepleri(KayitTalepID),
     BildirimTipi        VARCHAR(30) NOT NULL
-                            CHECK (BildirimTipi IN ('Atama','Guncelleme','Kapanis','HatirlatmaOrta','HatirlatmaSon')),
+                            CHECK (BildirimTipi IN ('Atama','Guncelleme','Kapanis','HatirlatmaOrta','HatirlatmaSon','KayitTalebi')),
     Mesaj               VARCHAR(500) NOT NULL,
     OkunduMu            BOOLEAN NOT NULL DEFAULT FALSE,
     EPostaGonderildiMi  BOOLEAN NOT NULL DEFAULT FALSE,
@@ -329,29 +403,6 @@ INSERT INTO GorevTipleri (TipAdi, Aciklama, GrupID) VALUES
 INSERT INTO Etiketler (EtiketAdi) VALUES
 ('KVKK'), ('Sözleşme'), ('Uyum');
 
-INSERT INTO Kullanicilar (AdSoyad, Email, SifreHash, Rol) VALUES
-('Admin Kullanici', 'admin@sirket.com', 'HASH_PLACEHOLDER', 'admin'),
-('Ayşe Yılmaz', 'ayse.yilmaz@sirket.com', 'HASH_PLACEHOLDER', 'yonetici'),
-('Mehmet Demir', 'mehmet.demir@sirket.com', 'HASH_PLACEHOLDER', 'kullanici');
-
-INSERT INTO GrupUyelikleri (GrupID, KullaniciID, GrupRolu) VALUES
-(1, 2, 'grup_yoneticisi'),
-(1, 3, 'grup_uyesi'),
-(2, 3, 'grup_uyesi');
-
-INSERT INTO Gorevler
-    (Baslik, Aciklama, TipID, Oncelik, Durum, BitisTarihi, AtananGrupID, GorunurlukTipi, GorunurlukGrupID, OlusturanKullaniciID)
-VALUES
-    ('KVKK Uyum Denetimi', 'Yıllık KVKK uyum denetiminin yapılması', 5, 'Yuksek', 'Devam Ediyor',
-     NOW() + INTERVAL '14 days', 2, 'Grup', 2, 1);
-
-INSERT INTO Gorevler
-    (UstGorevID, Baslik, Aciklama, TipID, Oncelik, Durum, BitisTarihi, AtananGrupID, GorunurlukTipi, GorunurlukGrupID, OlusturanKullaniciID)
-VALUES
-    (1, 'Envanter Kontrolü', 'Kişisel veri envanterinin gözden geçirilmesi', 5, 'Orta', 'Yeni Atandi',
-     NOW() + INTERVAL '7 days', 2, 'Grup', 2, 1);
-
-INSERT INTO GorevEtiketleri (GorevID, EtiketID) VALUES (1, 1), (1, 3);
-
-INSERT INTO Yorumlar (GorevID, KullaniciID, YorumMetni) VALUES
-(1, 2, 'Denetim planı hazırlanıyor.');
+-- Örnek kullanıcı, üyelik, görev ve yorum kayıtları ana şemada tutulmaz.
+-- Yerel geliştirmede ayrıca şu komut çalıştırılabilir:
+-- npm run seed:development

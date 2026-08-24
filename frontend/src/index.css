@@ -8,6 +8,143 @@
   text-rendering: optimizeLegibility;
 }
 
+/* Registration request workflow */
+.registration-admin-page {
+  display: grid;
+  gap: 20px;
+}
+
+.registration-status-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.registration-status-tabs button {
+  width: auto;
+}
+
+.registration-status-tabs button.active {
+  background: var(--primary, #263f73);
+  color: #fff;
+}
+
+.registration-admin-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(360px, 1.4fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.registration-request-list,
+.registration-review-panel {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid rgba(42, 57, 86, 0.12);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.registration-request-card {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid rgba(42, 57, 86, 0.12);
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+}
+
+.registration-request-card:hover,
+.registration-request-card.selected {
+  border-color: #506da5;
+  background: #f4f7fd;
+}
+
+.registration-request-card span,
+.registration-request-card small {
+  color: #667085;
+}
+
+.registration-review-panel {
+  position: sticky;
+  top: 20px;
+}
+
+.registration-review-heading {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.registration-review-heading h3,
+.registration-review-heading p {
+  margin: 0;
+}
+
+.registration-approval-form,
+.registration-result-card {
+  display: grid;
+  gap: 16px;
+}
+
+.registration-group-options {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.registration-group-option {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(170px, 0.8fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(42, 57, 86, 0.12);
+  border-radius: 10px;
+}
+
+.registration-group-option label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.registration-group-option input[type="checkbox"] {
+  width: auto;
+}
+
+.registration-result-card {
+  padding: 16px;
+  border-radius: 12px;
+  background: #f7f9fc;
+}
+
+.registration-result-card p {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .registration-admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-review-panel {
+    position: static;
+  }
+}
+
+@media (max-width: 600px) {
+  .registration-group-option {
+    grid-template-columns: 1fr;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

@@ -19,15 +19,6 @@ function App() {
   const [error, setError] = useState("");
   const [checkingSession, setCheckingSession] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [userForm, setUserForm] = useState({
-    adSoyad: "",
-    email: "",
-    password: "",
-    roleMode: "kullanici",
-    aktifMi: true,
-    grupIds: [],
-  });
-  const [creatingUser, setCreatingUser] = useState(false);
   const [creationMessage, setCreationMessage] = useState("");
   const [users, setUsers] = useState([]);
   const [listedUsers, setListedUsers] = useState([]);
@@ -104,25 +95,6 @@ function App() {
         window.history.pushState({}, "", "/login");
       }
     }
-  };
-
-  const toggleGroupSelection = (groupId) => {
-    const groupKey = String(groupId);
-    setUserForm((current) => {
-      const currentIds = Array.isArray(current.grupIds)
-        ? current.grupIds.map(String)
-        : [];
-
-      return currentIds.includes(groupKey)
-        ? {
-            ...current,
-            grupIds: currentIds.filter((id) => id !== groupKey),
-          }
-        : {
-            ...current,
-            grupIds: [...currentIds, groupKey],
-          };
-    });
   };
 
   const loadUsers = async () => {
@@ -822,57 +794,6 @@ function App() {
     }
   };
 
-  const handleCreateUser = async (event) => {
-    event.preventDefault();
-    setError("");
-    setCreationMessage("");
-    setCreatingUser(true);
-
-    try {
-      const response = await fetch("/api/admin/users", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          adSoyad: userForm.adSoyad.trim(),
-          email: userForm.email.trim(),
-          password: userForm.password,
-          roleMode: userForm.roleMode,
-          aktifMi: userForm.aktifMi,
-          grupIds: Array.isArray(userForm.grupIds)
-            ? userForm.grupIds.map((groupId) => Number(groupId))
-            : [],
-        }),
-      });
-
-      const data = await readResponse(response);
-      const successMessage = `Kullanıcı oluşturuldu: ${data.user.email}`;
-
-      setCreationMessage(successMessage);
-      setUserForm({
-        adSoyad: "",
-        email: "",
-        password: "",
-        roleMode: "kullanici",
-        aktifMi: true,
-        grupIds: [],
-      });
-      await Promise.all([
-        loadUsers(),
-        loadUserPage(userPagination.page),
-      ]);
-      refreshTaskPanel();
-    } catch (requestError) {
-      setError(
-        requestError.message || "Kullanıcı oluşturulamadı",
-      );
-    } finally {
-      setCreatingUser(false);
-    }
-  };
-
   const renderGroupsPage = () => {
     const isAdmin = user?.rol === "admin";
     const isSystemManager = user?.rol === "yonetici";
@@ -1214,12 +1135,7 @@ function App() {
       handleLogin={handleLogin}
       taskPanelRevision={taskPanelRevision}
       renderGroupsPage={renderGroupsPage}
-      userForm={userForm}
-      setUserForm={setUserForm}
       groupOptions={groupOptions}
-      toggleGroupSelection={toggleGroupSelection}
-      creatingUser={creatingUser}
-      handleCreateUser={handleCreateUser}
       users={listedUsers}
       archivedUsers={archivedUsers}
       loadingUsers={loadingUsers}

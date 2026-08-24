@@ -128,26 +128,6 @@ const requireSystemRole =
     return next();
   };
 
-const canCreateUsers = (user) => {
-  return user?.rol === "admin";
-};
-
-const requireUserCreationPermission = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({
-      error: "Giriş yapmanız gerekiyor",
-    });
-  }
-
-  if (!canCreateUsers(req.user)) {
-    return res.status(403).json({
-      error: "Bu işlem için yetkiniz bulunmuyor",
-    });
-  }
-
-  return next();
-};
-
 const canAccessGroups = (user) => {
   if (!user) {
     return false;
@@ -204,7 +184,6 @@ const requireGroupRole =
 module.exports = {
   requireAuth,
   requireSystemRole,
-  requireUserCreationPermission,
   requireGroupAccess,
   requireGroupRole,
 };
