@@ -159,6 +159,40 @@ const validateTaskType = async (query, typeId) => {
   return result.rows[0];
 };
 
+const findActiveAssignmentUser = async (query, userId) => {
+  const result = await query(
+    `SELECT k.kullaniciid AS "id",
+            k.adsoyad AS "name",
+            COALESCE(
+              array_agg(gu.grupid) FILTER (WHERE gu.grupid IS NOT NULL),
+              ARRAY[]::int[]
+            ) AS "groupIds"
+     FROM kullanicilar k
+     LEFT JOIN grupuyelikleri gu
+       ON gu.kullaniciid = k.kullaniciid
+     WHERE k.kullaniciid = $1
+       AND k.aktifmi = TRUE
+       AND k.silindimi = FALSE
+     GROUP BY k.kullaniciid, k.adsoyad`,
+    [userId],
+  );
+
+  const targetUser = result.rows[0];
+
+  if (!targetUser) {
+    return null;
+  }
+
+  return {
+    type: "user",
+    id: Number(targetUser.id),
+    name: targetUser.name,
+    groupIds: Array.isArray(targetUser.groupIds)
+      ? targetUser.groupIds.map(Number)
+      : [],
+  };
+};
+
 const validateAssignmentTarget = async (
   query,
   actor,
@@ -208,32 +242,16 @@ const validateAssignmentTarget = async (
     };
   }
 
-  const result = await query(
-    `SELECT k.kullaniciid AS "id",
-            k.adsoyad AS "name",
-            COALESCE(
-              array_agg(gu.grupid) FILTER (WHERE gu.grupid IS NOT NULL),
-              ARRAY[]::int[]
-            ) AS "groupIds"
-     FROM kullanicilar k
-     LEFT JOIN grupuyelikleri gu
-       ON gu.kullaniciid = k.kullaniciid
-     WHERE k.kullaniciid = $1
-       AND k.aktifmi = TRUE
-       AND k.silindimi = FALSE
-     GROUP BY k.kullaniciid, k.adsoyad`,
-    [assignment.userId],
+  const targetUser = await findActiveAssignmentUser(
+    query,
+    assignment.userId,
   );
-
-  const targetUser = result.rows[0];
 
   if (!targetUser) {
     throw createHttpError(400, "Atanacak aktif kullanıcı bulunamadı");
   }
 
-  const targetGroupIds = Array.isArray(targetUser.groupIds)
-    ? targetUser.groupIds.map(Number)
-    : [];
+  const targetGroupIds = targetUser.groupIds;
 
   if (
     !isSystemAssigner(actor) &&
@@ -245,12 +263,55 @@ const validateAssignmentTarget = async (
     );
   }
 
-  return {
-    type: "user",
-    id: Number(targetUser.id),
-    name: targetUser.name,
-    groupIds: targetGroupIds,
-  };
+  return targetUser;
+};
+
+const resolveTaskTypeAssignment = async (
+  query,
+  actor,
+  assignment,
+  taskType,
+) => {
+  if (assignment.groupId) {
+    throw createHttpError(
+      400,
+      "Grup elle seçilemez; görev tipi grubu otomatik belirler",
+    );
+  }
+
+  if (!assignment.userId) {
+    return {
+      type: "group",
+      id: Number(taskType.groupId),
+      name: taskType.groupName,
+    };
+  }
+
+  const target = await validateAssignmentTarget(
+    query,
+    actor,
+    assignment,
+  );
+  const responsibleGroupId = Number(taskType.groupId);
+
+  if (!target.groupIds.includes(responsibleGroupId)) {
+    throw createHttpError(
+      400,
+      "Seçilen kullanıcı görev tipinin sorumlu grubunda yer almıyor",
+    );
+  }
+
+  if (
+    !isSystemAssigner(actor) &&
+    !managedGroupIdsFor(actor).includes(responsibleGroupId)
+  ) {
+    throw createHttpError(
+      403,
+      "Yalnızca yönettiğiniz görev tipi grubundaki kullanıcılara atama yapabilirsiniz",
+    );
+  }
+
+  return target;
 };
 
 const assignmentVisibility = (actorId, target) => {
@@ -289,6 +350,77 @@ const assignmentDescription = (target) => {
   return "atamasız";
 };
 
+const applyTaskAssignment = async (
+  query,
+  { taskId, actorId, target },
+) => {
+  const visibility = assignmentVisibility(actorId, target);
+  const assignedUserId = target.type === "user" ? target.id : null;
+  const assignedGroupId = target.type === "group" ? target.id : null;
+
+  await query(
+    `UPDATE gorevler
+     SET atanankullaniciid = $1,
+         atanangrupid = $2,
+         gorunurluktipi = $3,
+         gorunurlukkullaniciid = $4,
+         gorunurlukgrupid = $5,
+         guncellemetarihi = NOW()
+     WHERE gorevid = $6`,
+    [
+      assignedUserId,
+      assignedGroupId,
+      visibility.type,
+      visibility.userId,
+      visibility.groupId,
+      taskId,
+    ],
+  );
+
+  const childUpdateResult = await query(
+    `UPDATE gorevler
+     SET atanankullaniciid = $1,
+         atanangrupid = $2,
+         gorunurluktipi = $3,
+         gorunurlukkullaniciid = $4,
+         gorunurlukgrupid = $5,
+         guncellemetarihi = NOW()
+     WHERE ustgorevid = $6
+     RETURNING gorevid AS "id"`,
+    [
+      assignedUserId,
+      assignedGroupId,
+      visibility.type,
+      visibility.userId,
+      visibility.groupId,
+      taskId,
+    ],
+  );
+
+  const childIds = childUpdateResult.rows
+    .map((child) => Number(child.id))
+    .filter((childId) => Number.isInteger(childId) && childId > 0);
+
+  if (childIds.length > 0) {
+    await query(
+      `INSERT INTO gorevatamagecmisi
+         (gorevid, atanankullaniciid, atanangrupid, atayankullaniciid)
+       SELECT child_id, $2, $3, $4
+       FROM unnest($1::int[]) AS child_id`,
+      [childIds, assignedUserId, assignedGroupId, actorId],
+    );
+  }
+
+  await query(
+    `INSERT INTO gorevatamagecmisi
+       (gorevid, atanankullaniciid, atanangrupid, atayankullaniciid)
+     VALUES ($1, $2, $3, $4)`,
+    [taskId, assignedUserId, assignedGroupId, actorId],
+  );
+
+  return childIds;
+};
+
 const recordActivity = async (
   query,
   { actor, taskId, action, detail },
@@ -323,6 +455,7 @@ const findTaskWithManagement = async (
             current_type.tipadi AS "typeName",
             g.olusturankullaniciid AS "creatorId",
             g.atanankullaniciid AS "assignedUserId",
+            g.atanangrupid AS "assignedGroupId",
             g.arsivlendimi AS "archived",
             CASE
               WHEN $2::boolean THEN TRUE
@@ -1285,43 +1418,18 @@ exports.createTask = async (req, res) => {
   try {
     const assignment = parseAssignment(req.body);
 
-    if (assignment.groupId) {
-      throw createHttpError(
-        400,
-        "Görev oluştururken grup elle seçilemez; görev tipi grubu otomatik belirler",
-      );
-    }
-
     const transactionResult = await db.withTransaction(
       async (transactionQuery) => {
         const taskType = await validateTaskType(
           transactionQuery,
           typeId.value,
         );
-        let target = null;
-
-        if (assignment.userId) {
-          target = await validateAssignmentTarget(
-            transactionQuery,
-            req.user,
-            assignment,
-          );
-
-          if (
-            !target.groupIds.includes(Number(taskType.groupId))
-          ) {
-            throw createHttpError(
-              400,
-              "Seçilen kullanıcı görev tipinin sorumlu grubunda yer almıyor",
-            );
-          }
-        } else {
-          target = {
-            type: "group",
-            id: Number(taskType.groupId),
-            name: taskType.groupName,
-          };
-        }
+        const target = await resolveTaskTypeAssignment(
+          transactionQuery,
+          req.user,
+          assignment,
+          taskType,
+        );
 
         const visibility = assignmentVisibility(req.user.id, target);
 
@@ -1451,10 +1559,6 @@ exports.updateTaskAssignment = async (req, res) => {
   try {
     const assignment = parseAssignment(req.body);
 
-    if (!assignment.userId && !assignment.groupId) {
-      throw createHttpError(400, "Bir kullanıcı veya grup seçiniz");
-    }
-
     const transactionResult = await db.withTransaction(
       async (transactionQuery) => {
         const task = await findManageableTask(
@@ -1470,82 +1574,21 @@ exports.updateTaskAssignment = async (req, res) => {
           );
         }
 
-        const target = await validateAssignmentTarget(
+        const taskType = await validateTaskType(
+          transactionQuery,
+          task.typeId,
+        );
+        const target = await resolveTaskTypeAssignment(
           transactionQuery,
           req.user,
           assignment,
+          taskType,
         );
-        const visibility = assignmentVisibility(req.user.id, target);
-
-        await transactionQuery(
-          `UPDATE gorevler
-           SET atanankullaniciid = $1,
-               atanangrupid = $2,
-               gorunurluktipi = $3,
-               gorunurlukkullaniciid = $4,
-               gorunurlukgrupid = $5,
-               guncellemetarihi = NOW()
-           WHERE gorevid = $6`,
-          [
-            target.type === "user" ? target.id : null,
-            target.type === "group" ? target.id : null,
-            visibility.type,
-            visibility.userId,
-            visibility.groupId,
-            taskId,
-          ],
-        );
-
-        const childUpdateResult = await transactionQuery(
-          `UPDATE gorevler
-           SET atanankullaniciid = $1,
-               atanangrupid = $2,
-               gorunurluktipi = $3,
-               gorunurlukkullaniciid = $4,
-               gorunurlukgrupid = $5,
-               guncellemetarihi = NOW()
-           WHERE ustgorevid = $6
-           RETURNING gorevid AS "id"`,
-          [
-            target.type === "user" ? target.id : null,
-            target.type === "group" ? target.id : null,
-            visibility.type,
-            visibility.userId,
-            visibility.groupId,
-            taskId,
-          ],
-        );
-
-        const childIds = childUpdateResult.rows
-          .map((child) => Number(child.id))
-          .filter((childId) => Number.isInteger(childId) && childId > 0);
-
-        if (childIds.length > 0) {
-          await transactionQuery(
-            `INSERT INTO gorevatamagecmisi
-               (gorevid, atanankullaniciid, atanangrupid, atayankullaniciid)
-             SELECT child_id, $2, $3, $4
-             FROM unnest($1::int[]) AS child_id`,
-            [
-              childIds,
-              target.type === "user" ? target.id : null,
-              target.type === "group" ? target.id : null,
-              req.user.id,
-            ],
-          );
-        }
-
-        await transactionQuery(
-          `INSERT INTO gorevatamagecmisi
-             (gorevid, atanankullaniciid, atanangrupid, atayankullaniciid)
-           VALUES ($1, $2, $3, $4)`,
-          [
-            taskId,
-            target.type === "user" ? target.id : null,
-            target.type === "group" ? target.id : null,
-            req.user.id,
-          ],
-        );
+        const childIds = await applyTaskAssignment(transactionQuery, {
+          taskId,
+          actorId: req.user.id,
+          target,
+        });
 
         await recordActivity(transactionQuery, {
           actor: req.user,
@@ -1654,9 +1697,12 @@ exports.updateTask = async (req, res) => {
     });
   }
 
-  if (requestedTypeId && !requestedTypeId.valid) {
+  if (
+    requestedTypeId &&
+    (!requestedTypeId.valid || !requestedTypeId.value)
+  ) {
     return res.status(400).json({
-      error: "Geçerli bir görev tipi seçiniz",
+      error: "Görev tipi seçimi zorunludur",
     });
   }
 
@@ -1756,6 +1802,47 @@ exports.updateTask = async (req, res) => {
           );
         }
 
+        let nextAssignment = null;
+        let assignmentChanged = false;
+
+        if (typeChanged && !task.parentTaskId) {
+          if (task.assignedUserId) {
+            const currentAssignee = await findActiveAssignmentUser(
+              transactionQuery,
+              task.assignedUserId,
+            );
+
+            nextAssignment =
+              currentAssignee?.groupIds.includes(Number(nextType.groupId))
+                ? currentAssignee
+                : {
+                    type: "group",
+                    id: Number(nextType.groupId),
+                    name: nextType.groupName,
+                  };
+          } else {
+            nextAssignment = {
+              type: "group",
+              id: Number(nextType.groupId),
+              name: nextType.groupName,
+            };
+          }
+
+          assignmentChanged =
+            Number(task.assignedUserId || 0) !==
+              Number(
+                nextAssignment.type === "user"
+                  ? nextAssignment.id
+                  : 0,
+              ) ||
+            Number(task.assignedGroupId || 0) !==
+              Number(
+                nextAssignment.type === "group"
+                  ? nextAssignment.id
+                  : 0,
+              );
+        }
+
         const changes = [];
 
         if (task.title !== nextTitle) {
@@ -1776,6 +1863,12 @@ exports.updateTask = async (req, res) => {
           changes.push(
             `Görev tipi (${task.typeName || "Belirtilmedi"} → ` +
               `${nextType?.name || "Belirtilmedi"})`,
+          );
+        }
+
+        if (assignmentChanged) {
+          changes.push(
+            `Atama (${assignmentDescription(nextAssignment)} otomatik yönlendirildi)`,
           );
         }
 
@@ -1827,6 +1920,16 @@ exports.updateTask = async (req, res) => {
           throw createHttpError(404, "Görev bulunamadı");
         }
 
+        let childIds = [];
+
+        if (assignmentChanged) {
+          childIds = await applyTaskAssignment(transactionQuery, {
+            taskId,
+            actorId: req.user.id,
+            target: nextAssignment,
+          });
+        }
+
         await recordActivity(transactionQuery, {
           actor: req.user,
           taskId,
@@ -1839,6 +1942,27 @@ exports.updateTask = async (req, res) => {
         return {
           ...updated,
           typeName: nextType?.name || null,
+          ...(assignmentChanged
+            ? {
+                assignedUserId:
+                  nextAssignment.type === "user"
+                    ? nextAssignment.id
+                    : null,
+                assignedUserName:
+                  nextAssignment.type === "user"
+                    ? nextAssignment.name
+                    : null,
+                assignedGroupId:
+                  nextAssignment.type === "group"
+                    ? nextAssignment.id
+                    : null,
+                assignedGroupName:
+                  nextAssignment.type === "group"
+                    ? nextAssignment.name
+                    : null,
+                inheritedAssignmentCount: childIds.length,
+              }
+            : {}),
         };
       },
     );

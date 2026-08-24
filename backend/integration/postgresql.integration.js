@@ -151,7 +151,8 @@ const seedDatabase = async () => {
     `INSERT INTO gorevtipleri
        (tipadi, aciklama, grupid, olusturankullaniciid)
      VALUES
-       ('Operasyonel', 'Entegrasyon testi görev tipi', 1, 1)`,
+       ('Operasyonel', 'Entegrasyon testi görev tipi', 1, 1),
+       ('KVKK Talebi', 'KVKK grubuna yönlenen görev tipi', 2, 1)`,
   );
 
   await db.query(
@@ -435,6 +436,78 @@ test("task creation commits task assignment history and activity atomically", as
   const detailResponse = await memberAgent.get(`/api/tasks/${taskId}`);
   assert.equal(detailResponse.status, 200);
   assert.equal(detailResponse.body.task.title, "Transaction entegrasyon görevi");
+});
+
+test("task type changes and reassignment preserve responsible group routing", async () => {
+  const { agent: managerAgent } = await loginAs(
+    "manager.integration@lawdesk.test",
+  );
+
+  const createResponse = await managerAgent
+    .post("/api/tasks")
+    .send({
+      baslik: "Grup yönlendirme bütünlüğü",
+      tipId: 1,
+      atananKullaniciId: 3,
+    });
+
+  assert.equal(createResponse.status, 201);
+  const taskId = Number(createResponse.body.task.id);
+
+  const typeChangeResponse = await managerAgent
+    .patch(`/api/tasks/${taskId}`)
+    .send({ tipId: 2 });
+
+  assert.equal(typeChangeResponse.status, 200);
+  assert.equal(typeChangeResponse.body.task.typeName, "KVKK Talebi");
+  assert.equal(typeChangeResponse.body.task.assignedUserId, null);
+  assert.equal(typeChangeResponse.body.task.assignedGroupId, 2);
+  assert.equal(typeChangeResponse.body.task.assignedGroupName, "KVKK");
+
+  const { agent: adminAgent } = await loginAs(
+    "admin.integration@lawdesk.test",
+  );
+  const invalidUserResponse = await adminAgent
+    .patch(`/api/tasks/${taskId}/assignment`)
+    .send({ atananKullaniciId: 3 });
+
+  assert.equal(invalidUserResponse.status, 400);
+  assert.match(invalidUserResponse.body.error, /sorumlu grubunda/i);
+
+  const directUserResponse = await adminAgent
+    .patch(`/api/tasks/${taskId}/assignment`)
+    .send({ atananKullaniciId: 5 });
+
+  assert.equal(directUserResponse.status, 200);
+  assert.equal(directUserResponse.body.assignment.assignedUserId, 5);
+  assert.equal(directUserResponse.body.assignment.assignedGroupId, null);
+
+  const automaticGroupResponse = await adminAgent
+    .patch(`/api/tasks/${taskId}/assignment`)
+    .send({});
+
+  assert.equal(automaticGroupResponse.status, 200);
+  assert.equal(automaticGroupResponse.body.assignment.assignedUserId, null);
+  assert.equal(automaticGroupResponse.body.assignment.assignedGroupId, 2);
+
+  const persistedResult = await db.query(
+    `SELECT tipid AS "typeId",
+            atanankullaniciid AS "assignedUserId",
+            atanangrupid AS "assignedGroupId",
+            gorunurluktipi AS "visibilityType",
+            gorunurlukgrupid AS "visibilityGroupId"
+     FROM gorevler
+     WHERE gorevid = $1`,
+    [taskId],
+  );
+
+  assert.deepEqual(persistedResult.rows[0], {
+    typeId: 2,
+    assignedUserId: null,
+    assignedGroupId: 2,
+    visibilityType: "Grup",
+    visibilityGroupId: 2,
+  });
 });
 
 test("terminal task status is atomically archived and restore reopens it", async () => {

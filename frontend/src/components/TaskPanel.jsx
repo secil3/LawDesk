@@ -114,7 +114,6 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
     users: [],
   });
   const [taskForm, setTaskForm] = useState(EMPTY_TASK_FORM);
-  const [assignmentDrafts, setAssignmentDrafts] = useState({});
   const [statusDrafts, setStatusDrafts] = useState({});
   const [taskEditor, setTaskEditor] = useState(null);
   const [taskListMode, setTaskListMode] = useState("active");
@@ -139,7 +138,6 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [creating, setCreating] = useState(false);
-  const [assigningTaskId, setAssigningTaskId] = useState(null);
   const [updatingStatusTaskId, setUpdatingStatusTaskId] = useState(null);
   const [savingTaskId, setSavingTaskId] = useState(null);
   const [restoringTaskId, setRestoringTaskId] = useState(null);
@@ -402,60 +400,6 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
     }
   };
 
-  const handleAssignment = async (taskId) => {
-    const selectedValue = assignmentDrafts[taskId] || "";
-    const [targetType, rawTargetId] = selectedValue.split(":");
-    const targetId = Number(rawTargetId);
-
-    if (
-      !["user", "group"].includes(targetType) ||
-      !Number.isInteger(targetId) ||
-      targetId < 1
-    ) {
-      setError("Atama için bir kullanıcı veya grup seçiniz");
-      return;
-    }
-
-    setError("");
-    setMessage("");
-    setAssigningTaskId(taskId);
-
-    try {
-      const response = await fetch(
-        `/api/tasks/${taskId}/assignment`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            atananKullaniciId:
-              targetType === "user" ? targetId : null,
-            atananGrupId:
-              targetType === "group" ? targetId : null,
-          }),
-        },
-      );
-
-      const data = await readResponse(response);
-      const successMessage = data.message || "Görev ataması güncellendi";
-      setMessage(successMessage);
-      showToast(successMessage, "success");
-      setAssignmentDrafts((current) => ({
-        ...current,
-        [taskId]: "",
-      }));
-      await loadTasks();
-    } catch (requestError) {
-      setError(
-        requestError.message || "Görev ataması güncellenemedi",
-      );
-    } finally {
-      setAssigningTaskId(null);
-    }
-  };
-
   const handleStatusUpdate = async (task, overrideStatus = null) => {
     const nextStatus =
       overrideStatus || statusDrafts[task.id] || task.status;
@@ -548,6 +492,11 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
 
     const { task, form } = taskEditor;
     const originalDueDate = toDateTimeInputValue(task.dueDate);
+
+    if (!form.tipId) {
+      setError("Görev tipi seçimi zorunludur");
+      return;
+    }
 
     if (
       form.bitisTarihi &&
@@ -1112,8 +1061,9 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
                   onChange={(event) =>
                     updateTaskEditorForm("tipId", event.target.value)
                   }
+                  required
                 >
-                  <option value="">Tip seçilmedi</option>
+                  <option value="">Görev tipi seçiniz</option>
                   {taskEditor.task.typeId &&
                     !options.types.some(
                       (type) =>
