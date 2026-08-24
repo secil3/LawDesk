@@ -94,10 +94,13 @@ LawDesk/
 │   └── GYS_Database_Schema_Simple.sql
 └── docs/
     ├── GYS_ER_Diagram.pdf
-    └── generate_er_diagram.py
+    ├── generate_er_diagram.py
+    └── PRODUCTION_CUTOVER.md
 ```
 
 [ER diyagramını görüntüle](docs/GYS_ER_Diagram.pdf)
+
+[Gerçek ortama geçiş sırasını görüntüle](docs/PRODUCTION_CUTOVER.md)
 
 ## Gereksinimler
 
@@ -169,6 +172,7 @@ SMTP_PASSWORD=SMTP_HESAP_PAROLASI
 SMTP_FROM=LawDesk <lawdesk@sirket.com>
 INITIAL_ADMIN_NAME=Admin Kullanici
 INITIAL_ADMIN_EMAIL=admin@sirket.com
+INITIAL_ADMIN_EMAIL_VERIFIED=false
 INITIAL_ADMIN_PASSWORD=EN_AZ_12_KARAKTERLIK_GUCLU_PAROLA
 ```
 
@@ -206,7 +210,7 @@ Veritabanı ve `.env` hazırlandıktan sonra:
 npm run create-admin
 ```
 
-Script, aynı e-postaya sahip `HASH_PLACEHOLDER` admin kaydını güvenli Argon2id hash'iyle günceller veya yeni bir admin oluşturur. İşlem tamamlandıktan sonra `INITIAL_ADMIN_PASSWORD` değerini `.env` dosyasından kaldırmanız önerilir.
+Script, aynı e-postaya sahip `HASH_PLACEHOLDER` admin kaydını güvenli Argon2id hash'iyle günceller veya yeni bir admin oluşturur. Production ortamında önce kurumsal posta kutusunun gerçekten ilk admine ait olduğu kurum içinde doğrulanmalı ve ancak bundan sonra `INITIAL_ADMIN_EMAIL_VERIFIED=true` ayarlanmalıdır. Script bu açık onay olmadan production admini oluşturmayı reddeder; onay varsa e-posta doğrulama tarihini de kaydeder. İşlem tamamlandıktan sonra `INITIAL_ADMIN_PASSWORD` değeri `.env` dosyasından kaldırılmalıdır.
 
 Admin parolasını daha sonra sıfırlamak için `.env` dosyasına geçici olarak `RESET_ADMIN_EMAIL` ve `RESET_ADMIN_PASSWORD` değerlerini ekleyip şu komutu çalıştırabilirsiniz:
 
@@ -410,6 +414,7 @@ Bir görev tipinin sorumlu grubu değiştirildiğinde mevcut görevler topluca t
 - Olmayan kullanıcı ve yanlış parola aynı hata mesajını üretir.
 - Pasif veya arşivlenmiş kullanıcıların oturumları kabul edilmez.
 - `.env`, `node_modules`, build çıktıları ve veritabanı yedekleri Git'e eklenmemelidir.
+- Gerçek kullanıcı e-postaları seed veya migration dosyalarına yazılmaz. İlk admin kurumsal olarak doğrulanmış adresle bootstrap edilir; diğer kullanıcılar kayıt ve aktivasyon akışından alınır.
 
 Mevcut CORS ayarı geliştirme kolaylığı için dinamiktir. Üretime geçmeden önce izin verilen kurum origin'iyle sınırlandırılmalı; güvenlik başlıkları, giriş deneme limiti, CSRF değerlendirmesi, yedekleme ve izleme politikaları tamamlanmalıdır.
 
