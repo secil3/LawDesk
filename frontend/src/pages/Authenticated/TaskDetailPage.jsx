@@ -79,7 +79,6 @@ function TaskDetailPage({ taskId, onNavigate }) {
     canManageLifecycle: false,
     canViewActivity: false,
     types: [],
-    groups: [],
     users: [],
   });
   const [loading, setLoading] = useState(true);
@@ -140,7 +139,6 @@ function TaskDetailPage({ taskId, onNavigate }) {
           canManageLifecycle: optionsData.canManageLifecycle === true,
           canViewActivity: optionsData.canViewActivity === true,
           types: Array.isArray(optionsData.types) ? optionsData.types : [],
-          groups: Array.isArray(optionsData.groups) ? optionsData.groups : [],
           users: Array.isArray(optionsData.users) ? optionsData.users : [],
         };
 
@@ -159,7 +157,7 @@ function TaskDetailPage({ taskId, onNavigate }) {
           loadedTask?.assignedUserId
             ? `user:${loadedTask.assignedUserId}`
             : loadedTask?.assignedGroupId
-              ? `group:${loadedTask.assignedGroupId}`
+              ? "type-group"
               : "",
         );
         setDueDateDraft(toDateTimeInputValue(loadedTask?.dueDate));
@@ -200,6 +198,11 @@ function TaskDetailPage({ taskId, onNavigate }) {
       return;
     }
 
+    if (!form.typeId) {
+      setError("Görev tipi seçimi zorunludur");
+      return;
+    }
+
     setSaving(true);
     setError("");
 
@@ -220,7 +223,10 @@ function TaskDetailPage({ taskId, onNavigate }) {
       });
 
       const data = await readResponse(response);
-      setTask(data.task || task);
+      setTask((current) => ({
+        ...current,
+        ...(data.task || {}),
+      }));
       setForm({
         title: data.task?.title || trimmedTitle,
         description: data.task?.description || form.description.trim(),
@@ -228,6 +234,23 @@ function TaskDetailPage({ taskId, onNavigate }) {
         priority: data.task?.priority || form.priority,
         dueDate: toDateTimeInputValue(data.task?.dueDate),
       });
+      setDueDateDraft(toDateTimeInputValue(data.task?.dueDate));
+
+      if (
+        data.task &&
+        Object.prototype.hasOwnProperty.call(
+          data.task,
+          "assignedUserId",
+        )
+      ) {
+        setAssignmentDraft(
+          data.task.assignedUserId
+            ? `user:${data.task.assignedUserId}`
+            : data.task.assignedGroupId
+              ? "type-group"
+              : "",
+        );
+      }
       showToast(data.message || "Görev bilgileri güncellendi", "success");
     } catch (requestError) {
       setError(requestError.message || "Görev bilgileri güncellenemedi");
@@ -236,21 +259,26 @@ function TaskDetailPage({ taskId, onNavigate }) {
     }
   };
 
-  const handleAssignment = async () => {
+  const handleAssignment = async (event) => {
+    event?.preventDefault();
+
     if (!task) {
       return;
     }
 
     const selectedValue = assignmentDraft || "";
-    const [targetType, rawTargetId] = selectedValue.split(":");
-    const targetId = Number(rawTargetId);
+    const directUserAssignment = selectedValue.startsWith("user:");
+    const targetId = directUserAssignment
+      ? Number(selectedValue.split(":")[1])
+      : null;
 
     if (
-      !["user", "group"].includes(targetType) ||
-      !Number.isInteger(targetId) ||
-      targetId < 1
+      selectedValue !== "type-group" &&
+      (!directUserAssignment ||
+        !Number.isInteger(targetId) ||
+        targetId < 1)
     ) {
-      setError("Atama için bir kullanıcı veya grup seçiniz");
+      setError("Atama için görev tipi grubunu veya bir kullanıcıyı seçiniz");
       return;
     }
 
@@ -263,31 +291,23 @@ function TaskDetailPage({ taskId, onNavigate }) {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          atananKullaniciId:
-            targetType === "user" ? targetId : null,
-          atananGrupId:
-            targetType === "group" ? targetId : null,
+          atananKullaniciId: directUserAssignment ? targetId : null,
+          atananGrupId: null,
         }),
       });
 
       const data = await readResponse(response);
       setTask((current) => ({
         ...current,
-        assignedUserId: targetType === "user" ? targetId : null,
-        assignedUserName:
-          targetType === "user"
-            ? options.users.find(
-                (user) => Number(user.id) === targetId,
-              )?.name || null
-            : null,
-        assignedGroupId: targetType === "group" ? targetId : null,
-        assignedGroupName:
-          targetType === "group"
-            ? options.groups.find(
-                (group) => Number(group.id) === targetId,
-              )?.name || null
-            : null,
+        ...(data.assignment || {}),
       }));
+      setAssignmentDraft(
+        data.assignment?.assignedUserId
+          ? `user:${data.assignment.assignedUserId}`
+          : data.assignment?.assignedGroupId
+            ? "type-group"
+            : "",
+      );
       showToast(data.message || "Görev ataması güncellendi", "success");
     } catch (requestError) {
       setError(requestError.message || "Görev ataması güncellenemedi");
@@ -464,6 +484,23 @@ function TaskDetailPage({ taskId, onNavigate }) {
     );
   }
 
+  const selectedTaskType = options.types.find(
+    (type) => Number(type.id) === Number(task.typeId),
+  );
+  const responsibleGroupId = Number(selectedTaskType?.groupId) || null;
+  const assignableUsers = options.users.filter(
+    (user) =>
+      Array.isArray(user.groupIds) &&
+      user.groupIds.some(
+        (groupId) => Number(groupId) === responsibleGroupId,
+      ),
+  );
+  const currentAssigneeOutsideTypeGroup =
+    task.assignedUserId &&
+    !assignableUsers.some(
+      (user) => Number(user.id) === Number(task.assignedUserId),
+    );
+
   return (
     <section className="page-shell task-detail-page">
       <div className="task-detail-header">
@@ -598,8 +635,9 @@ function TaskDetailPage({ taskId, onNavigate }) {
                 <select
                   value={form.typeId}
                   onChange={(event) => setForm((current) => ({ ...current, typeId: event.target.value }))}
+                  required
                 >
-                  <option value="">Tip seçilmedi</option>
+                  <option value="">Görev tipi seçiniz</option>
                   {task.typeId &&
                     !options.types.some(
                       (type) => Number(type.id) === Number(task.typeId),
@@ -653,30 +691,45 @@ function TaskDetailPage({ taskId, onNavigate }) {
                 </div>
               )}
               {task.canManageAssignment && (
-                <div className="task-operation-block">
+                <form
+                  className="task-operation-block"
+                  onSubmit={handleAssignment}
+                >
                   <label>
                     <span>Atama</span>
                     <select
                       value={assignmentDraft}
-                      onChange={(event) => setAssignmentDraft(event.target.value)}
+                      onChange={(event) => {
+                        setAssignmentDraft(event.target.value);
+                        setError("");
+                      }}
+                      disabled={!selectedTaskType}
                     >
-                      <option value="">Kullanıcı veya grup seçiniz</option>
-                      {options.users.map((user) => (
+                      <option value="">Atama seçiniz</option>
+                      {selectedTaskType && (
+                        <option value="type-group">
+                          Görev tipi grubuna ata: {selectedTaskType.groupName}
+                        </option>
+                      )}
+                      {currentAssigneeOutsideTypeGroup && (
+                        <option value={`user:${task.assignedUserId}`} disabled>
+                          Mevcut kullanıcı: {task.assignedUserName} (grup dışında)
+                        </option>
+                      )}
+                      {assignableUsers.map((user) => (
                         <option key={user.id} value={`user:${user.id}`}>
                           Kullanıcı: {user.name}
                         </option>
                       ))}
-                      {options.groups.map((group) => (
-                        <option key={`group-${group.id}`} value={`group:${group.id}`}>
-                          Grup: {group.name}
-                        </option>
-                      ))}
                     </select>
                   </label>
-                  <button type="button" className="secondary-button" onClick={handleAssignment} disabled={saving}>
-                    Güncelle
+                  {!selectedTaskType && (
+                    <small>Atamayı değiştirmek için aktif bir görev tipi seçiniz.</small>
+                  )}
+                  <button type="submit" className="secondary-button" disabled={saving || !selectedTaskType}>
+                    Atamayı güncelle
                   </button>
-                </div>
+                </form>
               )}
 
               {task.canManageLifecycle && (

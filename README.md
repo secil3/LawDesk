@@ -2,7 +2,7 @@
 
 LawDesk, Hukuk ve Uyum Başkanlığı ekiplerinin kullanıcı, grup ve görev süreçlerini tek bir web uygulamasından yönetebilmesi için geliştirilen bir görev yönetim sistemidir.
 
-Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, tek seviyeli alt görevler, yorumlar, dosya ekleri, etiketler, arşivleme, filtrelenebilir denetim izi ve görünürlük kapsamlı görev raporları uygulanmıştır. Kritik auth, görünürlük, transaction ve dashboard akışları gerçek PostgreSQL üzerinde de doğrulanmaktadır. Üretim ortamına geçiş için güvenlik sertleştirmesi, entegrasyon kapsamının genişletilmesi ve kurulum/operasyon çalışmaları hâlâ gereklidir.
+Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, tek seviyeli alt görevler, yorumlar, dosya ekleri, etiketler, temel uygulama içi bildirimler, arşivleme, filtrelenebilir denetim izi ve görünürlük kapsamlı görev raporları uygulanmıştır. Kritik auth, görünürlük, transaction ve dashboard akışları gerçek PostgreSQL üzerinde de doğrulanmaktadır. Üretim ortamına geçiş için güvenlik sertleştirmesi, entegrasyon kapsamının genişletilmesi ve kurulum/operasyon çalışmaları hâlâ gereklidir.
 
 ## Mevcut özellikler
 
@@ -15,7 +15,7 @@ Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrul
 - Kullanıcının birden fazla gruba eklenmesi
 - Kullanıcının grup üyeliklerini ve grup rollerini sonradan değiştirme
 - Her kullanıcının görev oluşturabilmesi
-- Görevi kullanıcıya veya gruba atama
+- Görevi görev tipinin sorumlu grubundaki bir kullanıcıya doğrudan atama veya görev tipi grubuna otomatik yönlendirme
 - Rol ve grup üyeliğine göre görev görünürlüğü
 - Görev başlığı, açıklaması, tipi, önceliği ve bitiş tarihini düzenleme
 - Geçmiş tarih ve saat için bitiş tarihi oluşturmayı engelleme
@@ -28,7 +28,9 @@ Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrul
 - Etiket oluşturma, yeniden adlandırma, arşivleme ve geri yükleme
 - Görevlere etiket atama ve görev listesini etikete göre filtreleme
 - Görev tipini zorunlu sorumlu grupla oluşturma; adını, açıklamasını ve grubunu düzenleme; kullanım sayılarını görüntüleme, arşivleme ve geri yükleme
-- Atamasız oluşturulan görevi görev tipinin grubuna otomatik yönlendirme; doğrudan atamada yalnızca ilgili grup üyelerini kabul etme
+- Atamasız oluşturulan veya yeniden atanan görevi görev tipinin grubuna otomatik yönlendirme; doğrudan atamada yalnızca ilgili grup üyelerini kabul etme
+- Ana görevin tipi değiştiğinde uyumsuz kullanıcı/grup atamasını aynı transaction içinde yeni sorumlu gruba taşıma
+- Görev ataması, durum değişikliği ve yorum hareketleri için sayfalanmış uygulama içi bildirimler; okunmamış bildirim sayısı ve okundu işaretleme
 - Kullanıcı, grup, görev ve yaşam döngüsü işlemleri için kullanıcı, görev, işlem türü ve tarih aralığıyla filtrelenebilen denetim kayıtları
 - Filtrelenmiş denetim kayıtlarını Excel uyumlu UTF-8 CSV olarak dışa aktarma
 - Dashboard üzerinde geciken, yaklaşan ve bitiş tarihi olmayan görev risklerini görüntüleme
@@ -131,6 +133,8 @@ npm install
 
 Windows Komut İstemi kullanıyorsanız kopyalama için `copy .env.example .env` komutunu kullanabilirsiniz.
 
+Windows PowerShell, `npm.ps1` çalıştırmayı güvenlik ilkesi nedeniyle engelliyorsa README'deki `npm` komutlarını `npm.cmd` olarak çalıştırabilirsiniz (örneğin `npm.cmd run dev`). Sistem genelindeki execution policy ayarını değiştirmek gerekmez.
+
 `.env` içindeki bütün örnek değerleri kendi ortamınıza göre değiştirin:
 
 ```env
@@ -228,7 +232,7 @@ cd backend
 npm test
 ```
 
-Güncel birim test paketi 173 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, görev tipi-grup yönlendirmesi, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
+Güncel birim test paketi 179 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, görev tipi-grup yönlendirmesi, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
 
 ### Gerçek PostgreSQL entegrasyon testleri
 
@@ -245,7 +249,7 @@ cd backend
 npm run test:integration
 ```
 
-Komut, `gys_lawdesk_test` veritabanının `public` şemasını silip güncel SQL şemasından yeniden kurar ve 9 gerçek PostgreSQL senaryosu çalıştırır. Güvenlik kontrolü nedeniyle veritabanı adı `_test` ile bitmiyorsa işlem tablo değişikliği yapmadan durur. `INTEGRATION_DATABASE_URL` hiçbir zaman geliştirme veya üretim veritabanını göstermemelidir.
+Komut, `gys_lawdesk_test` veritabanının `public` şemasını silip güncel SQL şemasından yeniden kurar ve 10 gerçek PostgreSQL senaryosu çalıştırır. Güvenlik kontrolü nedeniyle veritabanı adı `_test` ile bitmiyorsa işlem tablo değişikliği yapmadan durur. `INTEGRATION_DATABASE_URL` hiçbir zaman geliştirme veya üretim veritabanını göstermemelidir.
 
 Birim ve entegrasyon testlerini birlikte çalıştırmak için:
 
@@ -313,8 +317,8 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | PATCH | `/api/tasks/types/:typeId` | Görev tipinin adını, açıklamasını ve sorumlu grubunu günceller |
 | DELETE | `/api/tasks/types/:typeId` | Görev tipini mevcut görevlerden silmeden arşivler |
 | PATCH | `/api/tasks/types/:typeId/restore` | Arşivlenmiş görev tipini geri yükler |
-| PATCH | `/api/tasks/:id` | Başlık, açıklama, tip, öncelik ve bitiş tarihini günceller |
-| PATCH | `/api/tasks/:id/assignment` | Görevin atamasını günceller |
+| PATCH | `/api/tasks/:id` | Başlık, açıklama, zorunlu tip, öncelik ve bitiş tarihini günceller; tip değişirse uyumsuz atamayı yeni sorumlu gruba taşır |
+| PATCH | `/api/tasks/:id/assignment` | Görevi tip grubundaki kullanıcıya atar; hedef verilmezse görev tipi grubuna yönlendirir |
 | PATCH | `/api/tasks/:id/status` | Durumu değiştirir; `Tamamlandi` veya neden zorunlu `Iptal Edildi` seçiminde görevi aynı transaction içinde arşivler |
 | PATCH | `/api/tasks/:id/restore` | Arşivlenmiş görevi `Devam Ediyor` durumunda geri yükler |
 | GET | `/api/tasks/:id/subtasks` | Aktif veya `?archived=true` ile arşivlenmiş alt görevleri döndürür |
@@ -340,6 +344,14 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | GET | `/api/tasks/activity` | Admin ve yöneticiler için filtrelenmiş ve sayfalanmış işlem kayıtlarını döndürür |
 | GET | `/api/tasks/activity/export` | Aynı filtrelerle en fazla 5000 işlem kaydını Excel uyumlu UTF-8 CSV olarak dışa aktarır |
 
+### Bildirimler
+
+| Method | Endpoint | Açıklama |
+| --- | --- | --- |
+| GET | `/api/notifications` | Oturum sahibinin bildirimlerini sayfalanmış olarak döndürür; `?unread=true` yalnızca okunmamışları getirir |
+| GET | `/api/notifications/unread-count` | Oturum sahibinin okunmamış bildirim sayısını döndürür |
+| PATCH | `/api/notifications/:id/read` | Yalnızca oturum sahibine ait bildirimi okundu olarak işaretler |
+
 ### Genel arama
 
 | Method | Endpoint | Açıklama |
@@ -347,6 +359,8 @@ Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler 
 | GET | `/api/search?q=...` | En az iki karakterle, yalnızca oturum sahibinin görmeye yetkili olduğu görev ve grupları; role göre kullanıcı, etiket, görev tipi ve denetim izi sonuçlarını döndürür |
 
 Tamamlanan veya iptal edilen görevler otomatik arşivlenir; iptal işlemi açıklama olmadan kabul edilmez. Arşivde bitiş tarihinin yanında kapanış nedeni gösterilir. Görev geri yüklendiğinde durumu `Devam Ediyor` olur ve önceki iptal nedeni aktif kayıttan temizlenir; ayrıntılı geçmiş denetim izinde korunur. Alt görevler ana görevin atamasını ve görünürlüğünü devralır; bağımsız olarak yeniden atanamaz. Ana görev kapatılmadan önce açık alt görevler tamamlanmalı veya iptal edilmelidir.
+
+Bir görev tipinin sorumlu grubu değiştirildiğinde mevcut görevler topluca taşınmaz. Yeni görevler güncel gruba yönlenir; mevcut görev ise tipi değiştirildiğinde veya yeniden atandığında güncel görev tipi–grup kuralına göre doğrulanır. Böylece yönetim ekranındaki tek bir değişiklik geçmiş görevlerin sahipliğini beklenmedik biçimde değiştirmez.
 
 ## Güvenlik notları
 
@@ -361,13 +375,14 @@ Mevcut CORS ayarı geliştirme kolaylığı için dinamiktir. Üretime geçmeden
 
 ## Henüz tamamlanmayan ana alanlar
 
-- Uygulama içi bildirimler ve e-posta hatırlatmaları
+- E-posta bildirimleri ve son tarih hatırlatmaları
+- Uygulama içi bildirim tercihleri, toplu okundu işlemleri ve ayrıntılı bildirim kapsamının e-posta akışıyla birlikte geliştirilmesi
 - Genel sistem ayarları yönetimi
 - Kullanıcının kendi parolasını değiştirmesi
 - PostgreSQL entegrasyon kapsamının yorum, ek, etiket ve alt görev akışlarına genişletilmesi
 - Kurum sunucusu kurulum, yedekleme ve operasyon dokümanı
 
-Veritabanı şemasında bu alanların bir kısmına ait tablolar bulunsa da ilgili backend endpoint'leri ve frontend ekranları henüz tamamlanmamıştır.
+Bu alanlar üretim hazırlığı ve e-posta altyapısı planıyla birlikte kademeli olarak tamamlanacaktır.
 
 ## Git çalışma düzeni
 

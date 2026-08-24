@@ -119,6 +119,8 @@ let currentTaskDescription;
 let currentTaskPriority;
 let currentTaskTypeId;
 let currentTaskTypeName;
+let currentTaskAssignedUserId;
+let currentTaskAssignedGroupId;
 let currentTaskArchived;
 let currentTaskParentId;
 let inheritedChildIds;
@@ -155,6 +157,7 @@ beforeEach(() => {
     statusParams: null,
     statusSql: "",
     restoreParams: null,
+    assignmentParams: null,
     taskUpdateParams: null,
     updateCount: 0,
     childPropagationParams: null,
@@ -167,8 +170,10 @@ beforeEach(() => {
   currentTaskTitle = "Görülebilen görev";
   currentTaskDescription = null;
   currentTaskPriority = "Orta";
-  currentTaskTypeId = null;
-  currentTaskTypeName = null;
+  currentTaskTypeId = 1;
+  currentTaskTypeName = "Personel";
+  currentTaskAssignedUserId = 3;
+  currentTaskAssignedGroupId = null;
   currentTaskArchived = false;
   currentTaskParentId = null;
   inheritedChildIds = [];
@@ -204,18 +209,28 @@ beforeEach(() => {
       normalized.includes("from gorevtipleri") &&
       normalized.includes("tipid = $1")
     ) {
-      return Number(params[0]) === 1
-        ? {
-            rows: [
-              {
-                id: 1,
-                name: "Personel",
-                groupId: 2,
-                groupName: "KVKK",
-              },
-            ],
-          }
-        : { rows: [] };
+      const taskTypes = {
+        1: {
+          id: 1,
+          name: "Personel",
+          groupId: 2,
+          groupName: "KVKK",
+        },
+        2: {
+          id: 2,
+          name: "Sözleşme",
+          groupId: 1,
+          groupName: "Uyum",
+        },
+        3: {
+          id: 3,
+          name: "Hukuk",
+          groupId: 1,
+          groupName: "Uyum",
+        },
+      };
+      const taskType = taskTypes[Number(params[0])];
+      return { rows: taskType ? [taskType] : [] };
     }
 
     if (
@@ -409,6 +424,8 @@ beforeEach(() => {
             typeId: currentTaskTypeId,
             typeName: currentTaskTypeName,
             creatorId: currentTaskCreatorId,
+            assignedUserId: currentTaskAssignedUserId,
+            assignedGroupId: currentTaskAssignedGroupId,
             archived: params[3] === true,
             canManage: manageAllowed,
           },
@@ -497,13 +514,31 @@ beforeEach(() => {
 
     if (
       normalized.includes("update gorevler") &&
+      normalized.includes("set atanankullaniciid = $1") &&
+      normalized.includes("where gorevid = $6")
+    ) {
+      recorded.assignmentParams = params;
+      recorded.updateCount += 1;
+      currentTaskAssignedUserId = params[0];
+      currentTaskAssignedGroupId = params[1];
+      return { rowCount: 1, rows: [] };
+    }
+
+    if (
+      normalized.includes("update gorevler") &&
       normalized.includes("set baslik = $1")
     ) {
       recorded.taskUpdateParams = params;
       currentTaskTitle = params[0];
       currentTaskDescription = params[1];
       currentTaskTypeId = params[2];
-      currentTaskTypeName = Number(params[2]) === 1 ? "Personel" : null;
+      currentTaskTypeName = Number(params[2]) === 1
+        ? "Personel"
+        : Number(params[2]) === 2
+          ? "Sözleşme"
+          : Number(params[2]) === 3
+            ? "Hukuk"
+            : null;
       currentTaskPriority = params[3];
       currentTaskDueDate = params[4];
 
@@ -1150,13 +1185,50 @@ test("group manager can assign a manageable task to group member", async () => {
   assert.equal(recorded.activity[0].action, "GorevAtama");
 });
 
+test("empty reassignment routes the task to its type group", async () => {
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/assignment"),
+    2,
+  ).send({});
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.assignment.assignedUserId, null);
+  assert.equal(response.body.assignment.assignedGroupId, 2);
+  assert.equal(response.body.assignment.assignedGroupName, "KVKK");
+  assert.deepEqual(recorded.assignmentParams.slice(0, 2), [null, 2]);
+  assert.equal(recorded.historyCount, 1);
+});
+
+test("reassignment rejects a user outside the task type group", async () => {
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/assignment"),
+    1,
+  ).send({ atananKullaniciId: 5 });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /sorumlu grubunda/i);
+  assert.equal(recorded.assignmentParams, null);
+  assert.equal(recorded.historyCount, 0);
+});
+
+test("reassignment does not accept a manually selected group", async () => {
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50/assignment"),
+    1,
+  ).send({ atananGrupId: 2 });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /grup elle seçilemez/i);
+  assert.equal(recorded.assignmentParams, null);
+});
+
 test("parent assignment is propagated to direct subtasks", async () => {
   inheritedChildIds = [70, 71];
 
   const response = await authenticated(
     request(app).patch("/api/tasks/50/assignment"),
     2,
-  ).send({ atananGrupId: 2 });
+  ).send({});
 
   assert.equal(response.status, 200);
   assert.equal(recorded.childPropagationParams[1], 2);
@@ -1197,6 +1269,8 @@ test("group manager cannot reassign a task outside managed scope", async () => {
 
 test("task creator can update all editable task information", async () => {
   manageAllowed = false;
+  currentTaskTypeId = 2;
+  currentTaskTypeName = "Sözleşme";
   const nextDueDate = "2099-08-14T12:30:00.000Z";
 
   const response = await authenticated(
@@ -1223,6 +1297,57 @@ test("task creator can update all editable task information", async () => {
   assert.equal(recorded.activity[0].action, "GorevBilgileriDegisikligi");
   assert.match(recorded.activity[0].detail, /Başlık/);
   assert.match(recorded.activity[0].detail, /Görev tipi/);
+});
+
+test("changing task type reroutes an incompatible assignee", async () => {
+  manageAllowed = false;
+  currentTaskTypeId = 1;
+  currentTaskTypeName = "Personel";
+  currentTaskAssignedUserId = 3;
+  currentTaskAssignedGroupId = null;
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50"),
+    3,
+  ).send({ tipId: 2 });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.task.typeName, "Sözleşme");
+  assert.equal(response.body.task.assignedUserId, null);
+  assert.equal(response.body.task.assignedGroupId, 1);
+  assert.equal(response.body.task.assignedGroupName, "Uyum");
+  assert.deepEqual(recorded.assignmentParams.slice(0, 2), [null, 1]);
+  assert.equal(recorded.historyCount, 1);
+  assert.match(recorded.activity[0].detail, /otomatik yönlendirildi/i);
+});
+
+test("changing task type keeps an assignee in the new type group", async () => {
+  manageAllowed = false;
+  currentTaskTypeId = 2;
+  currentTaskTypeName = "Sözleşme";
+  currentTaskAssignedUserId = 5;
+  currentTaskAssignedGroupId = null;
+
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50"),
+    3,
+  ).send({ tipId: 3 });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.task.typeName, "Hukuk");
+  assert.equal(recorded.assignmentParams, null);
+  assert.equal(recorded.historyCount, 0);
+});
+
+test("task type cannot be cleared while editing", async () => {
+  const response = await authenticated(
+    request(app).patch("/api/tasks/50"),
+    3,
+  ).send({ tipId: null });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /görev tipi.*zorunludur/i);
+  assert.equal(recorded.taskUpdateParams, null);
 });
 
 test("group manager can update a task in managed scope", async () => {
