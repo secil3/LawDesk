@@ -527,12 +527,6 @@ function App() {
   useEffect(() => {
     let isActive = true;
 
-    const isPageReload =
-      typeof window !== "undefined" &&
-      window.performance &&
-      window.performance.getEntriesByType("navigation")[0]?.type ===
-        "reload";
-
     const checkSession = async () => {
       try {
         const response = await fetch("/api/auth/me", {
@@ -541,7 +535,8 @@ function App() {
 
         if (response.status === 401) {
           if (isActive) {
-            await handleExpiredSession();
+            clearClientSession();
+            setUser(null);
           }
           return;
         }
