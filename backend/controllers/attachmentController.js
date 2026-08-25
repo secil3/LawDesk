@@ -1,6 +1,7 @@
 const fs = require("node:fs/promises");
 
 const db = require("../config/db");
+const { taskReadableSql } = require("../services/taskAccess");
 const {
   ALLOWED_EXTENSIONS,
   MAX_FILE_SIZE_MB,
@@ -12,6 +13,12 @@ const {
 
 const MAX_ATTACHMENTS_PER_TASK = 10;
 const TERMINAL_STATUSES = new Set(["Tamamlandi", "Iptal Edildi"]);
+
+const TASK_READABLE_SQL = taskReadableSql({
+  alias: "g",
+  systemManagerParam: "$3",
+  managedGroupIdsParam: "$5",
+});
 
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
@@ -50,12 +57,16 @@ const groupIdsFor = (user, role = null) => [
   ),
 ];
 
-const findVisibleTask = async (query, actor, taskId) => {
+const findVisibleTask = async (
+  query,
+  actor,
+  taskId,
+  { lock = false } = {},
+) => {
   const userId = Number(actor.id);
   const systemManager = isSystemManager(actor);
   const groupIds = groupIdsFor(actor);
   const managedGroupIds = groupIdsFor(actor, "grup_yoneticisi");
-  const privilegedViewer = systemManager || managedGroupIds.length > 0;
 
   const result = await query(
     `SELECT g.gorevid AS "id",
@@ -93,8 +104,7 @@ const findVisibleTask = async (query, actor, taskId) => {
                   )
                 )
               )
-              AND ($6::boolean OR g.durum <> 'Tamamlandi')
-              AND ($6::boolean OR g.arsivlendimi = FALSE)
+              AND ${TASK_READABLE_SQL}
             ) AS "canView",
             CASE
               WHEN $3::boolean THEN TRUE
@@ -121,14 +131,14 @@ const findVisibleTask = async (query, actor, taskId) => {
               ELSE FALSE
             END AS "canManage"
      FROM gorevler g
-     WHERE g.gorevid = $1`,
+     WHERE g.gorevid = $1
+     ${lock ? "FOR UPDATE OF g" : ""}`,
     [
       taskId,
       userId,
       systemManager,
       groupIds,
       managedGroupIds,
-      privilegedViewer,
     ],
   );
 
@@ -275,6 +285,7 @@ exports.createTaskAttachment = async (req, res) => {
         transactionQuery,
         req.user,
         taskId,
+        { lock: true },
       );
       assertTaskAcceptsChanges(task);
 
@@ -520,6 +531,7 @@ exports.restoreTaskAttachment = async (req, res) => {
         transactionQuery,
         req.user,
         taskId,
+        { lock: true },
       );
       assertTaskAcceptsChanges(task);
 

@@ -1,8 +1,54 @@
 const db = require("../config/db");
+const {
+  taskAccessContextFor,
+  taskReadableSql,
+  taskVisibilitySql,
+} = require("../services/taskAccess");
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_PAGE_LIMIT = 100;
+
+const TASK_VISIBILITY_SQL = taskVisibilitySql({
+  alias: "visible_task",
+  userIdParam: "$1",
+  systemManagerParam: "$2",
+  groupIdsParam: "$3",
+  managedGroupIdsParam: "$4",
+});
+
+const TASK_READABLE_SQL = taskReadableSql({
+  alias: "visible_task",
+  systemManagerParam: "$2",
+  managedGroupIdsParam: "$4",
+  privilegedViewerParam: "$5",
+});
+
+const NOTIFICATION_VISIBILITY_SQL = `
+  b.kullaniciid = $1
+  AND (
+    b.gorevid IS NULL
+    OR EXISTS (
+      SELECT 1
+      FROM gorevler visible_task
+      WHERE visible_task.gorevid = b.gorevid
+        AND ${TASK_VISIBILITY_SQL}
+        AND ${TASK_READABLE_SQL}
+    )
+  )
+`;
+
+const notificationAccessParams = (user) => {
+  const context = taskAccessContextFor(user);
+
+  return [
+    context.userId,
+    context.systemManager,
+    context.groupIds,
+    context.managedGroupIds,
+    context.privilegedViewer,
+  ];
+};
 
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
@@ -86,16 +132,17 @@ exports.listNotifications = async (req, res) => {
     const limit = Math.min(requestedLimit, MAX_PAGE_LIMIT);
     const offset = (page - 1) * limit;
     const unreadOnly = req.query?.unread === "true";
+    const accessParams = notificationAccessParams(req.user);
 
     const whereSql = unreadOnly
-      ? `WHERE b.kullaniciid = $1 AND b.okundumu = FALSE`
-      : `WHERE b.kullaniciid = $1`;
+      ? `WHERE ${NOTIFICATION_VISIBILITY_SQL} AND b.okundumu = FALSE`
+      : `WHERE ${NOTIFICATION_VISIBILITY_SQL}`;
 
     const countResult = await db.query(
       `SELECT COUNT(*)::int AS "total"
        FROM bildirimler b
        ${whereSql}`,
-      [req.user.id],
+      accessParams,
     );
 
     const listResult = await db.query(
@@ -112,8 +159,8 @@ exports.listNotifications = async (req, res) => {
          ON task.gorevid = b.gorevid
        ${whereSql}
        ORDER BY b.olusturmatarihi DESC, b.bildirimid DESC
-       LIMIT $2 OFFSET $3`,
-      [req.user.id, limit, offset],
+       LIMIT $6 OFFSET $7`,
+      [...accessParams, limit, offset],
     );
 
     const total = Number(countResult.rows[0]?.total || 0);
@@ -134,12 +181,13 @@ exports.listNotifications = async (req, res) => {
 
 exports.getUnreadNotificationCount = async (req, res) => {
   try {
+    const accessParams = notificationAccessParams(req.user);
     const result = await db.query(
       `SELECT COUNT(*)::int AS "total"
-       FROM bildirimler
-       WHERE kullaniciid = $1
-         AND okundumu = FALSE`,
-      [req.user.id],
+       FROM bildirimler b
+       WHERE ${NOTIFICATION_VISIBILITY_SQL}
+         AND b.okundumu = FALSE`,
+      accessParams,
     );
 
     return res.json({
@@ -160,20 +208,21 @@ exports.markNotificationRead = async (req, res) => {
       req.params?.id,
       "Geçersiz bildirim id",
     );
+    const accessParams = notificationAccessParams(req.user);
 
     const result = await db.query(
-      `UPDATE bildirimler
+      `UPDATE bildirimler b
        SET okundumu = TRUE
-       WHERE bildirimid = $1
-         AND kullaniciid = $2
-       RETURNING bildirimid AS "id",
-                 gorevid AS "taskId",
-                 kayittalepid AS "registrationRequestId",
-                 bildirimtipi AS "type",
-                 mesaj AS "message",
-                 okundumu AS "read",
-                 olusturmatarihi AS "createdAt"`,
-      [notificationId, req.user.id],
+       WHERE b.bildirimid = $6
+         AND ${NOTIFICATION_VISIBILITY_SQL}
+       RETURNING b.bildirimid AS "id",
+                 b.gorevid AS "taskId",
+                 b.kayittalepid AS "registrationRequestId",
+                 b.bildirimtipi AS "type",
+                 b.mesaj AS "message",
+                 b.okundumu AS "read",
+                 b.olusturmatarihi AS "createdAt"`,
+      [...accessParams, notificationId],
     );
 
     const notification = result.rows[0];

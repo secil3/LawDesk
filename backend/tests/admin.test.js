@@ -143,7 +143,7 @@ beforeEach(() => {
 
     if (
       t.includes("from gruplar") &&
-      t.includes("lower(grupadi)")
+      t.includes("lower(btrim(grupadi))")
     ) {
       return { rows: [] };
     }
@@ -277,8 +277,9 @@ beforeEach(() => {
         rows: [
           {
             id: params[1],
+            adSoyad: "Örnek Kullanıcı",
             email: "ornek@sirket.com",
-            aktifmi: params[0],
+            aktifMi: params[0],
           },
         ],
       };
@@ -380,6 +381,9 @@ test(
       response.body.user.aktifMi,
       false,
     );
+    assert.deepEqual(activityActions, [
+      "KullaniciPasiflestirme",
+    ]);
   },
 );
 

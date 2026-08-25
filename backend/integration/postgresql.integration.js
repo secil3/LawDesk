@@ -268,6 +268,7 @@ test("integration database uses the current schema and report indexes", async ()
      FROM pg_indexes
      WHERE schemaname = 'public'
        AND indexname IN (
+         'idx_gruplar_adi_normalize',
          'idx_gorevler_dashboard_risk',
          'idx_gorevler_rapor_olusturma',
          'idx_gorevler_rapor_tamamlanma'
@@ -281,7 +282,16 @@ test("integration database uses the current schema and report indexes", async ()
       "idx_gorevler_dashboard_risk",
       "idx_gorevler_rapor_olusturma",
       "idx_gorevler_rapor_tamamlanma",
+      "idx_gruplar_adi_normalize",
     ],
+  );
+
+  await assert.rejects(
+    db.query(
+      `INSERT INTO gruplar (grupadi)
+       VALUES (' uyum ')`,
+    ),
+    (error) => error?.code === "23505",
   );
 });
 
@@ -608,6 +618,76 @@ test("task lists enforce member manager and system visibility in PostgreSQL", as
   assert.ok(
     adminTasks.body.tasks.some((task) => task.title === "KVKK grup görevi"),
   );
+});
+
+test("group management does not expose closed tasks from member-only groups", async () => {
+  await db.query(
+    `INSERT INTO grupuyelikleri (grupid, kullaniciid, gruprolu)
+     VALUES (2, 2, 'grup_uyesi')`,
+  );
+  await db.query(
+    `UPDATE gorevler
+     SET durum = 'Tamamlandi',
+         tamamlanmatarihi = NOW(),
+         arsivlendimi = TRUE,
+         arsivlenmetarihi = NOW(),
+         arsivleyenkullaniciid = 1
+     WHERE gorevid = 8`,
+  );
+  const notificationResult = await db.query(
+    `INSERT INTO bildirimler
+       (kullaniciid, gorevid, bildirimtipi, mesaj)
+     VALUES
+       (2, 8, 'Guncelleme', 'KVKK görevi kapatıldı')
+     RETURNING bildirimid AS "id"`,
+  );
+  const hiddenNotificationId = Number(notificationResult.rows[0].id);
+
+  const { agent } = await loginAs("manager.integration@lawdesk.test");
+
+  const detailResponse = await agent.get("/api/tasks/8");
+  assert.equal(detailResponse.status, 404);
+
+  const archiveResponse = await agent.get("/api/tasks?archived=true");
+  assert.equal(archiveResponse.status, 200);
+  assert.ok(
+    !archiveResponse.body.tasks.some((task) => Number(task.id) === 8),
+  );
+
+  const searchResponse = await agent.get("/api/search?q=KVKK");
+  assert.equal(searchResponse.status, 200);
+  assert.ok(
+    !searchResponse.body.results.some(
+      (result) => result.kind === "task" && Number(result.id) === 8,
+    ),
+  );
+
+  for (const resource of ["comments", "attachments", "tags", "subtasks"]) {
+    const resourceResponse = await agent.get(`/api/tasks/8/${resource}`);
+    assert.equal(resourceResponse.status, 404, resource);
+  }
+
+  const dashboardResponse = await agent.get(
+    "/api/tasks/dashboard-summary?period=all",
+  );
+  assert.equal(dashboardResponse.status, 200);
+  assert.equal(dashboardResponse.body.totalTasks, 5);
+  assert.equal(dashboardResponse.body.archivedTasks, 2);
+
+  const notificationsResponse = await agent.get("/api/notifications");
+  assert.equal(notificationsResponse.status, 200);
+  assert.equal(notificationsResponse.body.notifications.length, 0);
+
+  const unreadResponse = await agent.get(
+    "/api/notifications/unread-count",
+  );
+  assert.equal(unreadResponse.status, 200);
+  assert.equal(unreadResponse.body.unreadCount, 0);
+
+  const readResponse = await agent.patch(
+    `/api/notifications/${hiddenNotificationId}/read`,
+  );
+  assert.equal(readResponse.status, 404);
 });
 
 test("task creation without a direct assignee routes to the type group", async () => {

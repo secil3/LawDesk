@@ -72,6 +72,8 @@ Sırasıyla şu kontroller yapılır:
 
 Production ortamında `APP_BASE_URL` HTTPS olmalıdır. Port 587 için `SMTP_SECURE=false` ve `SMTP_REQUIRE_TLS=true`; port 465 için genellikle `SMTP_SECURE=true` kullanılır.
 
+`APP_BASE_URL` aynı zamanda izin verilen ana frontend origin'ini belirler. Ek origin gerekiyorsa yalnızca güvenilir adresler `CORS_ALLOWED_ORIGINS` içine virgülle ayrılarak yazılır. Uygulama doğrudan internete açıksa `TRUST_PROXY_HOPS=0` kalır; tam olarak bir güvenilir reverse proxy arkasındaysa `1` kullanılır. Proxy sayısı doğrulanmadan genel bir `trust proxy` ayarı verilmez; aksi halde giriş ve kayıt hız limitinin kullandığı istemci IP'si yanıltılabilir.
+
 İlk gerçek kullanıcı başvurusundan önce kurumun kontrolündeki bir test posta kutusuyla uçtan uca gönderim yapılır. Bağlantının doğru domaine gittiği, 24 saatlik olduğu, tek kullanımlı çalıştığı ve e-posta içeriğinde parola bulunmadığı doğrulanır.
 
 ## 8. Birim ve gerçek PostgreSQL entegrasyon testleri
@@ -95,9 +97,10 @@ Son şema `docs/GYS_ER_Diagram.pdf` içinde gösterilir. Diyagram; görev tipi-g
 3. Ana şemayı kurun ve `npm run migrate` çalıştırın.
 4. Kurumsal admin e-postasını doğrulayın; ilk admini oluşturun.
 5. `INITIAL_ADMIN_PASSWORD` değerini sunucu ortamından kaldırın.
-6. SMTP testini kurumun test posta kutusuyla tamamlayın.
-7. Birim, PostgreSQL entegrasyon ve frontend build kontrollerini çalıştırın.
-8. İlk gerçek kullanıcıyı kayıt talebi üzerinden uçtan uca aktifleştirin.
-9. Veritabanı yedeği, log izleme ve geri dönüş sorumlularını belirleyin.
+6. HTTPS frontend origin'ini ve reverse proxy sayısını doğrulayın; CORS ve hız limiti ayarlarını buna göre yapın.
+7. SMTP testini kurumun test posta kutusuyla tamamlayın.
+8. Birim, PostgreSQL entegrasyon ve frontend build kontrollerini çalıştırın.
+9. İlk gerçek kullanıcıyı kayıt talebi üzerinden uçtan uca aktifleştirin.
+10. Veritabanı yedeği, log izleme ve geri dönüş sorumlularını belirleyin.
 
 Yeni üretim veritabanında sorun çıkarsa uygulamanın `DATABASE_URL` değeri değiştirilmeden önce servis durdurulur. Demo veritabanı değiştirilmediği için inceleme amacıyla korunur; gerçek kullanıcı verisi demo veritabanına geri yazılmaz.

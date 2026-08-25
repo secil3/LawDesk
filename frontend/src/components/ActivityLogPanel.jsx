@@ -7,11 +7,14 @@ const ACTIVITY_LABELS = {
   GorevAtama: "Görev atama",
   DurumDegisikligi: "Durum değişikliği",
   GorevArsivleme: "Görev arşivleme",
+  GorevOtomatikArsivleme: "Görev otomatik arşivleme",
   GorevGeriYukleme: "Görev geri yükleme",
   GorevBilgileriDegisikligi: "Görev bilgileri değişikliği",
   BitisTarihiDegisikligi: "Bitiş tarihi değişikliği",
   KullaniciArsivleme: "Kullanıcı arşivleme",
   KullaniciGeriYukleme: "Kullanıcı geri yükleme",
+  KullaniciAktiflestirme: "Kullanıcı aktifleştirme",
+  KullaniciPasiflestirme: "Kullanıcı pasifleştirme",
   KullaniciGrupUyelikleriDegisikligi: "Kullanıcı üyelik değişikliği",
   GrupOlusturma: "Grup oluşturma",
   GrupGuncelleme: "Grup güncelleme",
@@ -32,6 +35,9 @@ const ACTIVITY_LABELS = {
   GorevTipiGuncelleme: "Görev tipi güncelleme",
   GorevTipiArsivleme: "Görev tipi arşivleme",
   GorevTipiGeriYukleme: "Görev tipi geri yükleme",
+  KayitTalebiOnaylama: "Kayıt talebi onaylama",
+  KayitTalebiReddetme: "Kayıt talebi reddetme",
+  KullaniciAktivasyonu: "Kullanıcı aktivasyonu",
 };
 
 const EMPTY_FILTERS = {

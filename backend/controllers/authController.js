@@ -4,6 +4,14 @@ const jwt = require("jsonwebtoken");
 const db = require("../config/db");
 const { getAuthConfig } = require("../config/auth");
 
+// Bilinmeyen, pasif ve aktivasyon bekleyen hesaplarda da aynı pahalı
+// doğrulama çalıştırılarak e-posta varlığının süre ölçümüyle anlaşılması
+// zorlaştırılır. Bu sabit gerçek bir hesaba ait değildir.
+const DUMMY_PASSWORD_HASH =
+  "$argon2id$v=19$m=65536,p=4,t=3$" +
+  "yExmJRxMLGFBm3yd5pOLRw$" +
+  "1fya7OndUskMHwIHb7JQ9DFvomUkIiDiGMvLXx37V98";
+
 const publicUser = (user) => ({
   id: user.kullaniciid,
   adSoyad: user.adsoyad,
@@ -80,22 +88,20 @@ exports.login = async (req, res) => {
 
     const user = result.rows[0];
 
-    if (!user || !user.aktifmi) {
-      return invalidCredentials(res);
-    }
-
     let passwordMatches = false;
 
     try {
       passwordMatches = await argon2.verify(
-        user.sifrehash,
+        typeof user?.sifrehash === "string"
+          ? user.sifrehash
+          : DUMMY_PASSWORD_HASH,
         password,
       );
     } catch {
       passwordMatches = false;
     }
 
-    if (!passwordMatches) {
+    if (!user || !user.aktifmi || !passwordMatches) {
       return invalidCredentials(res);
     }
 

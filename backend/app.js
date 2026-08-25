@@ -15,18 +15,43 @@ const searchRoutes = require("./routes/search");
 const notificationRoutes = require("./routes/notifications");
 const registrationRoutes = require("./routes/registration");
 const { getAuthConfig } = require("./config/auth");
+const { getHttpConfig, isOriginAllowed } = require("./config/http");
 
 const app = express();
 
 // Uygulama başlarken authentication ayarlarını doğrular.
 getAuthConfig();
+const httpConfig = getHttpConfig();
+
+if (httpConfig.trustProxyHops > 0) {
+  app.set("trust proxy", httpConfig.trustProxyHops);
+}
 
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      callback(
+        null,
+        isOriginAllowed(origin, httpConfig.allowedOrigins),
+      );
+    },
     credentials: true,
   }),
 );
+app.use((req, res, next) => {
+  if (
+    !isOriginAllowed(
+      req.get("origin"),
+      httpConfig.allowedOrigins,
+    )
+  ) {
+    return res.status(403).json({
+      error: "İstek kaynağına izin verilmiyor",
+    });
+  }
+
+  return next();
+});
 app.use(express.json());
 app.use(cookieParser());
 

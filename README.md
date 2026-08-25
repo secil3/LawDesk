@@ -233,7 +233,42 @@ npm install
 
 `.env` dosyasındaki veritabanı, authentication ve SMTP bilgilerini kendi ortamınıza göre düzenleyin.
 
-Güvenli bir authentication secret oluşturmak için:
+Windows PowerShell, `npm.ps1` çalıştırmayı güvenlik ilkesi nedeniyle engelliyorsa README'deki `npm` komutlarını `npm.cmd` olarak çalıştırabilirsiniz (örneğin `npm.cmd run dev`). Sistem genelindeki execution policy ayarını değiştirmek gerekmez.
+
+`.env` içindeki bütün örnek değerleri kendi ortamınıza göre değiştirin:
+
+```env
+PORT=3001
+NODE_ENV=development
+DATABASE_URL=postgresql://postgres:PAROLANIZ@localhost:5432/gys_lawdesk
+INTEGRATION_DATABASE_URL=postgresql://postgres:PAROLANIZ@localhost:5432/gys_lawdesk_test
+AUTH_TOKEN_SECRET=EN_AZ_64_KARAKTERLIK_RASTGELE_BIR_DEGER
+AUTH_TOKEN_TTL_HOURS=8
+AUTH_COOKIE_NAME=lawdesk_session
+APP_BASE_URL=http://localhost:5175
+CORS_ALLOWED_ORIGINS=
+TRUST_PROXY_HOPS=0
+LOGIN_RATE_LIMIT_WINDOW_MINUTES=15
+LOGIN_RATE_LIMIT_MAX=10
+ACTIVATION_TOKEN_TTL_HOURS=24
+REGISTRATION_RATE_LIMIT_WINDOW_MINUTES=15
+REGISTRATION_RATE_LIMIT_MAX=5
+SMTP_HOST=smtp.sirket.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_REQUIRE_TLS=true
+SMTP_USER=lawdesk@sirket.com
+SMTP_PASSWORD=SMTP_HESAP_PAROLASI
+SMTP_FROM=LawDesk <lawdesk@sirket.com>
+INITIAL_ADMIN_NAME=Admin Kullanici
+INITIAL_ADMIN_EMAIL=admin@sirket.com
+INITIAL_ADMIN_EMAIL_VERIFIED=false
+INITIAL_ADMIN_PASSWORD=EN_AZ_12_KARAKTERLIK_GUCLU_PAROLA
+```
+
+`AUTH_TOKEN_SECRET` en az 64 karakter olmalıdır. `AUTH_TOKEN_TTL_HOURS` değeri 1-24 saat aralığında bir tam sayı olmalıdır. `APP_BASE_URL`, aktivasyon bağlantısının açacağı ve CORS tarafından izin verilecek frontend adresidir; production ortamında HTTPS olmalıdır. Başka güvenilir frontend origin'leri gerekiyorsa `CORS_ALLOWED_ORIGINS` alanına virgülle ayrılarak eklenir. Yerel geliştirmede `TRUST_PROXY_HOPS=0` bırakılır; production sunucusu tam olarak bir güvenilir reverse proxy arkasındaysa `1` yapılır. Yanlış proxy sayısı IP tabanlı hız limitini etkileyebileceği için altyapı topolojisi doğrulanmadan değiştirilmemelidir. Port 587 için `SMTP_SECURE=false` ve `SMTP_REQUIRE_TLS=true`; doğrudan TLS kullanan port 465 için genellikle `SMTP_SECURE=true` kullanılır. Kurum SMTP sunucusunun değerleri esas alınmalıdır.
+
+Mac veya Linux ortamında güvenli bir token anahtarı üretmek için aşağıdaki komutun çıktısını `AUTH_TOKEN_SECRET` değeri olarak kullanabilirsiniz:
 
 ```bash
 openssl rand -hex 64
@@ -296,7 +331,7 @@ cd backend
 npm test
 ```
 
-Backend test suite'i **192 senaryo** içermektedir.
+Güncel birim test paketi 206 senaryodan oluşur ve kayıt talebinin genel yanıtı, aktif admin bildirimi, admin onayı/e-posta gönderimi, migration checksum/tekrar çalıştırma davranışı, migration kilidi hatası, SMTP şifreleme zorunluluğu, tek kullanımlık aktivasyon, Argon2id, auth, giriş hız limiti, CORS origin sınırı, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, grup bazlı kapalı görev kapsamı, görev tipi-grup yönlendirmesi, atama, düzenleme, yaşam döngüsü, alt görev, yorum, eşzamanlı ek sınırı, dosya eki, etiket, bildirim görünürlüğü, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
 
 Testler authentication, authorization, kullanıcı ve grup yönetimi, görev yönetimi, görev görünürlüğü, görev tipleri, atama, alt görevler, yorumlar, dosya ekleri, etiketler, bildirimler, genel arama, audit log ve dashboard raporları gibi temel akışları kapsamaktadır.
 
@@ -315,7 +350,7 @@ cd backend
 npm run test:integration
 ```
 
-Integration test suite'i gerçek PostgreSQL üzerinde **18 senaryoyu** doğrulamaktadır.
+Komut, `gys_lawdesk_test` veritabanının `public` şemasını silip güncel SQL şemasından yeniden kurar ve 19 gerçek PostgreSQL senaryosu çalıştırır. Kapsam; migration takibi, normalize grup adı benzersizliği, kayıt talebi, admin onayı, tek kullanımlık aktivasyon ve girişin yanında yorum/sürüm geçmişi, dosya yükleme-indirme-arşivleme-geri yükleme, etiket atama/filtreleme, alt görev mirası, grup bazlı kapalı görev kapsamı ve bildirim sahipliği/okunmamış akışlarını içerir. Güvenlik kontrolü nedeniyle veritabanı adı `_test` ile bitmiyorsa işlem tablo değişikliği yapmadan durur. `INTEGRATION_DATABASE_URL` hiçbir zaman geliştirme veya üretim veritabanını göstermemelidir.
 
 ### Tüm Testler
 
@@ -347,9 +382,13 @@ LawDesk'te temel güvenlik gereksinimleri dikkate alınarak:
 * Aktivasyon tokenlarının yalnızca SHA-256 özeti veritabanında tutulur.
 * Aktivasyon bağlantıları süreli ve tek kullanımlıdır.
 * Kayıt endpoint'i rate limiting uygular.
+* Başarısız giriş denemeleri IP bazında sınırlandırılır; bilinmeyen veya pasif hesaplarda da Argon2id doğrulaması çalıştırılır.
 * Pasif veya arşivlenmiş kullanıcıların oturum açmasına izin verilmez.
 * Yetkisiz kullanıcıların görev ve grup verilerine erişimi engellenir.
 * Görev ve dashboard sonuçları kullanıcının görünürlük kapsamına göre filtrelenir.
+* CORS yalnızca açıkça izin verilen frontend origin'lerini kabul eder.
+* Grup yöneticisinin kapalı/arşivlenmiş görev erişimi yalnızca yönettiği gruplarla sınırlıdır.
+* Grup adları boşluk ve büyük/küçük harf farkı yok sayılarak veritabanı seviyesinde benzersizdir.
 * Gerçek kullanıcı bilgileri seed veya migration dosyalarında tutulmaz.
 
 > Production ortamına geçiş öncesinde CORS, güvenlik başlıkları, CSRF koruması, giriş denemesi limitleri, yedekleme ve monitoring politikalarının ayrıca yapılandırılması gerekir.

@@ -1,36 +1,23 @@
 const db = require("../config/db");
+const {
+  taskReadableSql,
+  taskVisibilitySql,
+} = require("../services/taskAccess");
 
-const TASK_VISIBILITY_SQL = `
-  (
-    $2::boolean
-    OR g.olusturankullaniciid = $1
-    OR g.atanankullaniciid = $1
-    OR g.gorunurlukkullaniciid = $1
-    OR g.atanangrupid = ANY($3::int[])
-    OR g.gorunurlukgrupid = ANY($3::int[])
-    OR (
-      cardinality($4::int[]) > 0
-      AND (
-        EXISTS (
-          SELECT 1
-          FROM grupuyelikleri assigned_membership
-          WHERE assigned_membership.kullaniciid = g.atanankullaniciid
-            AND assigned_membership.grupid = ANY($4::int[])
-        )
-        OR (
-          g.atanankullaniciid IS NULL
-          AND g.atanangrupid IS NULL
-          AND EXISTS (
-            SELECT 1
-            FROM grupuyelikleri creator_membership
-            WHERE creator_membership.kullaniciid = g.olusturankullaniciid
-              AND creator_membership.grupid = ANY($4::int[])
-          )
-        )
-      )
-    )
-  )
-`;
+const TASK_VISIBILITY_SQL = taskVisibilitySql({
+  alias: "g",
+  userIdParam: "$1",
+  systemManagerParam: "$2",
+  groupIdsParam: "$3",
+  managedGroupIdsParam: "$4",
+});
+
+const TASK_READABLE_SQL = taskReadableSql({
+  alias: "g",
+  systemManagerParam: "$2",
+  managedGroupIdsParam: "$4",
+  privilegedViewerParam: "$5",
+});
 
 const normalizeQuery = (value) => {
   if (typeof value !== "string") {
@@ -94,8 +81,7 @@ const searchTasks = async ({ user, pattern, limit }) => {
      LEFT JOIN kullanicilar assigned_user
        ON assigned_user.kullaniciid = g.atanankullaniciid
      WHERE ${TASK_VISIBILITY_SQL}
-       AND ($5::boolean OR g.durum <> 'Tamamlandi')
-       AND (g.arsivlendimi = FALSE OR $5::boolean)
+       AND ${TASK_READABLE_SQL}
        AND (
          COALESCE(g.baslik, '') ILIKE $6
          OR COALESCE(g.aciklama, '') ILIKE $6

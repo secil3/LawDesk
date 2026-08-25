@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const { taskReadableSql } = require("../services/taskAccess");
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_DESCRIPTION_LENGTH = 5000;
@@ -10,6 +11,12 @@ const ALLOWED_PRIORITIES = new Set([
   "Dusuk",
 ]);
 const TERMINAL_STATUSES = new Set(["Tamamlandi", "Iptal Edildi"]);
+
+const TASK_READABLE_SQL = taskReadableSql({
+  alias: "g",
+  systemManagerParam: "$3",
+  managedGroupIdsParam: "$5",
+});
 
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
@@ -97,7 +104,6 @@ const findVisibleParent = async (
   const systemManager = isSystemManager(actor);
   const groupIds = groupIdsFor(actor);
   const managedGroupIds = groupIdsFor(actor, "grup_yoneticisi");
-  const privilegedViewer = systemManager || managedGroupIds.length > 0;
 
   const result = await query(
     `SELECT g.gorevid AS "id",
@@ -147,7 +153,7 @@ const findVisibleParent = async (
                   )
                 )
               )
-              AND ($6::boolean OR g.arsivlendimi = FALSE)
+              AND ${TASK_READABLE_SQL}
             ) AS "canView",
             CASE
               WHEN $3::boolean THEN TRUE
@@ -188,7 +194,6 @@ const findVisibleParent = async (
       systemManager,
       groupIds,
       managedGroupIds,
-      privilegedViewer,
     ],
   );
 
