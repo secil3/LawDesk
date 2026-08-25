@@ -746,6 +746,12 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
           type="submit"
           disabled={creating}
         >
+          {!creating && (
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+          )}
           {creating ? "Görev oluşturuluyor..." : "Görev oluştur"}
         </button>
       </form>
@@ -948,6 +954,7 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
               <tr>
                 <th>Görev</th>
                 <th>Bitiş</th>
+                <th className="task-table-actions-heading">İşlemler</th>
               </tr>
             </thead>
             <tbody>
@@ -1004,6 +1011,23 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
                     TERMINAL_ARCHIVE_LABELS[task.status]
                       ? ` (${TERMINAL_ARCHIVE_LABELS[task.status]})`
                       : ""}
+                  </td>
+                  <td className="task-table-actions">
+                    <button
+                      type="button"
+                      className="secondary-button task-details-button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onNavigate && onNavigate(`/tasks/${task.id}`);
+                      }}
+                      aria-label={`${task.title} görev detaylarını aç`}
+                    >
+                      <span>Detaylar</span>
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M5 12h14" />
+                        <path d="m13 6 6 6-6 6" />
+                      </svg>
+                    </button>
                   </td>
                 </tr>
               ))}

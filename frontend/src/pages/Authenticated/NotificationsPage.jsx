@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { readResponse } from "../../api";
 import PaginationControls from "../../components/PaginationControls";
+import { EmptyState, LoadingState } from "../../components/ui/StateDisplay";
 
 const TYPE_LABELS = {
   Atama: "Görev ataması",
@@ -120,9 +121,9 @@ function NotificationsPage({ onNavigate }) {
       )}
 
       {loading ? (
-        <p className="task-empty-state">Bildirimler yükleniyor...</p>
+        <LoadingState>Bildirimler yükleniyor...</LoadingState>
       ) : notifications.length === 0 ? (
-        <div className="empty-state-box">Henüz bildirim yok.</div>
+        <EmptyState>Henüz bildirim yok.</EmptyState>
       ) : (
         <ul className="notification-list">
           {notifications.map((notification) => (

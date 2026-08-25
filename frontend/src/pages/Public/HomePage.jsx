@@ -1,122 +1,133 @@
 function HomePage({ onNavigate }) {
-  const features = [
-    { title: "Görev Takibi", text: "Görevleri oluşturun, atayın ve takip edin." },
-    { title: "Grup Yönetimi", text: "Ekipler oluşturun ve yetkileri grup bazında yönetin." },
-    { title: "Öncelik & Durum", text: "Net öncelik ve durum takibi ile iş akışını hızlandırın." },
-    { title: "Güvenli Oturum", text: "Güçlü oturum kontrolü ve yetkilendirme." },
-  ];
-
-  const steps = [
-    { title: "Hesap yönetin", desc: "Erişimleri ve ekibinizi tek bir panelden yönetin." },
-    { title: "Görev oluştur & yönet", desc: "Görevler oluşturun, atayın ve önceliklendirin." },
-    { title: "Süreci takip et", desc: "Görevlerin ilerleyişini izleyin ve iş akışınızı yönetin." },
-  ];
-
   return (
-    <section className="landing-page page-shell">
-      <header className="hero-section">
-        <div className="hero-copy">
-          <p className="eyebrow">HUKUKİ SÜREÇLER İÇİN GÜVENLİ İŞ AKIŞI</p>
-          <h1>Hukuki süreçlerinizi daha düzenli yönetin.</h1>
+    <section className="product-landing">
+      <header className="product-hero">
+        <div className="product-hero-copy">
+          <span className="product-kicker">
+            <span aria-hidden="true" />
+            Hukuk ve uyum operasyonları
+          </span>
+          <h1>İşlerinizi görünür, kontrollü ve izlenebilir yönetin.</h1>
           <p>
-            Görevlerinizi, ekiplerinizi ve iş akışınızı tek bir platformdan kolayca yönetin.
+            LawDesk; görevleri, ekipleri ve operasyonel kayıtları güvenli bir
+            çalışma alanında birleştirir.
           </p>
 
-          <div className="hero-actions">
-            <button type="button" onClick={() => onNavigate("/login")}>Giriş Yap</button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => onNavigate("/register")}
-            >
+          <div className="product-hero-actions">
+            <button type="button" className="product-primary-cta" onClick={() => onNavigate("/login")}>
+              Giriş Yap
+              <span aria-hidden="true">→</span>
+            </button>
+            <button type="button" className="product-secondary-cta" onClick={() => onNavigate("/register")}>
               Kayıt Ol
             </button>
           </div>
+
+          <button type="button" className="product-text-link" onClick={() => onNavigate("/features")}>
+            Platformu incele
+            <span aria-hidden="true">↗</span>
+          </button>
+
+          <div className="product-trust-row" aria-label="Öne çıkan ürün nitelikleri">
+            <span>Rol bazlı erişim</span>
+            <span>Denetlenebilir süreç</span>
+            <span>Merkezi görev akışı</span>
+          </div>
         </div>
 
-        <div className="hero-mockup" aria-hidden="true">
-          <div className="mockup-card">
-            <div className="mockup-header">
-              <div className="mockup-dot" />
-              <div className="mockup-dot" />
-              <div className="mockup-dot" />
-            </div>
-            <div className="mockup-body">
-              <div className="mockup-row">
-                <div className="mockup-block" />
-                <div className="mockup-block small" />
+        <div className="product-preview" aria-label="LawDesk arayüz önizlemesi">
+          <div className="product-preview-window">
+            <div className="product-preview-topbar">
+              <div className="product-preview-brand">
+                <span>L</span>
+                <strong>LawDesk</strong>
               </div>
-              <div className="mockup-graph" />
-              <div className="mockup-list">
-                <div className="mockup-item" />
-                <div className="mockup-item" />
-                <div className="mockup-item" />
+              <div className="product-preview-search">Görevlerde ara...</div>
+              <span className="product-preview-avatar">SK</span>
+            </div>
+
+            <div className="product-preview-body">
+              <aside className="product-preview-sidebar">
+                <span className="active">Genel bakış</span>
+                <span>Görevler</span>
+                <span>Gruplar</span>
+                <span>Raporlar</span>
+              </aside>
+
+              <div className="product-preview-content">
+                <div className="product-preview-heading">
+                  <div>
+                    <small>Operasyon özeti</small>
+                    <strong>Görev görünümü</strong>
+                  </div>
+                  <span>Bugün</span>
+                </div>
+
+                <div className="product-preview-metrics">
+                  <div><small>Açık görev</small><strong>24</strong></div>
+                  <div><small>Yaklaşan</small><strong>8</strong></div>
+                  <div><small>Tamamlanan</small><strong>16</strong></div>
+                </div>
+
+                <div className="product-preview-list">
+                  <div className="product-preview-list-head">
+                    <span>Son görevler</span>
+                    <span>Durum</span>
+                  </div>
+                  <div><span><i />Sözleşme kontrolü</span><b>Devam ediyor</b></div>
+                  <div><span><i />Uyum değerlendirmesi</span><b className="warning">Yaklaşıyor</b></div>
+                  <div><span><i />Politika güncellemesi</span><b className="complete">Tamamlandı</b></div>
+                </div>
               </div>
             </div>
+          </div>
+          <div className="product-preview-note">
+            <span aria-hidden="true">✓</span>
+            <div><strong>Yetki kontrollü</strong><small>Her kullanıcı yalnızca kendi kapsamını görür.</small></div>
           </div>
         </div>
       </header>
 
-      <section className="feature-section">
-        <div className="section-header">
-          <p className="eyebrow">Özellikler</p>
-          <h2>LawDesk'in temel yetenekleri</h2>
-        </div>
-        <div className="feature-grid">
-          {features.map((f) => (
-            <article key={f.title} className="feature-card">
-              <div className="feature-icon" />
-              <h3>{f.title}</h3>
-              <p>{f.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="how-section">
-        <div className="section-header">
-          <p className="eyebrow">Nasıl çalışır</p>
-          <h2>Üç kolay adımda kullanmaya başlayın</h2>
-        </div>
-        <div className="steps-grid">
-          {steps.map((s, idx) => (
-            <article key={s.title} className="step-card">
-              <div className="step-number">{idx + 1}</div>
-              <h4>{s.title}</h4>
-              <p>{s.desc}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="cta-section">
-        <h3>LawDesk ile iş akışınızı daha düzenli hale getirin.</h3>
-        <div className="hero-actions">
-          <button type="button" onClick={() => onNavigate("/login")}>Giriş Yap</button>
+      <section className="product-capabilities-section">
+        <div className="product-section-heading product-platform-teaser">
+          <div>
+            <p className="eyebrow">LawDesk platformu</p>
+            <h2>Tüm yetenekleri tek bir yerde keşfedin.</h2>
+            <p>
+              Görev yönetiminden raporlamaya, yetkilendirmeden ekip
+              çalışmasına kadar LawDesk’in sunduğu araçları inceleyin.
+            </p>
+          </div>
           <button
             type="button"
-            className="btn-ghost"
-            onClick={() => onNavigate("/register")}
+            className="product-primary-cta product-platform-cta"
+            onClick={() => onNavigate("/features")}
           >
-            Kayıt Ol
+            Platformu Keşfet
+            <span aria-hidden="true">→</span>
           </button>
         </div>
       </section>
 
-      <footer className="site-footer">
-        <div className="footer-inner">
-          <div>
-            <strong>LawDesk</strong>
-            <p>Görevlerinizi ve ekiplerinizi tek bir yerden yönetin.</p>
-          </div>
-
-          <nav className="footer-nav">
-            <button type="button" onClick={() => onNavigate("/")}>Ana Sayfa</button>
-            <button type="button" onClick={() => onNavigate("/features")}>Özellikler</button>
-            <button type="button" onClick={() => onNavigate("/login")}>Giriş Yap</button>
-            <button type="button" onClick={() => onNavigate("/register")}>Kayıt Ol</button>
-          </nav>
+      <section className="product-closing-cta">
+        <div>
+          <p className="eyebrow">LawDesk</p>
+          <h2>Daha düzenli bir operasyon için hazır.</h2>
         </div>
+        <div className="product-hero-actions">
+          <button type="button" className="product-primary-cta" onClick={() => onNavigate("/login")}>Giriş Yap</button>
+          <button type="button" className="product-secondary-cta" onClick={() => onNavigate("/register")}>Kayıt Ol</button>
+        </div>
+      </section>
+
+      <footer className="product-footer">
+        <div><strong>LawDesk</strong><span>Görev Yönetim Sistemi</span></div>
+        <nav aria-label="Alt menü">
+          <button type="button" onClick={() => onNavigate("/")}>Ana Sayfa</button>
+          <button type="button" onClick={() => onNavigate("/features")}>Platform</button>
+          <button type="button" onClick={() => onNavigate("/login")}>Giriş Yap</button>
+          <button type="button" onClick={() => onNavigate("/register")}>Kayıt Ol</button>
+        </nav>
       </footer>
     </section>
   );

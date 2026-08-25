@@ -251,7 +251,7 @@ function TagManagement({ enabled }) {
                 {viewMode === "active" && editingId !== tag.id && (
                   <button
                     type="button"
-                    className="secondary-button"
+                    className="secondary-button management-edit-button"
                     onClick={() => {
                       setEditingId(tag.id);
                       setEditingName(tag.name);
@@ -287,7 +287,7 @@ function TagManagement({ enabled }) {
                 {viewMode === "active" && editingId !== tag.id && (
                   <button
                     type="button"
-                    className="danger-button"
+                    className="danger-button management-archive-button"
                     onClick={() => requestArchiveTag(tag)}
                     disabled={busyId === tag.id}
                   >

@@ -266,6 +266,8 @@ function DashboardPage({ user, onNavigate }) {
 
   return (
     <section className="page-shell dashboard-page">
+      <GlobalSearch onNavigate={onNavigate} />
+
       <header className="dashboard-hero">
         <div className="dashboard-hero-copy">
           <p className="eyebrow">LawDesk</p>
@@ -285,8 +287,6 @@ function DashboardPage({ user, onNavigate }) {
           <small>işlem bekliyor</small>
         </div>
       </header>
-
-      <GlobalSearch onNavigate={onNavigate} />
 
       <section className="dashboard-report-toolbar" aria-label="Rapor seçenekleri">
         <div>
@@ -542,20 +542,6 @@ function DashboardPage({ user, onNavigate }) {
                         </div>
 
                         <h4>{task.title}</h4>
-
-                        {task.description && (
-                          <p className="task-description">{task.description}</p>
-                        )}
-
-                        <div className="dashboard-task-context">
-                          {task.typeName && <span>Tip: {task.typeName}</span>}
-                          {task.assignedGroupName && (
-                            <span>Grup: {task.assignedGroupName}</span>
-                          )}
-                          {task.assignedUserName && (
-                            <span>Kullanıcı: {task.assignedUserName}</span>
-                          )}
-                        </div>
                       </div>
                     </div>
 

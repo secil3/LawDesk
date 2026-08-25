@@ -1,34 +1,26 @@
+import ProductCapabilities from "../../components/ProductCapabilities";
+
 function FeaturesPage({ onNavigate }) {
-  const featureList = [
-    { title: "Görev Yönetimi", text: "Görevleri oluşturun, takip edin, önceliklendirin ve arşivleyin." },
-    { title: "Arama, Filtreleme, Sıralama", text: "Görev listesinde güçlü arama ve filtreleme seçenekleri." },
-    { title: "Grup Bazlı Erişim", text: "Gruplar ve roller üzerinden erişim kontrolü." },
-    { title: "Öncelik & Durum", text: "Esnek öncelik ve durum takibi." },
-    { title: "Güvenli Oturum", text: "HTTP-only cookie tabanlı güvenli oturum yönetimi." },
-    { title: "Pagination", text: "Büyük görev listeleri için sayfalama desteği." },
-  ];
-
   return (
-    <section className="page-shell">
-      <div className="section-header">
-        <p className="eyebrow">Özellikler</p>
-        <h2>Gerçekleşmiş ve desteklenen özellikler</h2>
-      </div>
+    <section className="product-page page-shell">
+      <header className="product-page-header">
+        <p className="eyebrow">LawDesk platformu</p>
+        <h1>Kontrollü iş akışı için tek çalışma alanı.</h1>
+        <p>LawDesk’in temel operasyon kabiliyetlerini sade ve güvenli bir yapıda kullanın.</p>
+      </header>
 
-      <div className="feature-grid">
-        {featureList.map((item) => (
-          <article key={item.title} className="feature-card">
-            <div className="feature-icon" />
-            <h3>{item.title}</h3>
-            <p>{item.text}</p>
-          </article>
-        ))}
-      </div>
+      <ProductCapabilities />
 
-      <div className="cta-box">
-        <h3>Hızlı başlamak için giriş yapın.</h3>
-        <button type="button" onClick={() => onNavigate("/login")}>Giriş Yap</button>
-      </div>
+      <section className="product-closing-cta product-page-cta">
+        <div>
+          <p className="eyebrow">Başlayın</p>
+          <h2>LawDesk çalışma alanınıza erişin.</h2>
+        </div>
+        <div className="product-hero-actions">
+          <button type="button" className="product-primary-cta" onClick={() => onNavigate("/login")}>Giriş Yap</button>
+          <button type="button" className="product-secondary-cta" onClick={() => onNavigate("/register")}>Kayıt Ol</button>
+        </div>
+      </section>
     </section>
   );
 }

@@ -403,7 +403,7 @@ function TaskTypeManagement({ enabled }) {
                 {viewMode === "active" && editing?.id !== taskType.id && (
                   <button
                     type="button"
-                    className="secondary-button"
+                    className="secondary-button management-edit-button"
                     onClick={() =>
                       setEditing({
                         id: taskType.id,
@@ -446,7 +446,7 @@ function TaskTypeManagement({ enabled }) {
                 {viewMode === "active" && editing?.id !== taskType.id && (
                   <button
                     type="button"
-                    className="danger-button"
+                    className="danger-button management-archive-button"
                     onClick={() => requestArchiveTaskType(taskType)}
                     disabled={busyId === taskType.id}
                   >

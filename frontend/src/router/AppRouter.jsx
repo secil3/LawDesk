@@ -62,23 +62,11 @@ function AppRouter({
   renderGroupsPage,
   groupOptions,
   users,
-  archivedUsers,
   loadingUsers,
-  loadingArchivedUsers,
   userPagination,
-  archivedUserPagination,
   onUserPageChange,
-  onArchivedUserPageChange,
-  userListMode,
-  setUserListMode,
   openMembershipEditor,
   handleToggleActive,
-  openDeleteConfirmation,
-  handleRestoreUser,
-  restoringUserId,
-  deleteConfirmation,
-  closeDeleteConfirmation,
-  confirmDeleteUser,
   membershipEditor,
   closeMembershipEditor,
   toggleMembership,
@@ -86,6 +74,8 @@ function AppRouter({
   handleSaveMemberships,
   savingMemberships,
   creationMessage,
+  theme,
+  onThemeChange,
 }) {
   useEffect(() => {
     if (
@@ -186,23 +176,11 @@ function AppRouter({
             onNavigate={navigate}
             groupOptions={groupOptions}
             users={users}
-            archivedUsers={archivedUsers}
             loadingUsers={loadingUsers}
-            loadingArchivedUsers={loadingArchivedUsers}
             userPagination={userPagination}
-            archivedUserPagination={archivedUserPagination}
             onUserPageChange={onUserPageChange}
-            onArchivedUserPageChange={onArchivedUserPageChange}
-            userListMode={userListMode}
-            setUserListMode={setUserListMode}
             openMembershipEditor={openMembershipEditor}
             handleToggleActive={handleToggleActive}
-            openDeleteConfirmation={openDeleteConfirmation}
-            handleRestoreUser={handleRestoreUser}
-            restoringUserId={restoringUserId}
-            deleteConfirmation={deleteConfirmation}
-            closeDeleteConfirmation={closeDeleteConfirmation}
-            confirmDeleteUser={confirmDeleteUser}
             membershipEditor={membershipEditor}
             closeMembershipEditor={closeMembershipEditor}
             toggleMembership={toggleMembership}
@@ -230,7 +208,13 @@ function AppRouter({
           <DashboardPage user={user} onNavigate={navigate} />
         );
       case "/settings":
-        return <SettingsPage user={user} />;
+        return (
+          <SettingsPage
+            user={user}
+            theme={theme}
+            onThemeChange={onThemeChange}
+          />
+        );
       case "/dashboard":
       default:
         return <DashboardPage user={user} onNavigate={navigate} />;
@@ -257,7 +241,12 @@ function AppRouter({
     )
   ) {
     return (
-      <PublicLayout currentPath={currentPath} onNavigate={navigate}>
+      <PublicLayout
+        currentPath={currentPath}
+        onNavigate={navigate}
+        theme={theme}
+        onThemeChange={onThemeChange}
+      >
         <LoginPage
           email={email}
           setEmail={setEmail}
@@ -274,7 +263,12 @@ function AppRouter({
 
   if (!user) {
     return (
-      <PublicLayout currentPath={currentPath} onNavigate={navigate}>
+      <PublicLayout
+        currentPath={currentPath}
+        onNavigate={navigate}
+        theme={theme}
+        onThemeChange={onThemeChange}
+      >
         {renderPublicPage()}
       </PublicLayout>
     );
