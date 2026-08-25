@@ -13,7 +13,7 @@ const GROUP_ROLE_LABELS = {
   uye: "Grup üyesi",
 };
 
-function SettingsPage({ user }) {
+function SettingsPage({ user, theme, onThemeChange }) {
   const groups = Array.isArray(user?.groups)
     ? user.groups
     : [];
@@ -27,6 +27,51 @@ function SettingsPage({ user }) {
           <h2>Hesap ayarları</h2>
         </div>
       </div>
+
+      <section className="settings-theme-card" aria-labelledby="theme-settings-title">
+        <div className="settings-theme-copy">
+          <p className="eyebrow">Görünüm</p>
+          <h3 id="theme-settings-title">Tema tercihi</h3>
+          <p>
+            Uygulamanın görünümünü çalışma ortamınıza göre ayarlayın. Tercihiniz
+            bu tarayıcıda saklanır.
+          </p>
+        </div>
+
+        <div className="theme-choice-group" role="group" aria-label="Tema seçimi">
+          <button
+            type="button"
+            className={theme === "light" ? "theme-choice active" : "theme-choice"}
+            onClick={() => onThemeChange("light")}
+            aria-pressed={theme === "light"}
+          >
+            <span className="theme-preview light" aria-hidden="true">
+              <span />
+              <span />
+            </span>
+            <span>
+              <strong>Açık tema</strong>
+              <small>Aydınlık çalışma alanı</small>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={theme === "dark" ? "theme-choice active" : "theme-choice"}
+            onClick={() => onThemeChange("dark")}
+            aria-pressed={theme === "dark"}
+          >
+            <span className="theme-preview dark" aria-hidden="true">
+              <span />
+              <span />
+            </span>
+            <span>
+              <strong>Koyu tema</strong>
+              <small>Düşük ışık için koyu görünüm</small>
+            </span>
+          </button>
+        </div>
+      </section>
 
       <div className="feature-card">
         <p>

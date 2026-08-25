@@ -73,27 +73,29 @@ function GlobalSearch({ onNavigate }) {
 
   return (
     <section className="global-search" aria-labelledby="global-search-title">
-      <div className="global-search-heading">
-        <div>
-          <p className="eyebrow">Genel arama</p>
-          <h3 id="global-search-title">LawDesk içinde ara</h3>
-        </div>
+      <h3 id="global-search-title" className="sr-only">LawDesk içinde ara</h3>
+
+      <div className="global-search-bar">
+        <label className="global-search-field">
+          <span className="sr-only">Genel arama metni</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-4-4" />
+          </svg>
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="LawDesk içinde ara..."
+            maxLength={100}
+            autoComplete="off"
+          />
+        </label>
+
         <span className="global-search-scope">
-          Yalnızca görme yetkiniz olan kayıtlar
+          Yetkiniz kapsamındaki kayıtlar
         </span>
       </div>
-
-      <label className="global-search-field">
-        <span className="sr-only">Genel arama metni</span>
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Görev, yorum, dosya, grup, kullanıcı, etiket veya görev tipi ara..."
-          maxLength={100}
-          autoComplete="off"
-        />
-      </label>
 
       {trimmedQuery.length === 1 && (
         <p className="global-search-hint">Arama için bir karakter daha girin.</p>

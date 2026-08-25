@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { readResponse } from "../../api";
+import AuthScreen from "../../components/AuthScreen";
 
 function RegisterPage({ onNavigate }) {
   const [form, setForm] = useState({ adSoyad: "", email: "" });
@@ -41,81 +42,89 @@ function RegisterPage({ onNavigate }) {
   };
 
   return (
-    <main className="auth-page">
-      <section className="auth-card" aria-labelledby="register-title">
-        <header className="brand">
-          <span className="brand-mark" aria-hidden="true">L</span>
-          <div>
-            <p className="brand-name">LawDesk</p>
-            <p className="brand-subtitle">Kayıt talebi</p>
+    <AuthScreen
+      eyebrow="Hesap başvurusu"
+      title="LawDesk'e kayıt talebi oluşturun"
+      description="Yetkili incelemesi için iletişim bilgilerinizi paylaşın."
+      contextTitle="Doğrulanmış kullanıcılarla güvenli ekip erişimi."
+      contextText="Başvurunuz incelendikten sonra hesabınızı güvenli aktivasyon bağlantısıyla tamamlayın."
+      titleId="register-title"
+      footer={
+        <>
+          <span>Zaten hesabınız var mı?</span>
+          <button type="button" onClick={() => onNavigate("/login")}>Giriş yap</button>
+          <button type="button" className="auth-home-link" onClick={() => onNavigate("/")}>Ana sayfa</button>
+        </>
+      }
+    >
+      <form className="auth-modern-form" onSubmit={submitRegistration}>
+        <label className="auth-field" htmlFor="registration-name">
+          <span>Ad soyad</span>
+          <div className="auth-input-wrap">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21a8 8 0 0 1 16 0" />
+            </svg>
+            <input
+              id="registration-name"
+              autoComplete="name"
+              value={form.adSoyad}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, adSoyad: event.target.value }))
+              }
+              placeholder="Adınız ve soyadınız"
+              minLength={2}
+              maxLength={150}
+              required
+            />
           </div>
-        </header>
+        </label>
 
-        <div className="auth-heading">
-          <p className="eyebrow">Kayıt ol</p>
-          <h1 id="register-title">Hesap başvurusu oluşturun</h1>
-          <p>
-            Gerçek adınızı ve erişebildiğiniz e-posta adresinizi girin.
-            Hesabınız yetkili onayından sonra aktifleştirilecektir.
+        <label className="auth-field" htmlFor="registration-email">
+          <span>E-posta</span>
+          <div className="auth-input-wrap">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 5h16v14H4z" />
+              <path d="m4 7 8 6 8-6" />
+            </svg>
+            <input
+              id="registration-email"
+              type="email"
+              autoComplete="email"
+              value={form.email}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, email: event.target.value }))
+              }
+              placeholder="ornek@sirket.com"
+              maxLength={150}
+              required
+            />
+          </div>
+        </label>
+
+        <p className="auth-form-note">
+          Başvurunuz onaylandığında aktivasyon bağlantısı bu adrese gönderilir.
+        </p>
+
+        {message && (
+          <p className="auth-feedback success" role="status">
+            <span aria-hidden="true">✓</span>
+            {message}
           </p>
-        </div>
+        )}
+        {error && (
+          <p className="auth-feedback error" role="alert">
+            <span aria-hidden="true">!</span>
+            {error}
+          </p>
+        )}
 
-        <form className="login-form" onSubmit={submitRegistration}>
-          <label htmlFor="registration-name">Ad soyad</label>
-          <input
-            id="registration-name"
-            autoComplete="name"
-            value={form.adSoyad}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                adSoyad: event.target.value,
-              }))
-            }
-            minLength={2}
-            maxLength={150}
-            required
-          />
-
-          <label htmlFor="registration-email">E-posta</label>
-          <input
-            id="registration-email"
-            type="email"
-            autoComplete="email"
-            value={form.email}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                email: event.target.value,
-              }))
-            }
-            maxLength={150}
-            required
-          />
-
-          {message && (
-            <p className="success-message" role="status">{message}</p>
-          )}
-          {error && (
-            <p className="error-message" role="alert">{error}</p>
-          )}
-
-          <button type="submit" disabled={submitting}>
-            {submitting ? "Başvuru gönderiliyor..." : "Başvuruyu gönder"}
-          </button>
-        </form>
-
-        <div className="auth-footer-actions">
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => onNavigate("/login")}
-          >
-            Giriş Sayfasına Dön
-          </button>
-        </div>
-      </section>
-    </main>
+        <button className="auth-submit-button" type="submit" disabled={submitting}>
+          {submitting ? "Başvuru gönderiliyor..." : "Başvuruyu gönder"}
+          {!submitting && <span aria-hidden="true">→</span>}
+        </button>
+      </form>
+    </AuthScreen>
   );
 }
 

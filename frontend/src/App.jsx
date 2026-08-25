@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { readResponse } from "./api";
+import GroupTable from "./components/GroupTable";
 import PaginationControls from "./components/PaginationControls";
 import AppRouter from "./router/AppRouter";
 
@@ -12,7 +13,25 @@ const EMPTY_LIST_PAGINATION = {
   totalPages: 0,
 };
 
+const THEME_STORAGE_KEY = "lawdesk-theme";
+
+const getInitialTheme = () => {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  const initialTheme = window.localStorage.getItem(THEME_STORAGE_KEY) === "dark"
+    ? "dark"
+    : "light";
+
+  document.documentElement.dataset.theme = initialTheme;
+  document.documentElement.style.colorScheme = initialTheme;
+
+  return initialTheme;
+};
+
 function App() {
+  const [theme, setTheme] = useState(getInitialTheme);
   const [user, setUser] = useState(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,18 +45,6 @@ function App() {
     ...EMPTY_LIST_PAGINATION,
   });
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [archivedUsers, setArchivedUsers] = useState([]);
-  const [archivedUserPagination, setArchivedUserPagination] = useState({
-    ...EMPTY_LIST_PAGINATION,
-  });
-  const [loadingArchivedUsers, setLoadingArchivedUsers] = useState(false);
-  const [userListMode, setUserListMode] = useState("active");
-  const [restoringUserId, setRestoringUserId] = useState(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState({
-    open: false,
-    userId: null,
-    userName: "",
-  });
   const [currentPath, setCurrentPath] = useState(
     typeof window !== "undefined" ? window.location.pathname : "/",
   );
@@ -64,6 +71,12 @@ function App() {
   const [savingMemberships, setSavingMemberships] = useState(false);
   const [groupAssignmentDrafts, setGroupAssignmentDrafts] = useState({});
   const [taskPanelRevision, setTaskPanelRevision] = useState(0);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   const canCreateUsers = (userRecord) => {
     return userRecord?.rol === "admin";
@@ -137,38 +150,6 @@ function App() {
       setError(requestError.message || "Kullanıcı listesi yüklenemedi");
     } finally {
       setLoadingUsers(false);
-    }
-  };
-
-  const loadArchivedUsers = async (page = 1) => {
-    setLoadingArchivedUsers(true);
-
-    try {
-      const params = new URLSearchParams({
-        archived: "true",
-        page: String(page),
-        limit: String(LIST_PAGE_LIMIT),
-      });
-      const response = await fetch(`/api/admin/users?${params}`, {
-        credentials: "include",
-      });
-
-      const data = await readResponse(response);
-      setArchivedUsers(Array.isArray(data.users) ? data.users : []);
-      setArchivedUserPagination({
-        page: Number(data.pagination?.page) || 1,
-        limit: Number(data.pagination?.limit) || LIST_PAGE_LIMIT,
-        total: Number(data.pagination?.total) || 0,
-        totalPages: Number(data.pagination?.totalPages) || 0,
-      });
-    } catch (requestError) {
-      setArchivedUsers([]);
-      setArchivedUserPagination({ ...EMPTY_LIST_PAGINATION });
-      setError(
-        requestError.message || "Kullanıcı arşivi yüklenemedi",
-      );
-    } finally {
-      setLoadingArchivedUsers(false);
     }
   };
 
@@ -550,7 +531,7 @@ function App() {
             loadGroups(),
             loadGroupPage(),
             ...(canCreateUsers(data.user)
-              ? [loadUsers(), loadUserPage(), loadArchivedUsers()]
+              ? [loadUsers(), loadUserPage()]
               : []),
           ]);
         }
@@ -619,7 +600,7 @@ function App() {
         loadGroups(),
         loadGroupPage(),
         ...(canCreateUsers(data.user)
-          ? [loadUsers(), loadUserPage(), loadArchivedUsers()]
+          ? [loadUsers(), loadUserPage()]
           : []),
       ]);
     } catch (requestError) {
@@ -628,83 +609,6 @@ function App() {
       );
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const openDeleteConfirmation = (userId, userName) => {
-    setDeleteConfirmation({
-      open: true,
-      userId,
-      userName,
-    });
-  };
-
-  const closeDeleteConfirmation = () => {
-    setDeleteConfirmation({
-      open: false,
-      userId: null,
-      userName: "",
-    });
-  };
-
-  const confirmDeleteUser = async () => {
-    if (!deleteConfirmation.open || !deleteConfirmation.userId) {
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `/api/admin/users/${deleteConfirmation.userId}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        },
-      );
-
-      const data = await readResponse(response);
-      const successMessage = data.message || "Kullanıcı arşivlendi";
-      setCreationMessage(successMessage);
-      await Promise.all([
-        loadUsers(),
-        loadUserPage(userPagination.page),
-        loadArchivedUsers(1),
-      ]);
-      refreshTaskPanel();
-      setUserListMode("archived");
-    } catch (requestError) {
-      setError(requestError.message || "Kullanıcı arşivlenemedi");
-    } finally {
-      closeDeleteConfirmation();
-    }
-  };
-
-  const handleRestoreUser = async (userId) => {
-    setError("");
-    setCreationMessage("");
-    setRestoringUserId(userId);
-
-    try {
-      const response = await fetch(
-        `/api/admin/users/${userId}/restore`,
-        {
-          method: "PATCH",
-          credentials: "include",
-        },
-      );
-
-      const data = await readResponse(response);
-      const successMessage = data.message || "Kullanıcı geri yüklendi";
-      setCreationMessage(successMessage);
-      await Promise.all([
-        loadUsers(),
-        loadUserPage(userPagination.page),
-        loadArchivedUsers(archivedUserPagination.page),
-      ]);
-      refreshTaskPanel();
-    } catch (requestError) {
-      setError(requestError.message || "Kullanıcı geri yüklenemedi");
-    } finally {
-      setRestoringUserId(null);
     }
   };
 
@@ -764,9 +668,6 @@ function App() {
       setUsers([]);
       setListedUsers([]);
       setUserPagination({ ...EMPTY_LIST_PAGINATION });
-      setArchivedUsers([]);
-      setArchivedUserPagination({ ...EMPTY_LIST_PAGINATION });
-      setUserListMode("active");
       setGroupOptions([]);
       setGroupList([]);
       setGroupPagination({ ...EMPTY_LIST_PAGINATION });
@@ -828,43 +729,26 @@ function App() {
             <span className="info-chip">{groupPagination.total} grup</span>
           </div>
 
-          <div className="group-overview-grid">
-            {loadingGroups ? (
-              <div className="empty-state-box">Gruplar yükleniyor...</div>
-            ) : groupList.length === 0 ? (
-              <div className="empty-state-box">
-                {isAdmin || isSystemManager
-                  ? "Henüz gösterilecek grup yok."
-                  : "Üyesi olduğunuz bir grup bulunmuyor."}
-              </div>
-            ) : (
-              groupList.map((group) => (
-                <article className="group-overview-card" key={group.id}>
-                  <div className="group-overview-header">
-                    <div>
-                      <p className="eyebrow">Grup</p>
-                      <h4>{group.name}</h4>
-                    </div>
-                  </div>
-
-                  <p className="group-overview-description">
-                    {group.description?.trim() || "Bu grubun açıklaması henüz eklenmemiş."}
-                  </p>
-
-                  <div className="group-metric-row simple">
-                    <div>
-                      <span>Üye</span>
-                      <strong>{group.memberCount || 0}</strong>
-                    </div>
-                    <div>
-                      <span>Yönetici</span>
-                      <strong>{group.managerCount || 0}</strong>
-                    </div>
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
+          <GroupTable
+            groups={groupList}
+            loading={loadingGroups}
+            emptyMessage={
+              isAdmin || isSystemManager
+                ? "Henüz gösterilecek grup yok."
+                : "Üyesi olduğunuz bir grup bulunmuyor."
+            }
+            canManage={isAdmin}
+            drafts={groupDrafts}
+            assignmentDrafts={groupAssignmentDrafts}
+            users={users}
+            savingGroupId={savingGroupId}
+            onDraftChange={(groupId, draft) =>
+              setGroupDrafts((current) => ({ ...current, [groupId]: draft }))
+            }
+            onUpdateGroup={handleUpdateGroup}
+            onAssignmentChange={updateGroupAssignmentDraft}
+            onAssignUser={handleAssignUserToGroup}
+          />
 
           <PaginationControls
             page={groupPagination.page}
@@ -926,142 +810,6 @@ function App() {
                 </button>
               </form>
 
-              <div className="list-heading-with-tabs" style={{ marginTop: 22 }}>
-                <div>
-                  <p className="eyebrow">Grup düzenleme</p>
-                  <h3 className="section-panel-title">Grup Güncelle</h3>
-                </div>
-              </div>
-
-              <div className="group-management-grid">
-                {groupList.map((group) => {
-                  const draft = groupDrafts[group.id] || {
-                    name: group.name || "",
-                    description: group.description || "",
-                  };
-                  const unchanged =
-                    draft.name.trim() === group.name &&
-                    draft.description.trim() ===
-                      (group.description || "");
-
-                  return (
-                    <article className="group-management-card" key={group.id}>
-                      <div className="group-card-header">
-                        <h4>{group.name}</h4>
-                      </div>
-
-                      <div className="group-card-section group-card-section-info">
-                        <p className="group-card-section-label">Grup bilgileri</p>
-
-                        <label>
-                          <span>Grup adı</span>
-                          <input
-                            value={draft.name}
-                            onChange={(event) =>
-                              setGroupDrafts((current) => ({
-                                ...current,
-                                [group.id]: {
-                                  ...draft,
-                                  name: event.target.value,
-                                },
-                              }))
-                            }
-                            maxLength={100}
-                          />
-                        </label>
-                        <label>
-                          <span>Açıklama</span>
-                          <input
-                            value={draft.description}
-                            onChange={(event) =>
-                              setGroupDrafts((current) => ({
-                                ...current,
-                                [group.id]: {
-                                  ...draft,
-                                  description: event.target.value,
-                                },
-                              }))
-                            }
-                            maxLength={500}
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          onClick={() => handleUpdateGroup(group.id)}
-                          disabled={
-                            unchanged ||
-                            !draft.name.trim() ||
-                            savingGroupId === group.id
-                          }
-                        >
-                          {savingGroupId === group.id
-                            ? "Kaydediliyor..."
-                            : "Grubu güncelle"}
-                        </button>
-                      </div>
-
-                      <div className="group-card-section group-card-section-members">
-                        <p className="group-card-section-label">Üyeler</p>
-                        <div className="group-stat-row">
-                          <span>{group.memberCount || 0} üye</span>
-                          <span>{group.managerCount || 0} grup yöneticisi</span>
-                        </div>
-                      </div>
-
-                      <div className="group-card-section group-card-section-assign">
-                        <p className="group-card-section-label">Üye ekle</p>
-
-                        <div className="group-assignment-block">
-                          <label>
-                            <span>Kişi ata</span>
-                            <select
-                              value={groupAssignmentDrafts[group.id]?.userId || ""}
-                              onChange={(event) =>
-                                updateGroupAssignmentDraft(group.id, {
-                                  userId: event.target.value,
-                                })
-                              }
-                            >
-                              <option value="">Kullanıcı seçiniz</option>
-                              {users.map((userItem) => (
-                                <option key={userItem.id} value={userItem.id}>
-                                  {userItem.adSoyad}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label>
-                            <span>Rol</span>
-                            <select
-                              value={groupAssignmentDrafts[group.id]?.role || "grup_uyesi"}
-                              onChange={(event) =>
-                                updateGroupAssignmentDraft(group.id, {
-                                  role: event.target.value,
-                                })
-                              }
-                            >
-                              <option value="grup_uyesi">Grup üyesi</option>
-                              <option value="grup_yoneticisi">Grup yöneticisi</option>
-                            </select>
-                          </label>
-
-                          <button
-                            type="button"
-                            className="group-add-member-button"
-                            onClick={() => handleAssignUserToGroup(group.id)}
-                            disabled={!groupAssignmentDrafts[group.id]?.userId}
-                          >
-                            Gruba ekle
-                          </button>
-                        </div>
-                      </div>
-
-                    </article>
-                  );
-                })}
-              </div>
             </section>
           </div>
         )}
@@ -1132,23 +880,11 @@ function App() {
       renderGroupsPage={renderGroupsPage}
       groupOptions={groupOptions}
       users={listedUsers}
-      archivedUsers={archivedUsers}
       loadingUsers={loadingUsers}
-      loadingArchivedUsers={loadingArchivedUsers}
       userPagination={userPagination}
-      archivedUserPagination={archivedUserPagination}
       onUserPageChange={loadUserPage}
-      onArchivedUserPageChange={loadArchivedUsers}
-      userListMode={userListMode}
-      setUserListMode={setUserListMode}
       openMembershipEditor={openMembershipEditor}
       handleToggleActive={handleToggleActive}
-      openDeleteConfirmation={openDeleteConfirmation}
-      handleRestoreUser={handleRestoreUser}
-      restoringUserId={restoringUserId}
-      deleteConfirmation={deleteConfirmation}
-      closeDeleteConfirmation={closeDeleteConfirmation}
-      confirmDeleteUser={confirmDeleteUser}
       membershipEditor={membershipEditor}
       closeMembershipEditor={closeMembershipEditor}
       toggleMembership={toggleMembership}
@@ -1156,6 +892,8 @@ function App() {
       handleSaveMemberships={handleSaveMemberships}
       savingMemberships={savingMemberships}
       creationMessage={creationMessage}
+      theme={theme}
+      onThemeChange={setTheme}
     />
   );
 }
