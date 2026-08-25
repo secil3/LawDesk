@@ -7,6 +7,8 @@ import ProtectedRoute from "../components/ProtectedRoute";
 import HomePage from "../pages/Public/HomePage";
 import FeaturesPage from "../pages/Public/FeaturesPage";
 import LoginPage from "../pages/Public/LoginPage";
+import RegisterPage from "../pages/Public/RegisterPage";
+import ActivationPage from "../pages/Public/ActivationPage";
 
 import DashboardPage from "../pages/Authenticated/DashboardPage";
 import TasksPage from "../pages/Authenticated/TasksPage";
@@ -16,8 +18,9 @@ import UserCreatePage from "../pages/Authenticated/UserCreatePage";
 import SettingsPage from "../pages/Authenticated/SettingsPage";
 import NotificationsPage from "../pages/Authenticated/NotificationsPage";
 import ManagementPage from "../pages/Authenticated/ManagementPage";
+import RegistrationRequestsPage from "../pages/Authenticated/RegistrationRequestsPage";
 
-const PUBLIC_ROUTES = ["/", "/features", "/login"];
+const PUBLIC_ROUTES = ["/", "/features", "/login", "/register", "/activate"];
 
 const AUTHENTICATED_ROUTES = [
   "/dashboard",
@@ -26,10 +29,13 @@ const AUTHENTICATED_ROUTES = [
   "/users/create",
   "/notifications",
   "/management",
+  "/registration-requests",
   "/settings",
 ];
 
 const isTaskPath = (path) => /^\/tasks(?:\/\d+)?$/.test(path || "");
+const isRegistrationRequestPath = (path) =>
+  /^\/registration-requests(?:\/\d+)?$/.test(path || "");
 
 const canCreateUsers = (user) => {
   return user?.rol === "admin";
@@ -54,12 +60,7 @@ function AppRouter({
   handleLogin,
   taskPanelRevision,
   renderGroupsPage,
-  userForm,
-  setUserForm,
   groupOptions,
-  toggleGroupSelection,
-  creatingUser,
-  handleCreateUser,
   users,
   archivedUsers,
   loadingUsers,
@@ -115,6 +116,8 @@ function AppRouter({
   }, [checkingSession, currentPath, navigate, user]);
 
   const taskDetailMatch = /^\/tasks\/(\d+)$/.exec(currentPath || "");
+  const registrationRequestMatch =
+    /^\/registration-requests\/(\d+)$/.exec(currentPath || "");
 
   const renderPublicPage = () => {
     switch (currentPath) {
@@ -133,6 +136,10 @@ function AppRouter({
             onNavigate={navigate}
           />
         );
+      case "/register":
+        return <RegisterPage onNavigate={navigate} />;
+      case "/activate":
+        return <ActivationPage onNavigate={navigate} />;
       case "/":
       default:
         return <HomePage onNavigate={navigate} />;
@@ -140,6 +147,16 @@ function AppRouter({
   };
 
   const renderAuthenticatedPage = () => {
+    if (registrationRequestMatch) {
+      return canCreateUsers(user) ? (
+        <RegistrationRequestsPage
+          initialRequestId={Number(registrationRequestMatch[1])}
+        />
+      ) : (
+        <DashboardPage user={user} onNavigate={navigate} />
+      );
+    }
+
     if (taskDetailMatch) {
       return (
         <TaskDetailPage
@@ -166,13 +183,8 @@ function AppRouter({
       case "/users/create":
         return canCreateUsers(user) ? (
           <UserCreatePage
-            user={user}
-            userForm={userForm}
-            setUserForm={setUserForm}
+            onNavigate={navigate}
             groupOptions={groupOptions}
-            toggleGroupSelection={toggleGroupSelection}
-            creatingUser={creatingUser}
-            handleCreateUser={handleCreateUser}
             users={users}
             archivedUsers={archivedUsers}
             loadingUsers={loadingUsers}
@@ -211,6 +223,12 @@ function AppRouter({
         ) : (
           <DashboardPage user={user} onNavigate={navigate} />
         );
+      case "/registration-requests":
+        return canCreateUsers(user) ? (
+          <RegistrationRequestsPage />
+        ) : (
+          <DashboardPage user={user} onNavigate={navigate} />
+        );
       case "/settings":
         return <SettingsPage user={user} />;
       case "/dashboard":
@@ -230,7 +248,14 @@ function AppRouter({
     );
   }
 
-  if (!user && (AUTHENTICATED_ROUTES.includes(currentPath) || isTaskPath(currentPath))) {
+  if (
+    !user &&
+    (
+      AUTHENTICATED_ROUTES.includes(currentPath) ||
+      isTaskPath(currentPath) ||
+      isRegistrationRequestPath(currentPath)
+    )
+  ) {
     return (
       <PublicLayout currentPath={currentPath} onNavigate={navigate}>
         <LoginPage

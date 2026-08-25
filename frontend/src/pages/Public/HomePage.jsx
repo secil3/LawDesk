@@ -24,6 +24,13 @@ function HomePage({ onNavigate }) {
 
           <div className="hero-actions">
             <button type="button" onClick={() => onNavigate("/login")}>Giriş Yap</button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => onNavigate("/register")}
+            >
+              Kayıt Ol
+            </button>
           </div>
         </div>
 
@@ -86,6 +93,13 @@ function HomePage({ onNavigate }) {
         <h3>LawDesk ile iş akışınızı daha düzenli hale getirin.</h3>
         <div className="hero-actions">
           <button type="button" onClick={() => onNavigate("/login")}>Giriş Yap</button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => onNavigate("/register")}
+          >
+            Kayıt Ol
+          </button>
         </div>
       </section>
 
@@ -100,6 +114,7 @@ function HomePage({ onNavigate }) {
             <button type="button" onClick={() => onNavigate("/")}>Ana Sayfa</button>
             <button type="button" onClick={() => onNavigate("/features")}>Özellikler</button>
             <button type="button" onClick={() => onNavigate("/login")}>Giriş Yap</button>
+            <button type="button" onClick={() => onNavigate("/register")}>Kayıt Ol</button>
           </nav>
         </div>
       </footer>

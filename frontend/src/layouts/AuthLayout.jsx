@@ -51,7 +51,10 @@ function AuthLayout({
     { label: "Görevler", path: "/tasks" },
     { label: "Gruplar", path: "/groups" },
     ...(canCreateUsers(user)
-      ? [{ label: "Kullanıcılar", path: "/users/create" }]
+      ? [
+          { label: "Kullanıcılar", path: "/users/create" },
+          { label: "Kayıt Talepleri", path: "/registration-requests" },
+        ]
       : []),
     ...(canManageSystem(user)
       ? [{ label: "Yönetim", path: "/management" }]
@@ -89,7 +92,8 @@ function AuthLayout({
               key={item.path}
               type="button"
               className={
-                currentPath === item.path
+                currentPath === item.path ||
+                currentPath.startsWith(`${item.path}/`)
                   ? "sidebar-link active"
                   : "sidebar-link"
               }

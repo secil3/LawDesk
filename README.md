@@ -2,15 +2,21 @@
 
 LawDesk, Hukuk ve Uyum Başkanlığı ekiplerinin kullanıcı, grup ve görev süreçlerini tek bir web uygulamasından yönetebilmesi için geliştirilen bir görev yönetim sistemidir.
 
-Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, tek seviyeli alt görevler, yorumlar, dosya ekleri, etiketler, temel uygulama içi bildirimler, arşivleme, filtrelenebilir denetim izi ve görünürlük kapsamlı görev raporları uygulanmıştır. Kritik auth, görünürlük, transaction ve dashboard akışları gerçek PostgreSQL üzerinde de doğrulanmaktadır. Üretim ortamına geçiş için güvenlik sertleştirmesi, entegrasyon kapsamının genişletilmesi ve kurulum/operasyon çalışmaları hâlâ gereklidir.
+Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Yetkili onaylı kayıt ve e-posta aktivasyonu, kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, tek seviyeli alt görevler, yorumlar, dosya ekleri, etiketler, uygulama içi bildirimler, arşivleme, filtrelenebilir denetim izi ve görünürlük kapsamlı görev raporları uygulanmıştır. Kritik kayıt, auth, görünürlük, transaction, yorum, ek, etiket, alt görev, bildirim ve dashboard akışları gerçek PostgreSQL üzerinde de doğrulanmaktadır.
 
 ## Mevcut özellikler
 
+- Genel yanıt kullanan herkese açık kayıt talebi ekranı; mevcut hesap ve bekleyen talep bilgisini dışarı sızdırmayan davranış
+- `kayit_talepleri` tablosunda `Bekliyor` durumlu başvuru ve aktif adminlere uygulama içi kayıt talebi bildirimi
+- Adminin sistem rolü ile isteğe bağlı grup/grup rolünü seçerek talebi onaylaması veya reddetmesi
+- Pasif ve aktivasyon bekleyen hesap oluşturma; gerçek e-posta adresine SMTP üzerinden 24 saatlik tek kullanımlık bağlantı gönderme
+- Aktivasyon tokenını yalnızca SHA-256 özetiyle saklama; kullanıcının iki kez girdiği parolayı Argon2id ile hash'leyerek e-postayı doğrulama ve hesabı aktifleştirme
+- Eski doğrudan admin kullanıcı/parola oluşturma endpoint'ini kapatarak aktivasyonun atlanmasını engelleme
 - Argon2id parola doğrulaması
 - JWT tabanlı oturum ve HttpOnly çerez
 - Aktif, pasif ve arşivlenmiş kullanıcı kontrolü
 - Admin, yönetici, grup yöneticisi, grup üyesi ve kullanıcı yetki seviyeleri
-- Kullanıcı oluşturma, aktif/pasif yapma, arşivleme ve geri yükleme
+- Kullanıcıları aktif/pasif yapma, arşivleme ve geri yükleme; aktivasyon bekleyen hesabın elle aktifleştirilmesini engelleme
 - Grup oluşturma; grup adı ve açıklaması düzenleme; grupları kalıcı silme işleminin kapalı tutulması
 - Kullanıcının birden fazla gruba eklenmesi
 - Kullanıcının grup üyeliklerini ve grup rollerini sonradan değiştirme
@@ -38,6 +44,8 @@ Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Kimlik doğrul
 - Öncelik, görev tipi ve atama yükü dağılımlarını rol ve görünürlük kapsamına göre görüntüleme
 - Dashboard görev raporunu Excel uyumlu UTF-8 CSV olarak dışa aktarma
 - Kritik API akışlarını ayrı bir PostgreSQL test veritabanında doğrulayan entegrasyon testleri
+- Dosya adına göre sıralanan, transaction kullanan ve checksum ile izlenen tek komutlu migration sistemi
+- Ana şemadan ayrılmış, yalnızca geliştirme ortamında çalışabilen örnek veri seed'i
 - GitHub Actions üzerinde PostgreSQL servisli birim, entegrasyon ve frontend build kontrolleri
 - Görev, kullanıcı ve grup listelerinde sunucu taraflı sayfalama
 - Ana sayfadan görev, yorum, ek dosya adı, grup, yetkili kullanıcı, etiket, görev tipi ve denetim kayıtlarında yetki kapsamlı genel arama
@@ -74,19 +82,25 @@ LawDesk/
 │   ├── controllers/     API iş kuralları
 │   ├── middleware/      Oturum ve rol kontrolleri
 │   ├── routes/          Auth, admin ve görev endpoint'leri
-│   ├── scripts/         Admin ve migration komutları
+│   ├── scripts/         Admin, migration ve geliştirme seed komutları
+│   ├── services/        Migration ve SMTP e-posta servisleri
 │   ├── integration/     Gerçek PostgreSQL kullanan entegrasyon testleri
 │   └── tests/           Backend otomatik testleri
 ├── frontend/
 │   └── src/             React arayüzü ve API yardımcıları
 ├── database/
 │   ├── migrations/      Mevcut veritabanları için migration dosyaları
+│   ├── seeds/           Ana şemadan ayrılmış geliştirme örnek verileri
 │   └── GYS_Database_Schema_Simple.sql
 └── docs/
-    └── GYS_ER_Diagram.pdf
+    ├── GYS_ER_Diagram.pdf
+    ├── generate_er_diagram.py
+    └── PRODUCTION_CUTOVER.md
 ```
 
 [ER diyagramını görüntüle](docs/GYS_ER_Diagram.pdf)
+
+[Gerçek ortama geçiş sırasını görüntüle](docs/PRODUCTION_CUTOVER.md)
 
 ## Gereksinimler
 
@@ -117,9 +131,9 @@ Temiz kurulumda aşağıdaki dosyayı pgAdmin Query Tool veya `psql` ile **bir k
 database/GYS_Database_Schema_Simple.sql
 ```
 
-Bu dosya tabloları, temel grupları, görev tiplerini ve geliştirme amaçlı örnek kayıtları oluşturur. Örnek kullanıcıların `HASH_PLACEHOLDER` parolalarıyla giriş yapılamaz; ilk admin hesabı aşağıdaki script ile hazırlanmalıdır.
+Bu dosya tabloları ve temel ayar/grup/görev tipi/etiket tanımlarını oluşturur. Örnek kullanıcı, üyelik, görev, alt görev ve yorum kayıtları ana şemada bulunmaz; geliştirme verileri ayrı bir seed dosyasındadır. İlk admin hesabı aşağıdaki güvenli script ile hazırlanmalıdır.
 
-Daha eski bir LawDesk veritabanını güncelliyorsanız migration komutlarını, bir sonraki adımda backend bağımlılıklarını kurduktan sonra çalıştırın. Güncel SQL şemasıyla oluşturulan temiz veritabanında migration gerekmez.
+Temiz veya mevcut kurulumda migration kayıtlarını oluşturmak ve henüz uygulanmamış değişiklikleri çalıştırmak için, backend bağımlılıklarını kurduktan sonra tek `npm run migrate` komutunu kullanın.
 
 ### 3. Backend ayarları
 
@@ -145,12 +159,24 @@ INTEGRATION_DATABASE_URL=postgresql://postgres:PAROLANIZ@localhost:5432/gys_lawd
 AUTH_TOKEN_SECRET=EN_AZ_64_KARAKTERLIK_RASTGELE_BIR_DEGER
 AUTH_TOKEN_TTL_HOURS=8
 AUTH_COOKIE_NAME=lawdesk_session
+APP_BASE_URL=http://localhost:5175
+ACTIVATION_TOKEN_TTL_HOURS=24
+REGISTRATION_RATE_LIMIT_WINDOW_MINUTES=15
+REGISTRATION_RATE_LIMIT_MAX=5
+SMTP_HOST=smtp.sirket.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_REQUIRE_TLS=true
+SMTP_USER=lawdesk@sirket.com
+SMTP_PASSWORD=SMTP_HESAP_PAROLASI
+SMTP_FROM=LawDesk <lawdesk@sirket.com>
 INITIAL_ADMIN_NAME=Admin Kullanici
 INITIAL_ADMIN_EMAIL=admin@sirket.com
+INITIAL_ADMIN_EMAIL_VERIFIED=false
 INITIAL_ADMIN_PASSWORD=EN_AZ_12_KARAKTERLIK_GUCLU_PAROLA
 ```
 
-`AUTH_TOKEN_SECRET` en az 64 karakter olmalıdır. `AUTH_TOKEN_TTL_HOURS` değeri 1–24 saat aralığında bir tam sayı olmalıdır.
+`AUTH_TOKEN_SECRET` en az 64 karakter olmalıdır. `AUTH_TOKEN_TTL_HOURS` değeri 1-24 saat aralığında bir tam sayı olmalıdır. `APP_BASE_URL`, aktivasyon bağlantısının açacağı frontend adresidir ve production ortamında HTTPS olmalıdır. Port 587 için `SMTP_SECURE=false` ve `SMTP_REQUIRE_TLS=true`; doğrudan TLS kullanan port 465 için genellikle `SMTP_SECURE=true` kullanılır. Kurum SMTP sunucusunun değerleri esas alınmalıdır.
 
 Mac veya Linux ortamında güvenli bir token anahtarı üretmek için aşağıdaki komutun çıktısını `AUTH_TOKEN_SECRET` değeri olarak kullanabilirsiniz:
 
@@ -160,22 +186,21 @@ openssl rand -hex 64
 
 Gerçek `.env` dosyası, veritabanı parolası, token anahtarı ve kullanıcı parolaları GitHub'a gönderilmemelidir.
 
-Mevcut eski bir veritabanını güncelliyorsanız, `npm install` tamamlandıktan sonra migration'ları sırasıyla çalıştırın:
+`npm install` tamamlandıktan sonra bütün migration'ları tek komutla çalıştırın:
 
 ```bash
-npm run migrate:user-archive
-npm run migrate:task-core
-npm run migrate:task-lifecycle
-npm run migrate:task-attachments
-npm run migrate:task-comments
-npm run migrate:task-tags
-npm run migrate:task-subtasks
-npm run migrate:task-type-management
-npm run migrate:task-type-group-routing
-npm run migrate:task-terminal-auto-archive
-npm run migrate:activity-log-filters
-npm run migrate:dashboard-reports
+npm run migrate
 ```
+
+Runner, SQL dosyalarını ada göre sıralar, PostgreSQL advisory lock kullanır, her yeni migration'ı ayrı transaction içinde uygular ve sonucu `schema_migrations` tablosuna checksum ile kaydeder. Daha önce uygulanmış bir dosya atlanır; uygulanmış dosyanın sonradan değiştirilmesi checksum uyuşmazlığıyla durdurulur.
+
+Yerel geliştirmede örnek kullanıcı, üyelik, görev, alt görev, etiket ve yorum verilerini ayrıca eklemek isterseniz:
+
+```bash
+npm run seed:development
+```
+
+Bu komut production ortamında çalışmayı reddeder. Seed kullanıcılarının `HASH_PLACEHOLDER` parolalarıyla giriş yapılamaz; admin hesabını `npm run create-admin` ile hazırlayın.
 
 ### 4. İlk admin hesabı
 
@@ -185,7 +210,7 @@ Veritabanı ve `.env` hazırlandıktan sonra:
 npm run create-admin
 ```
 
-Script, aynı e-postaya sahip `HASH_PLACEHOLDER` admin kaydını güvenli Argon2id hash'iyle günceller veya yeni bir admin oluşturur. İşlem tamamlandıktan sonra `INITIAL_ADMIN_PASSWORD` değerini `.env` dosyasından kaldırmanız önerilir.
+Script, aynı e-postaya sahip `HASH_PLACEHOLDER` admin kaydını güvenli Argon2id hash'iyle günceller veya yeni bir admin oluşturur. Production ortamında önce kurumsal posta kutusunun gerçekten ilk admine ait olduğu kurum içinde doğrulanmalı ve ancak bundan sonra `INITIAL_ADMIN_EMAIL_VERIFIED=true` ayarlanmalıdır. Script bu açık onay olmadan production admini oluşturmayı reddeder; onay varsa e-posta doğrulama tarihini de kaydeder. İşlem tamamlandıktan sonra `INITIAL_ADMIN_PASSWORD` değeri `.env` dosyasından kaldırılmalıdır.
 
 Admin parolasını daha sonra sıfırlamak için `.env` dosyasına geçici olarak `RESET_ADMIN_EMAIL` ve `RESET_ADMIN_PASSWORD` değerlerini ekleyip şu komutu çalıştırabilirsiniz:
 
@@ -232,7 +257,7 @@ cd backend
 npm test
 ```
 
-Güncel birim test paketi 179 senaryodan oluşur ve auth, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, görev tipi-grup yönlendirmesi, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
+Güncel birim test paketi 192 senaryodan oluşur ve kayıt talebinin genel yanıtı, aktif admin bildirimi, admin onayı/e-posta gönderimi, migration checksum/tekrar çalıştırma davranışı, migration kilidi hatası, SMTP şifreleme zorunluluğu, tek kullanımlık aktivasyon, Argon2id, auth, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, görev tipi-grup yönlendirmesi, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
 
 ### Gerçek PostgreSQL entegrasyon testleri
 
@@ -249,7 +274,7 @@ cd backend
 npm run test:integration
 ```
 
-Komut, `gys_lawdesk_test` veritabanının `public` şemasını silip güncel SQL şemasından yeniden kurar ve 10 gerçek PostgreSQL senaryosu çalıştırır. Güvenlik kontrolü nedeniyle veritabanı adı `_test` ile bitmiyorsa işlem tablo değişikliği yapmadan durur. `INTEGRATION_DATABASE_URL` hiçbir zaman geliştirme veya üretim veritabanını göstermemelidir.
+Komut, `gys_lawdesk_test` veritabanının `public` şemasını silip güncel SQL şemasından yeniden kurar ve 18 gerçek PostgreSQL senaryosu çalıştırır. Kapsam; migration takibi, kayıt talebi, admin onayı, tek kullanımlık aktivasyon ve girişin yanında yorum/sürüm geçmişi, dosya yükleme-indirme-arşivleme-geri yükleme, etiket atama/filtreleme, alt görev mirası ve bildirim sahipliği/okunmamış akışlarını içerir. Güvenlik kontrolü nedeniyle veritabanı adı `_test` ile bitmiyorsa işlem tablo değişikliği yapmadan durur. `INTEGRATION_DATABASE_URL` hiçbir zaman geliştirme veya üretim veritabanını göstermemelidir.
 
 Birim ve entegrasyon testlerini birlikte çalıştırmak için:
 
@@ -284,6 +309,14 @@ Temel bağlantı kontrolleri:
 | GET | `/api/auth/me` | Mevcut oturumu ve grup üyeliklerini döndürür |
 | POST | `/api/auth/logout` | Oturumu kapatır |
 
+### Kayıt ve aktivasyon
+
+| Method | Endpoint | Açıklama |
+| --- | --- | --- |
+| POST | `/api/registration-requests` | Ad-soyad ve e-posta ile kayıt talebi oluşturur; geçerli, geçersiz, mevcut veya tekrar eden başvuruda aynı genel `202` yanıtını verir |
+| POST | `/api/registration-requests/activation/validate` | 24 saatlik aktivasyon tokenının hâlâ geçerli olduğunu doğrular |
+| POST | `/api/registration-requests/activation/complete` | Parola tekrarını doğrular, Argon2id hash üretir, e-postayı doğrular ve hesabı aktifleştirir |
+
 ### Admin işlemleri
 
 Bu endpoint'lerin tamamı `admin` sistem rolü gerektirir.
@@ -291,7 +324,6 @@ Bu endpoint'lerin tamamı `admin` sistem rolü gerektirir.
 | Method | Endpoint | Açıklama |
 | --- | --- | --- |
 | GET | `/api/admin/users` | Arşivlenmemiş veya `?archived=true` ile arşivlenmiş kullanıcıları; isteğe bağlı `page` ve `limit` ile sayfalanmış olarak listeler |
-| POST | `/api/admin/users` | Kullanıcı oluşturur |
 | PATCH | `/api/admin/users/:id` | Kullanıcıyı aktif veya pasif yapar |
 | DELETE | `/api/admin/users/:id` | Kullanıcıyı fiziksel silmeden arşivler |
 | PATCH | `/api/admin/users/:id/restore` | Kullanıcıyı pasif olarak geri yükler |
@@ -299,6 +331,13 @@ Bu endpoint'lerin tamamı `admin` sistem rolü gerektirir.
 | GET | `/api/admin/groups` | Grupları ve üye sayılarını; isteğe bağlı `page` ve `limit` ile sayfalanmış olarak listeler |
 | POST | `/api/admin/groups` | Grup oluşturur |
 | PATCH | `/api/admin/groups/:id` | Grup adı ve açıklamasını günceller |
+| GET | `/api/admin/registration-requests` | Duruma göre kayıt taleplerini sayfalanmış olarak listeler |
+| GET | `/api/admin/registration-requests/:id` | Talebi ve oluşturulmuşsa hesap/grup üyeliklerini döndürür |
+| POST | `/api/admin/registration-requests/:id/approve` | Rol ve grup seçimleriyle pasif hesabı/tokenı transaction içinde oluşturur ve aktivasyon e-postasını gönderir |
+| POST | `/api/admin/registration-requests/:id/reject` | Talebi isteğe bağlı nedenle reddeder |
+| POST | `/api/admin/registration-requests/:id/resend-activation` | Eski kullanılmamış tokenı iptal edip yeni 24 saatlik bağlantı gönderir |
+
+Adminin parola belirleyerek doğrudan kullanıcı oluşturduğu eski `POST /api/admin/users` endpoint'i kapalıdır; normal kullanıcı hesapları yalnızca onay ve e-posta aktivasyonu yoluyla açılır. İlk sistem admini bunun dışındaki kontrollü bootstrap komutuyla oluşturulur.
 
 ### Görev işlemleri
 
@@ -365,21 +404,26 @@ Bir görev tipinin sorumlu grubu değiştirildiğinde mevcut görevler topluca t
 ## Güvenlik notları
 
 - Parolalar Argon2id ile hash'lenir ve düz metin olarak saklanmaz.
+- Aktivasyon tokenının kendisi veritabanında tutulmaz; yalnızca SHA-256 özeti saklanır ve aktif token kullanıcı başına bir adetle sınırlandırılır.
+- Aktivasyon bağlantısı varsayılan olarak 24 saat geçerlidir, tek kullanımlıdır ve yeni bağlantı üretildiğinde önceki kullanılmamış token iptal edilir.
+- Kayıt endpoint'i hesap veya başvuru varlığını ele vermemek için her durumda aynı genel yanıtı kullanır ve IP tabanlı hız limiti uygular.
+- Aktivasyon bekleyen hesap pasiftir, parola hash'i yoktur ve admin tarafından normal aktif/pasif endpoint'iyle aktifleştirilemez.
+- SMTP port 587 kullanımında STARTTLS zorunlu tutulabilir; production aktivasyon adresi HTTPS olmak zorundadır.
 - Oturum çerezi HttpOnly'dir; production modunda `Secure` ve `SameSite=Strict` kullanılır.
 - JWT issuer, audience, algoritma ve süre kontrolleri yapılır.
 - Olmayan kullanıcı ve yanlış parola aynı hata mesajını üretir.
 - Pasif veya arşivlenmiş kullanıcıların oturumları kabul edilmez.
 - `.env`, `node_modules`, build çıktıları ve veritabanı yedekleri Git'e eklenmemelidir.
+- Gerçek kullanıcı e-postaları seed veya migration dosyalarına yazılmaz. İlk admin kurumsal olarak doğrulanmış adresle bootstrap edilir; diğer kullanıcılar kayıt ve aktivasyon akışından alınır.
 
-Mevcut CORS ayarı geliştirme kolaylığı için dinamiktir. Üretime geçmeden önce izin verilen kurum origin'iyle sınırlandırılmalı; HTTPS, güvenlik başlıkları, giriş deneme limiti, CSRF değerlendirmesi, yedekleme ve izleme politikaları tamamlanmalıdır.
+Mevcut CORS ayarı geliştirme kolaylığı için dinamiktir. Üretime geçmeden önce izin verilen kurum origin'iyle sınırlandırılmalı; güvenlik başlıkları, giriş deneme limiti, CSRF değerlendirmesi, yedekleme ve izleme politikaları tamamlanmalıdır.
 
 ## Henüz tamamlanmayan ana alanlar
 
-- E-posta bildirimleri ve son tarih hatırlatmaları
-- Uygulama içi bildirim tercihleri, toplu okundu işlemleri ve ayrıntılı bildirim kapsamının e-posta akışıyla birlikte geliştirilmesi
+- Görev bildirimleri ve son tarih hatırlatmalarının e-posta kanalına bağlanması
+- Uygulama içi bildirim tercihleri ve toplu okundu işlemleri
 - Genel sistem ayarları yönetimi
 - Kullanıcının kendi parolasını değiştirmesi
-- PostgreSQL entegrasyon kapsamının yorum, ek, etiket ve alt görev akışlarına genişletilmesi
 - Kurum sunucusu kurulum, yedekleme ve operasyon dokümanı
 
 Bu alanlar üretim hazırlığı ve e-posta altyapısı planıyla birlikte kademeli olarak tamamlanacaktır.

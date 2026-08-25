@@ -9,6 +9,7 @@ const TYPE_LABELS = {
   Kapanis: "Görev tamamlandı",
   HatirlatmaOrta: "Hatırlatma",
   HatirlatmaSon: "Son hatırlatma",
+  KayitTalebi: "Yeni kayıt talebi",
 };
 
 const formatDate = (value) => {
@@ -93,6 +94,13 @@ function NotificationsPage({ onNavigate }) {
 
     if (notification.taskId) {
       onNavigate?.(`/tasks/${notification.taskId}`);
+      return;
+    }
+
+    if (notification.registrationRequestId) {
+      onNavigate?.(
+        `/registration-requests/${notification.registrationRequestId}`,
+      );
     }
   };
 
@@ -153,6 +161,12 @@ function NotificationsPage({ onNavigate }) {
                       {notification.taskTitle
                         ? ` — ${notification.taskTitle}`
                         : ""}
+                    </span>
+                  )}
+
+                  {notification.registrationRequestId && (
+                    <span className="notification-item-task">
+                      Kayıt talebi #{notification.registrationRequestId}
                     </span>
                   )}
                 </span>

@@ -46,7 +46,13 @@ const parsePositiveId = (value, message) => {
 // Shared helper: other controllers call this (like recordActivity) to notify a user, without duplicating the insert.
 const createNotification = async (
   query,
-  { userId, taskId = null, type, message },
+  {
+    userId,
+    taskId = null,
+    registrationRequestId = null,
+    type,
+    message,
+  },
 ) => {
   const targetUserId = Number(userId);
 
@@ -56,9 +62,15 @@ const createNotification = async (
 
   await query(
     `INSERT INTO bildirimler
-       (kullaniciid, gorevid, bildirimtipi, mesaj)
-     VALUES ($1, $2, $3, $4)`,
-    [targetUserId, taskId, type, message],
+       (kullaniciid, gorevid, kayittalepid, bildirimtipi, mesaj)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [
+      targetUserId,
+      taskId,
+      registrationRequestId,
+      type,
+      message,
+    ],
   );
 };
 
@@ -89,6 +101,7 @@ exports.listNotifications = async (req, res) => {
     const listResult = await db.query(
       `SELECT b.bildirimid AS "id",
               b.gorevid AS "taskId",
+              b.kayittalepid AS "registrationRequestId",
               task.baslik AS "taskTitle",
               b.bildirimtipi AS "type",
               b.mesaj AS "message",
@@ -155,6 +168,7 @@ exports.markNotificationRead = async (req, res) => {
          AND kullaniciid = $2
        RETURNING bildirimid AS "id",
                  gorevid AS "taskId",
+                 kayittalepid AS "registrationRequestId",
                  bildirimtipi AS "type",
                  mesaj AS "message",
                  okundumu AS "read",

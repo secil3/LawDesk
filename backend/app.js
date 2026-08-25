@@ -13,6 +13,7 @@ const groupsRoutes = require("./routes/groups");
 const taskRoutes = require("./routes/tasks");
 const searchRoutes = require("./routes/search");
 const notificationRoutes = require("./routes/notifications");
+const registrationRoutes = require("./routes/registration");
 const { getAuthConfig } = require("./config/auth");
 
 const app = express();
@@ -42,5 +43,6 @@ app.use("/api/groups", groupsRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/registration-requests", registrationRoutes);
 
 module.exports = app;

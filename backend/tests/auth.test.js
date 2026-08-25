@@ -20,7 +20,6 @@ const {
   requireSystemRole,
   requireGroupRole,
   requireGroupAccess,
-  requireUserCreationPermission,
 } = require("../middleware/auth");
 
 let app = null;
@@ -388,48 +387,6 @@ test(
 );
 
 test(
-  "user creation permission allows only admins",
-  () => {
-    const adminRequest = {
-      user: {
-        rol: "admin",
-        groups: [],
-      },
-    };
-
-    const adminResponse = createResponse();
-    let adminNextCalled = false;
-
-    requireUserCreationPermission(
-      adminRequest,
-      adminResponse,
-      () => {
-        adminNextCalled = true;
-      },
-    );
-
-    assert.equal(adminNextCalled, true);
-    assert.equal(adminResponse.statusCode, 200);
-
-    for (const role of ["yonetici", "kullanici"]) {
-      const response = createResponse();
-      let nextCalled = false;
-
-      requireUserCreationPermission(
-        { user: { rol: role, groups: [] } },
-        response,
-        () => {
-          nextCalled = true;
-        },
-      );
-
-      assert.equal(nextCalled, false);
-      assert.equal(response.statusCode, 403);
-    }
-  },
-);
-
-test(
   "group access allows authenticated user to view visible groups",
   () => {
     const req = {
@@ -530,63 +487,24 @@ test(
   },
 );
 
-test(
-  "admin can create a group manager account for login",
-  async () => {
-    const agent = request.agent(app);
+test("admin cannot bypass registration activation with direct creation", async () => {
+  const agent = request.agent(app);
 
-    const loginResponse = await agent
-      .post("/api/auth/login")
-      .send({
-        email: activeEmail,
-        password: testPassword,
-      });
+  const loginResponse = await agent
+    .post("/api/auth/login")
+    .send({
+      email: activeEmail,
+      password: testPassword,
+    });
+  assert.equal(loginResponse.status, 200);
 
-    assert.equal(loginResponse.status, 200);
+  const response = await agent
+    .post("/api/admin/users")
+    .send({
+      adSoyad: "Doğrudan Kullanıcı",
+      email: "direct.user@sirket.com",
+      password: "AtlanmamasiGerekenParola123!",
+    });
 
-    const response = await agent
-      .post("/api/admin/users")
-      .send({
-        adSoyad: "Grup Yöneticisi",
-        email: "grup.yoneticisi@sirket.com",
-        password: "OrnekKullanici123!",
-        roleMode: "grup_yoneticisi",
-        aktifMi: true,
-      grupIds: [2],
-      });
-
-    assert.equal(response.status, 201);
-    assert.equal(response.body.user.email, "grup.yoneticisi@sirket.com");
-    assert.equal(response.body.user.rol, "kullanici");
-  },
-);
-
-test(
-  "admin can create a standard user account for login",
-  async () => {
-    const agent = request.agent(app);
-
-    const loginResponse = await agent
-      .post("/api/auth/login")
-      .send({
-        email: activeEmail,
-        password: testPassword,
-      });
-
-    assert.equal(loginResponse.status, 200);
-
-    const response = await agent
-      .post("/api/admin/users")
-      .send({
-        adSoyad: "Örnek Kullanıcı",
-        email: "ornek.kullanici@sirket.com",
-        password: "OrnekKullanici123!",
-        roleMode: "kullanici",
-        aktifMi: true,
-      });
-
-    assert.equal(response.status, 201);
-    assert.equal(response.body.user.email, "ornek.kullanici@sirket.com");
-    assert.equal(response.body.user.rol, "kullanici");
-  },
-);
+  assert.equal(response.status, 404);
+});

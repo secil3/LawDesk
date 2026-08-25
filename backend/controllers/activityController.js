@@ -36,6 +36,9 @@ const ACTIVITY_LABELS = {
   GorevTipiGuncelleme: "Görev tipi güncelleme",
   GorevTipiArsivleme: "Görev tipi arşivleme",
   GorevTipiGeriYukleme: "Görev tipi geri yükleme",
+  KayitTalebiOnaylama: "Kayıt talebi onaylama",
+  KayitTalebiReddetme: "Kayıt talebi reddetme",
+  KullaniciAktivasyonu: "Kullanıcı aktivasyonu",
 };
 
 const ACTIVITY_FROM_SQL = `

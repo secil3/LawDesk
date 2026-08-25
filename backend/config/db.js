@@ -15,6 +15,10 @@ const query = (text, params) => {
   return pool.query(text, params);
 };
 
+const connect = () => {
+  return pool.connect();
+};
+
 const withTransaction = async (callback) => {
   const client = await pool.connect();
 
@@ -50,6 +54,7 @@ const testConnection = async () => {
 };
 
 module.exports = {
+  connect,
   query,
   withTransaction,
   close,

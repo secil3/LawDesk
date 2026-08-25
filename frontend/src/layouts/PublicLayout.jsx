@@ -2,6 +2,7 @@ function PublicLayout({ children, currentPath, onNavigate }) {
   const navItems = [
     { label: "Ana Sayfa", path: "/" },
     { label: "Özellikler", path: "/features" },
+    { label: "Kayıt Ol", path: "/register" },
     { label: "Giriş Yap", path: "/login" },
   ];
 
