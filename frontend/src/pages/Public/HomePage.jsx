@@ -1,8 +1,11 @@
+import BrandLogo from "../../components/BrandLogo";
+
 function HomePage({ onNavigate }) {
   return (
     <section className="product-landing">
       <header className="product-hero">
         <div className="product-hero-copy">
+          <BrandLogo compact className="product-hero-signature" />
           <span className="product-kicker">
             <span aria-hidden="true" />
             Hukuk ve uyum operasyonları
@@ -39,8 +42,7 @@ function HomePage({ onNavigate }) {
           <div className="product-preview-window">
             <div className="product-preview-topbar">
               <div className="product-preview-brand">
-                <span>L</span>
-                <strong>LawDesk</strong>
+                <BrandLogo compact />
               </div>
               <div className="product-preview-search">Görevlerde ara...</div>
               <span className="product-preview-avatar">SK</span>
@@ -121,7 +123,7 @@ function HomePage({ onNavigate }) {
       </section>
 
       <footer className="product-footer">
-        <div><strong>LawDesk</strong><span>Görev Yönetim Sistemi</span></div>
+        <BrandLogo subtitle="Görev Yönetim Sistemi" />
         <nav aria-label="Alt menü">
           <button type="button" onClick={() => onNavigate("/")}>Ana Sayfa</button>
           <button type="button" onClick={() => onNavigate("/features")}>Platform</button>

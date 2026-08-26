@@ -64,6 +64,8 @@ function AppRouter({
   users,
   loadingUsers,
   userPagination,
+  userSearch,
+  onUserSearchChange,
   onUserPageChange,
   openMembershipEditor,
   handleToggleActive,
@@ -178,6 +180,8 @@ function AppRouter({
             users={users}
             loadingUsers={loadingUsers}
             userPagination={userPagination}
+            userSearch={userSearch}
+            onUserSearchChange={onUserSearchChange}
             onUserPageChange={onUserPageChange}
             openMembershipEditor={openMembershipEditor}
             handleToggleActive={handleToggleActive}

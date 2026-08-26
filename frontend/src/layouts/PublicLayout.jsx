@@ -1,3 +1,5 @@
+import BrandLogo from "../components/BrandLogo";
+
 function PublicLayout({ children, currentPath, onNavigate, theme, onThemeChange }) {
   const navItems = [
     { label: "Ana Sayfa", path: "/" },
@@ -15,11 +17,7 @@ function PublicLayout({ children, currentPath, onNavigate, theme, onThemeChange 
             onNavigate("/");
           }
         }}>
-          <span className="brand-mark">L</span>
-          <div>
-            <strong>LawDesk</strong>
-            <small>Görev Yönetim Sistemi</small>
-          </div>
+          <BrandLogo subtitle="Görev Yönetim Sistemi" variant="navbar" />
         </div>
 
         <nav className="public-nav" aria-label="Ana menü">

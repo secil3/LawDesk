@@ -1,3 +1,5 @@
+import BrandLogo from "./BrandLogo";
+
 function AuthScreen({
   eyebrow,
   title,
@@ -13,11 +15,7 @@ function AuthScreen({
       <section className="auth-shell" aria-labelledby={titleId}>
         <aside className="auth-context-panel">
           <div className="auth-context-brand">
-            <span className="brand-mark" aria-hidden="true">L</span>
-            <div>
-              <strong>LawDesk</strong>
-              <small>Görev Yönetim Sistemi</small>
-            </div>
+            <BrandLogo subtitle="Görev Yönetim Sistemi" />
           </div>
 
           <div className="auth-context-copy">

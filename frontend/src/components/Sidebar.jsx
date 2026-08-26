@@ -1,3 +1,5 @@
+import BrandLogo from "./BrandLogo";
+
 function Sidebar({ user, currentPath, onNavigate, onLogout }) {
   const items = [
     { label: "Ana Sayfa", path: "/dashboard" },
@@ -16,11 +18,7 @@ function Sidebar({ user, currentPath, onNavigate, onLogout }) {
         onClick={() => onNavigate("/dashboard")}
         aria-label="Ana sayfaya git"
       >
-        <span className="brand-mark">L</span>
-        <div className="brand-meta">
-          <strong>LawDesk</strong>
-          <small>Panel</small>
-        </div>
+        <BrandLogo subtitle="Panel" variant="navbar" />
       </button>
 
       <nav className="sidebar-nav" aria-label="Uygulama menüsü">
