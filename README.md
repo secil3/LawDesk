@@ -1,143 +1,229 @@
 # LawDesk – Görev Yönetim Sistemi
 
-LawDesk, Hukuk ve Uyum Başkanlığı ekiplerinin kullanıcı, grup ve görev süreçlerini tek bir web uygulamasından yönetebilmesi için geliştirilen bir görev yönetim sistemidir.
+LawDesk, Hukuk ve Uyum Başkanlığı ekiplerinin kullanıcı, grup ve görev süreçlerini merkezi bir web uygulaması üzerinden yönetmesini sağlayan görev yönetim sistemidir.
 
-Uygulama şu anda çalışan bir **çekirdek MVP** durumundadır. Yetkili onaylı kayıt ve e-posta aktivasyonu, kimlik doğrulama, rol tabanlı erişim, grup üyelikleri, görev atama ve görünürlük kuralları, görev yaşam döngüsü, tek seviyeli alt görevler, yorumlar, dosya ekleri, etiketler, uygulama içi bildirimler, arşivleme, filtrelenebilir denetim izi ve görünürlük kapsamlı görev raporları uygulanmıştır. Kritik kayıt, auth, görünürlük, transaction, yorum, ek, etiket, alt görev, bildirim ve dashboard akışları gerçek PostgreSQL üzerinde de doğrulanmaktadır.
+Sistem; rol tabanlı erişim, grup bazlı görev görünürlüğü, görev atama, alt görevler, yorumlar, dosya ekleri, etiketler, bildirimler, denetim kayıtları, dashboard raporları ve genel arama gibi özellikleri tek bir platformda bir araya getirir.
 
-## Mevcut özellikler
+## Özellikler
 
-- Genel yanıt kullanan herkese açık kayıt talebi ekranı; mevcut hesap ve bekleyen talep bilgisini dışarı sızdırmayan davranış
-- `kayit_talepleri` tablosunda `Bekliyor` durumlu başvuru ve aktif adminlere uygulama içi kayıt talebi bildirimi
-- Adminin sistem rolü ile isteğe bağlı grup/grup rolünü seçerek talebi onaylaması veya reddetmesi
-- Pasif ve aktivasyon bekleyen hesap oluşturma; gerçek e-posta adresine SMTP üzerinden 24 saatlik tek kullanımlık bağlantı gönderme
-- Aktivasyon tokenını yalnızca SHA-256 özetiyle saklama; kullanıcının iki kez girdiği parolayı Argon2id ile hash'leyerek e-postayı doğrulama ve hesabı aktifleştirme
-- Eski doğrudan admin kullanıcı/parola oluşturma endpoint'ini kapatarak aktivasyonun atlanmasını engelleme
-- Argon2id parola doğrulaması
-- JWT tabanlı oturum ve HttpOnly çerez
-- Aktif, pasif ve arşivlenmiş kullanıcı kontrolü
-- Admin, yönetici, grup yöneticisi, grup üyesi ve kullanıcı yetki seviyeleri
-- Kullanıcıları aktif/pasif yapma, arşivleme ve geri yükleme; aktivasyon bekleyen hesabın elle aktifleştirilmesini engelleme
-- Grup oluşturma; grup adı ve açıklaması düzenleme; grupları kalıcı silme işleminin kapalı tutulması
-- Kullanıcının birden fazla gruba eklenmesi
-- Kullanıcının grup üyeliklerini ve grup rollerini sonradan değiştirme
-- Her kullanıcının görev oluşturabilmesi
-- Görevi görev tipinin sorumlu grubundaki bir kullanıcıya doğrudan atama veya görev tipi grubuna otomatik yönlendirme
-- Rol ve grup üyeliğine göre görev görünürlüğü
-- Görev başlığı, açıklaması, tipi, önceliği ve bitiş tarihini düzenleme
-- Geçmiş tarih ve saat için bitiş tarihi oluşturmayı engelleme
-- Görev durumunu değiştirme; tamamlanan veya iptal edilen görevi atomik olarak otomatik arşivleme
-- İptal sırasında zorunlu neden kaydı; arşivden geri yüklenen görevi `Devam Ediyor` durumunda yeniden açma
-- Ana görev altında tek seviyeli alt görev oluşturma; atama ve görünürlüğü ana görevden devralma
-- Ana görev ile alt görevler arasında bitiş tarihi, kapatma ve geri yükleme bütünlüğü
-- Göreve yorum ekleme; yorumu düzenleme, geçmişini görüntüleme, arşivleme ve geri yükleme
-- Doğrulanmış dosyaları göreve ekleme, indirme, kaldırma ve geri yükleme
-- Etiket oluşturma, yeniden adlandırma, arşivleme ve geri yükleme
-- Görevlere etiket atama ve görev listesini etikete göre filtreleme
-- Görev tipini zorunlu sorumlu grupla oluşturma; adını, açıklamasını ve grubunu düzenleme; kullanım sayılarını görüntüleme, arşivleme ve geri yükleme
-- Atamasız oluşturulan veya yeniden atanan görevi görev tipinin grubuna otomatik yönlendirme; doğrudan atamada yalnızca ilgili grup üyelerini kabul etme
-- Ana görevin tipi değiştiğinde uyumsuz kullanıcı/grup atamasını aynı transaction içinde yeni sorumlu gruba taşıma
-- Görev ataması, durum değişikliği ve yorum hareketleri için sayfalanmış uygulama içi bildirimler; okunmamış bildirim sayısı ve okundu işaretleme
-- Kullanıcı, grup, görev ve yaşam döngüsü işlemleri için kullanıcı, görev, işlem türü ve tarih aralığıyla filtrelenebilen denetim kayıtları
-- Filtrelenmiş denetim kayıtlarını Excel uyumlu UTF-8 CSV olarak dışa aktarma
-- Dashboard üzerinde geciken, yaklaşan ve bitiş tarihi olmayan görev risklerini görüntüleme
-- Seçilen döneme göre görev oluşturma, tamamlama oranı ve ortalama tamamlanma süresi raporu
-- Öncelik, görev tipi ve atama yükü dağılımlarını rol ve görünürlük kapsamına göre görüntüleme
-- Dashboard görev raporunu Excel uyumlu UTF-8 CSV olarak dışa aktarma
-- Kritik API akışlarını ayrı bir PostgreSQL test veritabanında doğrulayan entegrasyon testleri
-- Dosya adına göre sıralanan, transaction kullanan ve checksum ile izlenen tek komutlu migration sistemi
-- Ana şemadan ayrılmış, yalnızca geliştirme ortamında çalışabilen örnek veri seed'i
-- GitHub Actions üzerinde PostgreSQL servisli birim, entegrasyon ve frontend build kontrolleri
-- Görev, kullanıcı ve grup listelerinde sunucu taraflı sayfalama
-- Ana sayfadan görev, yorum, ek dosya adı, grup, yetkili kullanıcı, etiket, görev tipi ve denetim kayıtlarında yetki kapsamlı genel arama
-- Etiket ve görev tipi işlemleri için ayrı, rol korumalı Yönetim sayfası
+### 🔐 Kimlik Doğrulama ve Kullanıcı Yönetimi
 
-## Roller ve temel yetkiler
+* Argon2id ile güvenli parola hashleme
+* JWT tabanlı oturum yönetimi
+* HttpOnly ve production ortamında güvenli cookie kullanımı
+* Kullanıcı kayıt talebi ve admin onay süreci
+* E-posta üzerinden hesap aktivasyonu
+* Tek kullanımlık ve süreli aktivasyon tokenları
+* Aktif / pasif kullanıcı yönetimi
+* Kullanıcıların birden fazla gruba atanabilmesi
+* Grup bazında farklı roller tanımlayabilme
+* Kayıt işlemleri için rate limiting
 
-Sistem rolleri `admin`, `yonetici` ve `kullanici` olarak saklanır. Grup yöneticisi ve grup üyesi yetkileri, kullanıcının grup üyeliği üzerinden belirlenir.
+### 👥 Roller ve Yetkilendirme
 
-| Rol | Temel yetkiler |
-| --- | --- |
-| Admin | Kullanıcı ve grup yönetimi; görev tipi ve etiket yönetimi; tüm görevleri görüntüleme, atama, düzenleme, kapatma, geri yükleme ve denetim izini görüntüleme |
-| Yönetici | Görev tipi ve etiket yönetimi; tüm görevleri görüntüleme ve yönetme; görev atama, yaşam döngüsü işlemleri ve denetim izini görüntüleme |
-| Grup yöneticisi | Yönettiği grupların görevlerini ve üyelerini kapsayan görev atama, durum, otomatik kapanış ve geri yükleme işlemleri |
-| Grup üyesi | Kendi oluşturduğu, kendisine atanan veya grubuna görünür görevleri görüntüleme; kendi aktif görevlerini düzenleme |
-| Kullanıcı | Görev oluşturma; kendi oluşturduğu veya doğrudan kendisine görünür görevleri görüntüleme ve kendi aktif görevlerini düzenleme |
+Sistemde üç temel sistem rolü bulunur:
 
-Bir kullanıcı birden fazla grupta yer alabilir ve her grupta farklı bir role sahip olabilir. Tamamlanmış görevler normal kullanıcı listelerinden kaldırılır; gerekli yönetim yetkisine sahip kullanıcılar kendi yetki kapsamlarında bu görevleri görmeye devam eder.
+* **Admin**
+* **Yönetici**
+* **Kullanıcı**
 
-## Kullanılan teknolojiler
+Bunlara ek olarak grup üyeliğine bağlı olarak:
 
-- Frontend: React 18 ve Vite
-- Backend: Node.js, Express 5 ve CommonJS
-- Veritabanı: PostgreSQL (`pg` bağlantı havuzu)
-- Kimlik doğrulama: Argon2id, JWT ve HttpOnly çerez
-- Test: Node.js test runner ve Supertest
+* **Grup Yöneticisi**
+* **Grup Üyesi**
 
-## Proje yapısı
+rolleri uygulanır.
+
+Yetkilendirme; kullanıcının sistem rolü, grup üyeliği ve grup içerisindeki rolüne göre belirlenir.
+
+### 📋 Görev Yönetimi
+
+* Görev oluşturma ve düzenleme
+* Görev tipi ve sorumlu grup belirleme
+* Kullanıcıya doğrudan görev atama
+* Atama yapılmadığında görev tipi grubuna otomatik yönlendirme
+* Görev önceliği belirleme
+* Bitiş tarihi kontrolü
+* Görev durumlarını yönetme
+* Tamamlanan ve iptal edilen görevlerin otomatik arşivlenmesi
+* İptal işlemlerinde zorunlu neden
+* Arşivlenmiş görevleri geri yükleme
+* Tek seviyeli alt görev oluşturma
+* Alt görevlerde ana görevden atama ve görünürlük mirası
+* Görevlerin rol ve grup kapsamına göre görüntülenmesi
+
+### 💬 Yorumlar ve Dosyalar
+
+* Görevlere yorum ekleme
+* Yorum düzenleme
+* Yorum geçmişini görüntüleme
+* Yorumları arşivleme ve geri yükleme
+* Görevlere dosya ekleme
+* Dosya indirme
+* Dosya kaldırma ve geri yükleme
+
+### 🏷️ Etiket ve Görev Tipleri
+
+* Etiket oluşturma
+* Etiket düzenleme
+* Etiket arşivleme ve geri yükleme
+* Görevlere etiket atama
+* Etikete göre görev filtreleme
+* Görev tipi oluşturma
+* Görev tipi sorumlu grubu belirleme
+* Görev tipi düzenleme
+* Görev tipi arşivleme ve geri yükleme
+* Görev tipi kullanım sayılarını görüntüleme
+
+### 🔔 Bildirimler
+
+Uygulama içi bildirim sistemi ile:
+
+* Görev atama bildirimleri
+* Görev durum değişiklikleri
+* Yorum bildirimleri
+* Okunmamış bildirim sayısı
+* Bildirimleri okundu olarak işaretleme
+* Sayfalanmış bildirim listesi
+
+desteklenmektedir.
+
+### 🔎 Genel Arama
+
+Ana sayfadaki genel arama özelliği ile kullanıcının yetkisi dahilindeki:
+
+* Görevler
+* Yorumlar
+* Dosya adları
+* Gruplar
+* Kullanıcılar
+* Etiketler
+* Görev tipleri
+* Denetim kayıtları
+
+aranabilir.
+
+Arama sonuçları kullanıcının rol ve görünürlük kapsamına göre sınırlandırılır.
+
+### 📊 Dashboard ve Raporlama
+
+Dashboard üzerinden:
+
+* Geciken görevler
+* Yaklaşan görevler
+* Bitiş tarihi olmayan görevler
+* Görev oluşturma istatistikleri
+* Görev tamamlama oranları
+* Ortalama tamamlanma süresi
+* Öncelik dağılımları
+* Görev tipi dağılımları
+* Kullanıcıların görev yükleri
+
+görüntülenebilir.
+
+Raporlar ve denetim kayıtları **UTF-8 CSV** formatında dışa aktarılabilir.
+
+### 📄 Denetim Kaydı
+
+Kullanıcı, grup, görev ve görev yaşam döngüsü işlemleri denetim kayıtlarında tutulur.
+
+Denetim kayıtları;
+
+* Kullanıcı
+* İşlem türü
+* Tarih aralığı
+
+gibi kriterlere göre filtrelenebilir ve dışa aktarılabilir.
+
+### 📑 Sayfalama
+
+Büyük veri listelerinin daha verimli görüntülenmesi için sunucu taraflı pagination uygulanmıştır.
+
+Sayfalama aşağıdaki temel listelerde kullanılmaktadır:
+
+* Kullanıcılar
+* Gruplar
+* Görevler
+* Bildirimler
+* Denetim kayıtları
+* Kayıt talepleri
+
+---
+
+## 🛠️ Teknolojiler
+
+| Katman         | Teknoloji                      |
+| -------------- | ------------------------------ |
+| Frontend       | React 18, Vite                 |
+| Backend        | Node.js, Express 5             |
+| Database       | PostgreSQL                     |
+| Authentication | JWT, Argon2id, HttpOnly Cookie |
+| Testing        | Node.js Test Runner, Supertest |
+| Email          | SMTP                           |
+| CI/CD          | GitHub Actions                 |
+
+---
+
+## 📁 Proje Yapısı
 
 ```text
 LawDesk/
 ├── backend/
-│   ├── config/          Veritabanı ve kimlik doğrulama ayarları
-│   ├── controllers/     API iş kuralları
-│   ├── middleware/      Oturum ve rol kontrolleri
-│   ├── routes/          Auth, admin ve görev endpoint'leri
-│   ├── scripts/         Admin, migration ve geliştirme seed komutları
-│   ├── services/        Migration ve SMTP e-posta servisleri
-│   ├── integration/     Gerçek PostgreSQL kullanan entegrasyon testleri
-│   └── tests/           Backend otomatik testleri
+│   ├── config/
+│   ├── controllers/
+│   ├── middleware/
+│   ├── routes/
+│   ├── scripts/
+│   ├── services/
+│   ├── integration/
+│   └── tests/
+│
 ├── frontend/
-│   └── src/             React arayüzü ve API yardımcıları
+│   └── src/
+│
 ├── database/
-│   ├── migrations/      Mevcut veritabanları için migration dosyaları
-│   ├── seeds/           Ana şemadan ayrılmış geliştirme örnek verileri
+│   ├── migrations/
+│   ├── seeds/
 │   └── GYS_Database_Schema_Simple.sql
+│
 └── docs/
     ├── GYS_ER_Diagram.pdf
     ├── generate_er_diagram.py
     └── PRODUCTION_CUTOVER.md
 ```
 
-[ER diyagramını görüntüle](docs/GYS_ER_Diagram.pdf)
+---
 
-[Gerçek ortama geçiş sırasını görüntüle](docs/PRODUCTION_CUTOVER.md)
+## ⚙️ Gereksinimler
 
-## Gereksinimler
+* Node.js 22.12+
+* npm
+* PostgreSQL
+* Git
+* İsteğe bağlı: Docker Desktop, pgAdmin
 
-- Node.js 22.12 veya üzeri
-- npm
-- PostgreSQL
-- Git
-- İsteğe bağlı olarak Docker Desktop ve pgAdmin
+---
 
-PostgreSQL yerel olarak, Docker container içinde veya kurumun sağladığı uyumlu bir sunucuda çalışabilir.
+## 🚀 Kurulum
 
-## Kurulum
-
-### 1. Projeyi indirme
+### 1. Repository'yi klonlayın
 
 ```bash
 git clone https://github.com/secil3/LawDesk.git
 cd LawDesk
 ```
 
-### 2. Veritabanını hazırlama
+### 2. PostgreSQL veritabanını oluşturun
 
-Yeni ve boş bir PostgreSQL veritabanı oluşturun. Veritabanı adı, daha sonra `DATABASE_URL` içinde kullandığınız adla aynı olmalıdır.
-
-Temiz kurulumda aşağıdaki dosyayı pgAdmin Query Tool veya `psql` ile **bir kez** çalıştırın:
+Boş bir PostgreSQL veritabanı oluşturun ve:
 
 ```text
 database/GYS_Database_Schema_Simple.sql
 ```
 
-Bu dosya tabloları ve temel ayar/grup/görev tipi/etiket tanımlarını oluşturur. Örnek kullanıcı, üyelik, görev, alt görev ve yorum kayıtları ana şemada bulunmaz; geliştirme verileri ayrı bir seed dosyasındadır. İlk admin hesabı aşağıdaki güvenli script ile hazırlanmalıdır.
+dosyasını çalıştırın.
 
-Temiz veya mevcut kurulumda migration kayıtlarını oluşturmak ve henüz uygulanmamış değişiklikleri çalıştırmak için, backend bağımlılıklarını kurduktan sonra tek `npm run migrate` komutunu kullanın.
-
-### 3. Backend ayarları
-
-Backend klasöründe örnek ortam dosyasını kopyalayın:
+### 3. Backend'i yapılandırın
 
 ```bash
 cd backend
@@ -145,94 +231,47 @@ cp .env.example .env
 npm install
 ```
 
-Windows Komut İstemi kullanıyorsanız kopyalama için `copy .env.example .env` komutunu kullanabilirsiniz.
+`.env` dosyasındaki veritabanı, authentication ve SMTP bilgilerini kendi ortamınıza göre düzenleyin.
 
-Windows PowerShell, `npm.ps1` çalıştırmayı güvenlik ilkesi nedeniyle engelliyorsa README'deki `npm` komutlarını `npm.cmd` olarak çalıştırabilirsiniz (örneğin `npm.cmd run dev`). Sistem genelindeki execution policy ayarını değiştirmek gerekmez.
-
-`.env` içindeki bütün örnek değerleri kendi ortamınıza göre değiştirin:
-
-```env
-PORT=3001
-NODE_ENV=development
-DATABASE_URL=postgresql://postgres:PAROLANIZ@localhost:5432/gys_lawdesk
-INTEGRATION_DATABASE_URL=postgresql://postgres:PAROLANIZ@localhost:5432/gys_lawdesk_test
-AUTH_TOKEN_SECRET=EN_AZ_64_KARAKTERLIK_RASTGELE_BIR_DEGER
-AUTH_TOKEN_TTL_HOURS=8
-AUTH_COOKIE_NAME=lawdesk_session
-APP_BASE_URL=http://localhost:5175
-ACTIVATION_TOKEN_TTL_HOURS=24
-REGISTRATION_RATE_LIMIT_WINDOW_MINUTES=15
-REGISTRATION_RATE_LIMIT_MAX=5
-SMTP_HOST=smtp.sirket.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_REQUIRE_TLS=true
-SMTP_USER=lawdesk@sirket.com
-SMTP_PASSWORD=SMTP_HESAP_PAROLASI
-SMTP_FROM=LawDesk <lawdesk@sirket.com>
-INITIAL_ADMIN_NAME=Admin Kullanici
-INITIAL_ADMIN_EMAIL=admin@sirket.com
-INITIAL_ADMIN_EMAIL_VERIFIED=false
-INITIAL_ADMIN_PASSWORD=EN_AZ_12_KARAKTERLIK_GUCLU_PAROLA
-```
-
-`AUTH_TOKEN_SECRET` en az 64 karakter olmalıdır. `AUTH_TOKEN_TTL_HOURS` değeri 1-24 saat aralığında bir tam sayı olmalıdır. `APP_BASE_URL`, aktivasyon bağlantısının açacağı frontend adresidir ve production ortamında HTTPS olmalıdır. Port 587 için `SMTP_SECURE=false` ve `SMTP_REQUIRE_TLS=true`; doğrudan TLS kullanan port 465 için genellikle `SMTP_SECURE=true` kullanılır. Kurum SMTP sunucusunun değerleri esas alınmalıdır.
-
-Mac veya Linux ortamında güvenli bir token anahtarı üretmek için aşağıdaki komutun çıktısını `AUTH_TOKEN_SECRET` değeri olarak kullanabilirsiniz:
+Güvenli bir authentication secret oluşturmak için:
 
 ```bash
 openssl rand -hex 64
 ```
 
-Gerçek `.env` dosyası, veritabanı parolası, token anahtarı ve kullanıcı parolaları GitHub'a gönderilmemelidir.
-
-`npm install` tamamlandıktan sonra bütün migration'ları tek komutla çalıştırın:
+### 4. Migration'ları çalıştırın
 
 ```bash
 npm run migrate
 ```
 
-Runner, SQL dosyalarını ada göre sıralar, PostgreSQL advisory lock kullanır, her yeni migration'ı ayrı transaction içinde uygular ve sonucu `schema_migrations` tablosuna checksum ile kaydeder. Daha önce uygulanmış bir dosya atlanır; uygulanmış dosyanın sonradan değiştirilmesi checksum uyuşmazlığıyla durdurulur.
-
-Yerel geliştirmede örnek kullanıcı, üyelik, görev, alt görev, etiket ve yorum verilerini ayrıca eklemek isterseniz:
+Geliştirme verileri gerekiyorsa:
 
 ```bash
 npm run seed:development
 ```
 
-Bu komut production ortamında çalışmayı reddeder. Seed kullanıcılarının `HASH_PLACEHOLDER` parolalarıyla giriş yapılamaz; admin hesabını `npm run create-admin` ile hazırlayın.
-
-### 4. İlk admin hesabı
-
-Veritabanı ve `.env` hazırlandıktan sonra:
+### 5. İlk admin hesabını oluşturun
 
 ```bash
 npm run create-admin
 ```
 
-Script, aynı e-postaya sahip `HASH_PLACEHOLDER` admin kaydını güvenli Argon2id hash'iyle günceller veya yeni bir admin oluşturur. Production ortamında önce kurumsal posta kutusunun gerçekten ilk admine ait olduğu kurum içinde doğrulanmalı ve ancak bundan sonra `INITIAL_ADMIN_EMAIL_VERIFIED=true` ayarlanmalıdır. Script bu açık onay olmadan production admini oluşturmayı reddeder; onay varsa e-posta doğrulama tarihini de kaydeder. İşlem tamamlandıktan sonra `INITIAL_ADMIN_PASSWORD` değeri `.env` dosyasından kaldırılmalıdır.
-
-Admin parolasını daha sonra sıfırlamak için `.env` dosyasına geçici olarak `RESET_ADMIN_EMAIL` ve `RESET_ADMIN_PASSWORD` değerlerini ekleyip şu komutu çalıştırabilirsiniz:
-
-```bash
-npm run reset-admin-password
-```
-
-### 5. Uygulamayı çalıştırma
-
-Backend klasöründeki terminalde:
+### 6. Backend'i başlatın
 
 ```bash
 npm run dev
 ```
 
-Backend adresi:
+Backend:
 
 ```text
 http://localhost:3001
 ```
 
-İkinci terminalde frontend'i çalıştırın:
+### 7. Frontend'i başlatın
+
+Yeni bir terminalde:
 
 ```bash
 cd frontend
@@ -240,197 +279,105 @@ npm install
 npm run dev
 ```
 
-Frontend adresi:
+Frontend:
 
 ```text
 http://localhost:5175
 ```
 
-Vite geliştirme sunucusu `/api` isteklerini `http://localhost:3001` adresindeki backend'e yönlendirir. Geliştirme sırasında iki terminal de açık kalmalıdır.
+---
 
-## Doğrulama ve test
+## 🧪 Test
 
-Backend otomatik testleri:
+### Unit Tests
 
 ```bash
 cd backend
 npm test
 ```
 
-Güncel birim test paketi 192 senaryodan oluşur ve kayıt talebinin genel yanıtı, aktif admin bildirimi, admin onayı/e-posta gönderimi, migration checksum/tekrar çalıştırma davranışı, migration kilidi hatası, SMTP şifreleme zorunluluğu, tek kullanımlık aktivasyon, Argon2id, auth, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, görev tipi-grup yönlendirmesi, atama, düzenleme, yaşam döngüsü, alt görev, yorum, dosya eki, etiket, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
+Backend test suite'i **192 senaryo** içermektedir.
 
-### Gerçek PostgreSQL entegrasyon testleri
+Testler authentication, authorization, kullanıcı ve grup yönetimi, görev yönetimi, görev görünürlüğü, görev tipleri, atama, alt görevler, yorumlar, dosya ekleri, etiketler, bildirimler, genel arama, audit log ve dashboard raporları gibi temel akışları kapsamaktadır.
 
-Entegrasyon testleri geliştirme veritabanını kullanmaz. pgAdmin veya `psql` ile bir kez, adı `_test` ile biten ayrı bir veritabanı oluşturun:
+### PostgreSQL Integration Tests
+
+Test ortamı için ayrı bir PostgreSQL veritabanı oluşturulmalıdır:
 
 ```sql
 CREATE DATABASE gys_lawdesk_test;
 ```
 
-`backend/.env` içindeki `INTEGRATION_DATABASE_URL` değerini bu veritabanına yönlendirdikten sonra:
+Ardından:
 
 ```bash
 cd backend
 npm run test:integration
 ```
 
-Komut, `gys_lawdesk_test` veritabanının `public` şemasını silip güncel SQL şemasından yeniden kurar ve 18 gerçek PostgreSQL senaryosu çalıştırır. Kapsam; migration takibi, kayıt talebi, admin onayı, tek kullanımlık aktivasyon ve girişin yanında yorum/sürüm geçmişi, dosya yükleme-indirme-arşivleme-geri yükleme, etiket atama/filtreleme, alt görev mirası ve bildirim sahipliği/okunmamış akışlarını içerir. Güvenlik kontrolü nedeniyle veritabanı adı `_test` ile bitmiyorsa işlem tablo değişikliği yapmadan durur. `INTEGRATION_DATABASE_URL` hiçbir zaman geliştirme veya üretim veritabanını göstermemelidir.
+Integration test suite'i gerçek PostgreSQL üzerinde **18 senaryoyu** doğrulamaktadır.
 
-Birim ve entegrasyon testlerini birlikte çalıştırmak için:
+### Tüm Testler
 
 ```bash
 npm run test:all
 ```
 
-GitHub Actions, pull request ve `main` push işlemlerinde geçici PostgreSQL servisini otomatik oluşturur; ayrıca yerel veritabanı hazırlığı gerekmez.
-
-Frontend production build kontrolü:
+### Frontend Build
 
 ```bash
 cd frontend
 npm run build
 ```
 
-Temel bağlantı kontrolleri:
+### CI
 
-| Kontrol | Adres |
-| --- | --- |
-| Backend | `http://localhost:3001` |
-| Veritabanı bağlantısı | `http://localhost:3001/api/db-test` |
-| Frontend | `http://localhost:5175` |
+GitHub Actions, `main` branch'ine yapılan push ve Pull Request işlemlerinde PostgreSQL servisli test ve frontend build kontrollerini otomatik olarak çalıştırır.
 
-## API özeti
+---
 
-### Kimlik doğrulama
+## 🔒 Güvenlik
 
-| Method | Endpoint | Açıklama |
-| --- | --- | --- |
-| POST | `/api/auth/login` | Oturum açar ve HttpOnly çerez oluşturur |
-| GET | `/api/auth/me` | Mevcut oturumu ve grup üyeliklerini döndürür |
-| POST | `/api/auth/logout` | Oturumu kapatır |
+LawDesk'te temel güvenlik gereksinimleri dikkate alınarak:
 
-### Kayıt ve aktivasyon
+* Parolalar **Argon2id** ile hashlenir.
+* JWT tabanlı authentication kullanılır.
+* Session cookie `HttpOnly` olarak tutulur.
+* Production ortamında `Secure` ve `SameSite=Strict` cookie özellikleri kullanılır.
+* Aktivasyon tokenlarının yalnızca SHA-256 özeti veritabanında tutulur.
+* Aktivasyon bağlantıları süreli ve tek kullanımlıdır.
+* Kayıt endpoint'i rate limiting uygular.
+* Pasif veya arşivlenmiş kullanıcıların oturum açmasına izin verilmez.
+* Yetkisiz kullanıcıların görev ve grup verilerine erişimi engellenir.
+* Görev ve dashboard sonuçları kullanıcının görünürlük kapsamına göre filtrelenir.
+* Gerçek kullanıcı bilgileri seed veya migration dosyalarında tutulmaz.
 
-| Method | Endpoint | Açıklama |
-| --- | --- | --- |
-| POST | `/api/registration-requests` | Ad-soyad ve e-posta ile kayıt talebi oluşturur; geçerli, geçersiz, mevcut veya tekrar eden başvuruda aynı genel `202` yanıtını verir |
-| POST | `/api/registration-requests/activation/validate` | 24 saatlik aktivasyon tokenının hâlâ geçerli olduğunu doğrular |
-| POST | `/api/registration-requests/activation/complete` | Parola tekrarını doğrular, Argon2id hash üretir, e-postayı doğrular ve hesabı aktifleştirir |
+> Production ortamına geçiş öncesinde CORS, güvenlik başlıkları, CSRF koruması, giriş denemesi limitleri, yedekleme ve monitoring politikalarının ayrıca yapılandırılması gerekir.
 
-### Admin işlemleri
+---
 
-Bu endpoint'lerin tamamı `admin` sistem rolü gerektirir.
+## 📌 Proje Durumu
 
-| Method | Endpoint | Açıklama |
-| --- | --- | --- |
-| GET | `/api/admin/users` | Arşivlenmemiş veya `?archived=true` ile arşivlenmiş kullanıcıları; isteğe bağlı `page` ve `limit` ile sayfalanmış olarak listeler |
-| PATCH | `/api/admin/users/:id` | Kullanıcıyı aktif veya pasif yapar |
-| DELETE | `/api/admin/users/:id` | Kullanıcıyı fiziksel silmeden arşivler |
-| PATCH | `/api/admin/users/:id/restore` | Kullanıcıyı pasif olarak geri yükler |
-| PUT | `/api/admin/users/:id/memberships` | Grup üyeliklerini ve grup rollerini atomik olarak günceller |
-| GET | `/api/admin/groups` | Grupları ve üye sayılarını; isteğe bağlı `page` ve `limit` ile sayfalanmış olarak listeler |
-| POST | `/api/admin/groups` | Grup oluşturur |
-| PATCH | `/api/admin/groups/:id` | Grup adı ve açıklamasını günceller |
-| GET | `/api/admin/registration-requests` | Duruma göre kayıt taleplerini sayfalanmış olarak listeler |
-| GET | `/api/admin/registration-requests/:id` | Talebi ve oluşturulmuşsa hesap/grup üyeliklerini döndürür |
-| POST | `/api/admin/registration-requests/:id/approve` | Rol ve grup seçimleriyle pasif hesabı/tokenı transaction içinde oluşturur ve aktivasyon e-postasını gönderir |
-| POST | `/api/admin/registration-requests/:id/reject` | Talebi isteğe bağlı nedenle reddeder |
-| POST | `/api/admin/registration-requests/:id/resend-activation` | Eski kullanılmamış tokenı iptal edip yeni 24 saatlik bağlantı gönderir |
+LawDesk, görev ve ekip yönetimi için çalışan bir **MVP uygulamasıdır**.
 
-Adminin parola belirleyerek doğrudan kullanıcı oluşturduğu eski `POST /api/admin/users` endpoint'i kapalıdır; normal kullanıcı hesapları yalnızca onay ve e-posta aktivasyonu yoluyla açılır. İlk sistem admini bunun dışındaki kontrollü bootstrap komutuyla oluşturulur.
+Temel authentication, authorization, kullanıcı ve grup yönetimi, görev yaşam döngüsü, görev görünürlüğü, alt görevler, yorumlar, dosya ekleri, etiketler, bildirimler, dashboard, raporlama, audit log, pagination ve global search özellikleri uygulanmıştır.
 
-### Görev işlemleri
+Uygulama üzerinde gerçek PostgreSQL veritabanı ile kritik akışların entegrasyon testleri yapılmakta ve GitHub Actions üzerinden otomatik kontroller çalıştırılmaktadır.
 
-Bütün görev endpoint'leri geçerli oturum gerektirir; sonuçlar ve işlemler kullanıcının rolüne ve grup kapsamına göre sınırlandırılır.
+Production kullanımı için kurum altyapısına yönelik deployment, yedekleme, monitoring ve ek güvenlik yapılandırmalarının tamamlanması gerekmektedir.
 
-| Method | Endpoint | Açıklama |
-| --- | --- | --- |
-| GET | `/api/tasks` | Görünür aktif görevleri veya `?archived=true` ile yetkili arşiv görünümünü; arama, filtre, sıralama ve sayfalama desteğiyle döndürür |
-| GET | `/api/tasks/dashboard-summary` | Görünür görevlerden dashboard risk, performans ve dağılım özetini döndürür |
-| GET | `/api/tasks/dashboard-report/export` | Seçilen dönem için görünürlük kapsamlı görev raporunu UTF-8 CSV olarak dışa aktarır |
-| GET | `/api/tasks/:id` | Yetkili kullanıcının görev detayını döndürür |
-| GET | `/api/tasks/options` | Görev tiplerini ve yetkiye uygun atama seçeneklerini döndürür |
-| POST | `/api/tasks` | Görev oluşturur |
-| GET | `/api/tasks/types` | Admin/yönetici için aktif veya `?archived=true` ile arşivlenmiş görev tiplerini ve kullanım sayılarını döndürür |
-| POST | `/api/tasks/types` | Admin/yönetici için sorumlu grubu zorunlu görev tipi oluşturur |
-| PATCH | `/api/tasks/types/:typeId` | Görev tipinin adını, açıklamasını ve sorumlu grubunu günceller |
-| DELETE | `/api/tasks/types/:typeId` | Görev tipini mevcut görevlerden silmeden arşivler |
-| PATCH | `/api/tasks/types/:typeId/restore` | Arşivlenmiş görev tipini geri yükler |
-| PATCH | `/api/tasks/:id` | Başlık, açıklama, zorunlu tip, öncelik ve bitiş tarihini günceller; tip değişirse uyumsuz atamayı yeni sorumlu gruba taşır |
-| PATCH | `/api/tasks/:id/assignment` | Görevi tip grubundaki kullanıcıya atar; hedef verilmezse görev tipi grubuna yönlendirir |
-| PATCH | `/api/tasks/:id/status` | Durumu değiştirir; `Tamamlandi` veya neden zorunlu `Iptal Edildi` seçiminde görevi aynı transaction içinde arşivler |
-| PATCH | `/api/tasks/:id/restore` | Arşivlenmiş görevi `Devam Ediyor` durumunda geri yükler |
-| GET | `/api/tasks/:id/subtasks` | Aktif veya `?archived=true` ile arşivlenmiş alt görevleri döndürür |
-| POST | `/api/tasks/:id/subtasks` | Ana görevin altında tek seviyeli bir alt görev oluşturur |
-| GET | `/api/tasks/:id/comments` | Aktif veya `?archived=true` ile arşivlenmiş yorumları döndürür |
-| POST | `/api/tasks/:id/comments` | Göreve yorum ekler |
-| PATCH | `/api/tasks/:id/comments/:commentId` | Yorumu sürüm kontrolüyle düzenler |
-| GET | `/api/tasks/:id/comments/:commentId/history` | Yorumun önceki sürümlerini döndürür |
-| DELETE | `/api/tasks/:id/comments/:commentId` | Yorumu fiziksel silmeden arşivler |
-| PATCH | `/api/tasks/:id/comments/:commentId/restore` | Arşivlenmiş yorumu geri yükler |
-| GET | `/api/tasks/:id/attachments` | Aktif veya kaldırılmış görev eklerini döndürür |
-| POST | `/api/tasks/:id/attachments` | Doğrulanmış bir dosyayı göreve ekler |
-| GET | `/api/tasks/:id/attachments/:attachmentId/download` | Yetkili kullanıcının görev ekini indirmesini sağlar |
-| DELETE | `/api/tasks/:id/attachments/:attachmentId` | Eki fiziksel silmeden kaldırır |
-| PATCH | `/api/tasks/:id/attachments/:attachmentId/restore` | Kaldırılmış eki geri yükler |
-| GET | `/api/tasks/tags` | Aktif etiketleri veya yetkili kullanıcı için `?archived=true` ile etiket arşivini döndürür |
-| POST | `/api/tasks/tags` | Admin veya yönetici için yeni etiket oluşturur |
-| PATCH | `/api/tasks/tags/:tagId` | Admin veya yönetici için etiket adını günceller |
-| DELETE | `/api/tasks/tags/:tagId` | Admin veya yönetici için etiketi fiziksel silmeden arşivler |
-| PATCH | `/api/tasks/tags/:tagId/restore` | Admin veya yönetici için etiketi geri yükler |
-| GET | `/api/tasks/:id/tags` | Görevin etiketlerini ve kullanılabilir etiketleri döndürür |
-| PUT | `/api/tasks/:id/tags` | Yetkili kullanıcının görev etiketlerini atomik olarak değiştirir |
-| GET | `/api/tasks/activity` | Admin ve yöneticiler için filtrelenmiş ve sayfalanmış işlem kayıtlarını döndürür |
-| GET | `/api/tasks/activity/export` | Aynı filtrelerle en fazla 5000 işlem kaydını Excel uyumlu UTF-8 CSV olarak dışa aktarır |
+---
 
-### Bildirimler
+## 📚 Dokümantasyon
 
-| Method | Endpoint | Açıklama |
-| --- | --- | --- |
-| GET | `/api/notifications` | Oturum sahibinin bildirimlerini sayfalanmış olarak döndürür; `?unread=true` yalnızca okunmamışları getirir |
-| GET | `/api/notifications/unread-count` | Oturum sahibinin okunmamış bildirim sayısını döndürür |
-| PATCH | `/api/notifications/:id/read` | Yalnızca oturum sahibine ait bildirimi okundu olarak işaretler |
+* [ER Diagram](docs/GYS_ER_Diagram.pdf)
+* [Production Cutover Guide](docs/PRODUCTION_CUTOVER.md)
 
-### Genel arama
+---
 
-| Method | Endpoint | Açıklama |
-| --- | --- | --- |
-| GET | `/api/search?q=...` | En az iki karakterle, yalnızca oturum sahibinin görmeye yetkili olduğu görev ve grupları; role göre kullanıcı, etiket, görev tipi ve denetim izi sonuçlarını döndürür |
+## 🌿 Git Workflow
 
-Tamamlanan veya iptal edilen görevler otomatik arşivlenir; iptal işlemi açıklama olmadan kabul edilmez. Arşivde bitiş tarihinin yanında kapanış nedeni gösterilir. Görev geri yüklendiğinde durumu `Devam Ediyor` olur ve önceki iptal nedeni aktif kayıttan temizlenir; ayrıntılı geçmiş denetim izinde korunur. Alt görevler ana görevin atamasını ve görünürlüğünü devralır; bağımsız olarak yeniden atanamaz. Ana görev kapatılmadan önce açık alt görevler tamamlanmalı veya iptal edilmelidir.
-
-Bir görev tipinin sorumlu grubu değiştirildiğinde mevcut görevler topluca taşınmaz. Yeni görevler güncel gruba yönlenir; mevcut görev ise tipi değiştirildiğinde veya yeniden atandığında güncel görev tipi–grup kuralına göre doğrulanır. Böylece yönetim ekranındaki tek bir değişiklik geçmiş görevlerin sahipliğini beklenmedik biçimde değiştirmez.
-
-## Güvenlik notları
-
-- Parolalar Argon2id ile hash'lenir ve düz metin olarak saklanmaz.
-- Aktivasyon tokenının kendisi veritabanında tutulmaz; yalnızca SHA-256 özeti saklanır ve aktif token kullanıcı başına bir adetle sınırlandırılır.
-- Aktivasyon bağlantısı varsayılan olarak 24 saat geçerlidir, tek kullanımlıdır ve yeni bağlantı üretildiğinde önceki kullanılmamış token iptal edilir.
-- Kayıt endpoint'i hesap veya başvuru varlığını ele vermemek için her durumda aynı genel yanıtı kullanır ve IP tabanlı hız limiti uygular.
-- Aktivasyon bekleyen hesap pasiftir, parola hash'i yoktur ve admin tarafından normal aktif/pasif endpoint'iyle aktifleştirilemez.
-- SMTP port 587 kullanımında STARTTLS zorunlu tutulabilir; production aktivasyon adresi HTTPS olmak zorundadır.
-- Oturum çerezi HttpOnly'dir; production modunda `Secure` ve `SameSite=Strict` kullanılır.
-- JWT issuer, audience, algoritma ve süre kontrolleri yapılır.
-- Olmayan kullanıcı ve yanlış parola aynı hata mesajını üretir.
-- Pasif veya arşivlenmiş kullanıcıların oturumları kabul edilmez.
-- `.env`, `node_modules`, build çıktıları ve veritabanı yedekleri Git'e eklenmemelidir.
-- Gerçek kullanıcı e-postaları seed veya migration dosyalarına yazılmaz. İlk admin kurumsal olarak doğrulanmış adresle bootstrap edilir; diğer kullanıcılar kayıt ve aktivasyon akışından alınır.
-
-Mevcut CORS ayarı geliştirme kolaylığı için dinamiktir. Üretime geçmeden önce izin verilen kurum origin'iyle sınırlandırılmalı; güvenlik başlıkları, giriş deneme limiti, CSRF değerlendirmesi, yedekleme ve izleme politikaları tamamlanmalıdır.
-
-## Henüz tamamlanmayan ana alanlar
-
-- Görev bildirimleri ve son tarih hatırlatmalarının e-posta kanalına bağlanması
-- Uygulama içi bildirim tercihleri ve toplu okundu işlemleri
-- Genel sistem ayarları yönetimi
-- Kullanıcının kendi parolasını değiştirmesi
-- Kurum sunucusu kurulum, yedekleme ve operasyon dokümanı
-
-Bu alanlar üretim hazırlığı ve e-posta altyapısı planıyla birlikte kademeli olarak tamamlanacaktır.
-
-## Git çalışma düzeni
-
-Yeni özellikler doğrudan `main` branch'inde geliştirilmemelidir:
+Yeni özellikler doğrudan `main` branch'inde geliştirilmemelidir.
 
 ```bash
 git switch main
@@ -438,4 +385,11 @@ git pull --ff-only
 git switch -c feature/kisa-aciklama
 ```
 
-Yalnızca ilgili dosyalar commit edilmeli; değişiklikler test ve build kontrollerinden sonra Pull Request ile `main` branch'ine eklenmelidir.
+Değişiklikler test ve build kontrollerinden geçirildikten sonra Pull Request ile `main` branch'ine eklenmelidir.
+
+---
+
+##  Developers
+
+**Secil Keser**
+**Umut Can Akgün**
