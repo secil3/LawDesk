@@ -1,5 +1,6 @@
 import { Fragment, useState } from "react";
 import { EmptyState, LoadingState } from "./ui/StateDisplay";
+import TableSearch from "./TableSearch";
 
 function GroupTable({
   groups,
@@ -10,6 +11,8 @@ function GroupTable({
   assignmentDrafts,
   users,
   savingGroupId,
+  searchTerm,
+  onSearchChange,
   onDraftChange,
   onUpdateGroup,
   onAssignmentChange,
@@ -21,12 +24,23 @@ function GroupTable({
     return <LoadingState>Gruplar yükleniyor...</LoadingState>;
   }
 
-  if (groups.length === 0) {
+  if (groups.length === 0 && !searchTerm) {
     return <EmptyState>{emptyMessage}</EmptyState>;
   }
 
   return (
-    <div className="group-table-shell">
+    <div className="table-list-with-search">
+      <TableSearch
+        value={searchTerm}
+        onChange={onSearchChange}
+        placeholder="Gruplarda ara..."
+        label="Gruplarda ara"
+        resultCount={groups.length}
+      />
+      {groups.length === 0 ? (
+        <EmptyState>Aramanızla eşleşen grup bulunamadı.</EmptyState>
+      ) : (
+      <div className="group-table-shell">
       <table className="group-table">
         <thead>
           <tr>
@@ -187,6 +201,8 @@ function GroupTable({
           })}
         </tbody>
       </table>
+      </div>
+      )}
     </div>
   );
 }

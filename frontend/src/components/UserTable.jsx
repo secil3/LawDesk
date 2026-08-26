@@ -1,4 +1,5 @@
 import { EmptyState, LoadingState } from "./ui/StateDisplay";
+import TableSearch from "./TableSearch";
 
 const roleLabel = (role) => {
   if (role === "admin") return "Admin";
@@ -9,17 +10,28 @@ const roleLabel = (role) => {
 const groupRoleLabel = (role) =>
   role === "grup_yoneticisi" ? "Yönetici" : "Üye";
 
-function UserTable({ users, loading, onToggleActive, onEditMemberships }) {
+function UserTable({ users, loading, searchTerm, onSearchChange, onToggleActive, onEditMemberships }) {
   if (loading) {
     return <LoadingState>Kullanıcılar yükleniyor...</LoadingState>;
   }
 
-  if (users.length === 0) {
+  if (users.length === 0 && !searchTerm) {
     return <EmptyState>Henüz kullanıcı oluşturulmadı.</EmptyState>;
   }
 
   return (
-    <div className="user-table-shell">
+    <div className="table-list-with-search">
+      <TableSearch
+        value={searchTerm}
+        onChange={onSearchChange}
+        placeholder="Kullanıcılarda ara..."
+        label="Kullanıcılarda ara"
+        resultCount={users.length}
+      />
+      {users.length === 0 ? (
+        <EmptyState>Aramanızla eşleşen kullanıcı bulunamadı.</EmptyState>
+      ) : (
+      <div className="user-table-shell">
       <table className="user-table">
         <thead>
           <tr>
@@ -107,6 +119,8 @@ function UserTable({ users, loading, onToggleActive, onEditMemberships }) {
           })}
         </tbody>
       </table>
+      </div>
+      )}
     </div>
   );
 }

@@ -1,3 +1,5 @@
+import BrandLogo from "./BrandLogo";
+
 function Navbar({ currentPath, onNavigate }) {
   const items = [
     { label: "Ana Sayfa", path: "/" },
@@ -13,11 +15,7 @@ function Navbar({ currentPath, onNavigate }) {
           onNavigate("/");
         }
       }}>
-        <span className="brand-mark">L</span>
-        <div>
-          <strong>LawDesk</strong>
-          <small>Görev Yönetim Sistemi</small>
-        </div>
+        <BrandLogo subtitle="Görev Yönetim Sistemi" variant="navbar" />
       </div>
 
       <nav className="public-nav" aria-label="Ana menü">
