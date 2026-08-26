@@ -246,7 +246,8 @@ bunların yerine `DB_*` alanları yazılmalıdır.
 
 Native örnekte kullanıcı → Nginx → backend zinciri olduğundan
 `TRUST_PROXY_HOPS=1` kullanılır. Servis örneği her açılışta üretim ayarını kontrol
-eder, migration'ları uygular ve SIGTERM sırasında bağlantıları güvenli kapatır.
+eder, PostgreSQL hazır olana kadar yalnızca geçici bağlantı hatalarında migration'ı
+kontrollü biçimde yeniden dener ve SIGTERM sırasında bağlantıları güvenli kapatır.
 
 ## 8. İlk admin hesabı
 

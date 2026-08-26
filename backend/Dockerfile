@@ -20,4 +20,4 @@ WORKDIR /opt/lawdesk/backend
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "node scripts/migrate.js && exec node server.js"]
+CMD ["node", "scripts/startProduction.js"]
