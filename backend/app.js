@@ -5,6 +5,7 @@ dotenv.config();
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const helmet = require("helmet");
 
 const homeRoutes = require("./routes/home");
 const authRoutes = require("./routes/auth");
@@ -16,6 +17,10 @@ const notificationRoutes = require("./routes/notifications");
 const registrationRoutes = require("./routes/registration");
 const { getAuthConfig } = require("./config/auth");
 const { getHttpConfig, isOriginAllowed } = require("./config/http");
+const {
+  assertNoProductionPlaceholders,
+} = require("./config/production");
+const { getEmailConfig } = require("./services/emailService");
 
 const app = express();
 
@@ -23,9 +28,25 @@ const app = express();
 getAuthConfig();
 const httpConfig = getHttpConfig();
 
+if (process.env.NODE_ENV === "production") {
+  // Aktivasyon e-postası zorunlu olduğundan eksik SMTP ayarıyla servis açılmaz.
+  getEmailConfig();
+  assertNoProductionPlaceholders();
+}
+
 if (httpConfig.trustProxyHops > 0) {
   app.set("trust proxy", httpConfig.trustProxyHops);
 }
+
+app.disable("x-powered-by");
+app.use(
+  helmet({
+    // API yanıtları HTML çalıştırmadığı için CSP, arayüzü sunan Nginx'te uygulanır.
+    contentSecurityPolicy: false,
+    strictTransportSecurity:
+      process.env.NODE_ENV === "production" ? undefined : false,
+  }),
+);
 
 app.use(
   cors({

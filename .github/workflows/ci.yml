@@ -78,3 +78,80 @@ jobs:
       - name: Frontend production build
         working-directory: frontend
         run: npm run build
+
+  production-deployment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v5
+
+      - name: Production ortam şablonunu hazırla
+        run: |
+          cp deploy/production.env.example deploy/production.env
+          sed -i 's|^APP_BASE_URL=.*|APP_BASE_URL=https://lawdesk.ci.invalid|' deploy/production.env
+          sed -i 's|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=ci-database-password-1234567890|' deploy/production.env
+          sed -i 's|^AUTH_TOKEN_SECRET=.*|AUTH_TOKEN_SECRET=ci-auth-secret-ci-auth-secret-ci-auth-secret-ci-auth-secret-ci-auth-secret|' deploy/production.env
+          sed -i 's|^SMTP_HOST=.*|SMTP_HOST=smtp.ci.invalid|' deploy/production.env
+          sed -i 's|^SMTP_USER=.*|SMTP_USER=lawdesk@ci.invalid|' deploy/production.env
+          sed -i 's|^SMTP_PASSWORD=.*|SMTP_PASSWORD=ci-smtp-password-123456|' deploy/production.env
+          sed -i 's|^SMTP_FROM=.*|SMTP_FROM=LawDesk CI <lawdesk@ci.invalid>|' deploy/production.env
+          sed -i 's|^INITIAL_ADMIN_NAME=.*|INITIAL_ADMIN_NAME=CI Admin|' deploy/production.env
+          sed -i 's|^INITIAL_ADMIN_EMAIL=.*|INITIAL_ADMIN_EMAIL=admin@ci.invalid|' deploy/production.env
+          sed -i 's|^INITIAL_ADMIN_PASSWORD=.*|INITIAL_ADMIN_PASSWORD=ci-admin-password-123456|' deploy/production.env
+
+      - name: Compose yapılandırmasını doğrula
+        run: >-
+          docker compose
+          --profile bundled-db
+          --env-file deploy/production.env
+          --file compose.production.yml
+          config --quiet
+
+      - name: Production image'larını oluştur
+        run: >-
+          docker compose
+          --profile bundled-db
+          --env-file deploy/production.env
+          --file compose.production.yml
+          build
+
+      - name: Production ayarlarını image içinde doğrula
+        run: >-
+          docker compose
+          --profile bundled-db
+          --env-file deploy/production.env
+          --file compose.production.yml
+          run --rm --no-deps backend node scripts/checkProductionConfig.js
+
+      - name: Production paketini başlat
+        run: >-
+          docker compose
+          --profile bundled-db
+          --env-file deploy/production.env
+          --file compose.production.yml
+          up --detach --wait --wait-timeout 180
+
+      - name: Production health kontrolleri
+        run: |
+          curl --fail --silent --show-error http://127.0.0.1:8080/healthz
+          curl --fail --silent --show-error http://127.0.0.1:8080/api/health
+          curl --fail --silent --show-error http://127.0.0.1:8080/api/ready
+
+      - name: Hata durumunda container loglarını göster
+        if: failure()
+        run: >-
+          docker compose
+          --profile bundled-db
+          --env-file deploy/production.env
+          --file compose.production.yml
+          logs --no-color --tail=200
+
+      - name: Production test ortamını kapat
+        if: always()
+        run: >-
+          docker compose
+          --profile bundled-db
+          --env-file deploy/production.env
+          --file compose.production.yml
+          down --volumes --remove-orphans

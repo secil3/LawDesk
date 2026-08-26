@@ -2,6 +2,10 @@
 
 Bu belge, mevcut veritabanında yalnızca deneme/örnek kayıtları bulunduğu varsayımıyla hazırlanmıştır. Örnek kullanıcıları gerçek kişilere yeniden adlandırmak veya örnek görevleri gerçek hesaplara bağlamak yerine temiz bir veritabanına geçilir. Böylece deneme geçmişi, bildirimler ve görev ilişkileri üretim verisine karışmaz.
 
+Sunucu kurulumu, HTTPS/reverse proxy, health kontrolleri, yedekleme ve geri
+dönüş işlemleri için bu veri geçiş sırasıyla birlikte
+[`DEPLOYMENT.md`](DEPLOYMENT.md) belgesi izlenmelidir.
+
 ## 1. Gerçek kullanıcı ve admin e-posta planı
 
 - Mevcut demo veritabanı silinmez; gerektiğinde karşılaştırma ve geri dönüş için kapalı tutulur.
@@ -70,7 +74,7 @@ Sırasıyla şu kontroller yapılır:
 
 ## 7. SMTP e-posta gönderimi
 
-Production ortamında `APP_BASE_URL` HTTPS olmalıdır. Port 587 için `SMTP_SECURE=false` ve `SMTP_REQUIRE_TLS=true`; port 465 için genellikle `SMTP_SECURE=true` kullanılır.
+Production ortamında `APP_BASE_URL` HTTPS olmalıdır. Port 587 için `SMTP_SECURE=false` ve `SMTP_REQUIRE_TLS=true`; port 465 için genellikle `SMTP_SECURE=true` kullanılır. Production veritabanı bağlantısında `DB_SSL_MODE` açıkça tanımlanır; uzak kurumsal PostgreSQL için tercihen `verify-full` ve kurum CA sertifikası kullanılır.
 
 `APP_BASE_URL` aynı zamanda izin verilen ana frontend origin'ini belirler. Ek origin gerekiyorsa yalnızca güvenilir adresler `CORS_ALLOWED_ORIGINS` içine virgülle ayrılarak yazılır. Uygulama doğrudan internete açıksa `TRUST_PROXY_HOPS=0` kalır; tam olarak bir güvenilir reverse proxy arkasındaysa `1` kullanılır. Proxy sayısı doğrulanmadan genel bir `trust proxy` ayarı verilmez; aksi halde giriş ve kayıt hız limitinin kullandığı istemci IP'si yanıltılabilir.
 

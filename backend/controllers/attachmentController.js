@@ -395,17 +395,20 @@ exports.downloadTaskAttachment = async (req, res) => {
     }
 
     if (attachment.storedName) {
+      let filePath;
+
       try {
-        const filePath = resolveStoredFile(attachment.storedName);
+        filePath = resolveStoredFile(attachment.storedName);
+        await fs.access(filePath);
+      } catch (_error) {
+        filePath = undefined;
 
-        try {
-          await fs.access(filePath);
-        } catch (_error) {
-          if (!attachment.fileBytes) {
-            throw createHttpError(404, "Ek dosyası bulunamadı");
-          }
+        if (!attachment.fileBytes) {
+          throw createHttpError(404, "Ek dosyası bulunamadı");
         }
+      }
 
+      if (filePath) {
         return res.download(
           filePath,
           attachment.fileName,
@@ -422,10 +425,6 @@ exports.downloadTaskAttachment = async (req, res) => {
             }
           },
         );
-      } catch (_error) {
-        if (!attachment.fileBytes) {
-          throw createHttpError(404, "Ek dosyası bulunamadı");
-        }
       }
     }
 
