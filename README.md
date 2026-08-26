@@ -391,5 +391,6 @@ Değişiklikler test ve build kontrollerinden geçirildikten sonra Pull Request 
 
 ##  Developers
 
-**Secil Keser**
-**Umut Can Akgün**
+* **Secil Keser**
+
+* **Umut Can Akgün**
