@@ -233,7 +233,7 @@ exports.createGroup = async (req, res) => {
       const duplicateResult = await transactionQuery(
         `SELECT grupid
          FROM gruplar
-         WHERE LOWER(grupadi) = LOWER($1)`,
+         WHERE LOWER(BTRIM(grupadi)) = LOWER(BTRIM($1))`,
         [name],
       );
 
@@ -337,7 +337,7 @@ exports.updateGroup = async (req, res) => {
       const duplicateResult = await transactionQuery(
         `SELECT grupid
          FROM gruplar
-         WHERE LOWER(grupadi) = LOWER($1)
+         WHERE LOWER(BTRIM(grupadi)) = LOWER(BTRIM($1))
            AND grupid <> $2`,
         [name, groupId],
       );
@@ -838,33 +838,62 @@ exports.updateUserActive = async (req, res) => {
   }
 
   try {
-    const result = await db.query(
-      `UPDATE kullanicilar
-       SET aktifmi = $1
-       WHERE kullaniciid = $2
-         AND rol IN ('kullanici', 'yonetici')
-         AND silindimi = FALSE
-         AND ($1::boolean = FALSE OR aktivasyonbekliyormu = FALSE)
-       RETURNING kullaniciid AS "id", email, aktifmi`,
-      [aktifMi, userId],
-    );
+    const updatedUser = await db.withTransaction(
+      async (transactionQuery) => {
+        const result = await transactionQuery(
+          `UPDATE kullanicilar
+           SET aktifmi = $1
+           WHERE kullaniciid = $2
+             AND rol IN ('kullanici', 'yonetici')
+             AND silindimi = FALSE
+             AND ($1::boolean = FALSE OR aktivasyonbekliyormu = FALSE)
+           RETURNING kullaniciid AS "id",
+                     adsoyad AS "adSoyad",
+                     email,
+                     aktifmi AS "aktifMi"`,
+          [aktifMi, userId],
+        );
 
-    if (result.rowCount === 0) {
-      return res.status(409).json({
-        error:
-          "Kullanıcı bulunamadı veya aktivasyon tamamlanmadan aktif edilemez",
-      });
-    }
+        if (result.rowCount === 0) {
+          throw createHttpError(
+            409,
+            "Kullanıcı bulunamadı veya aktivasyon tamamlanmadan aktif edilemez",
+          );
+        }
+
+        const targetUser = result.rows[0];
+        const action = aktifMi
+          ? "KullaniciAktiflestirme"
+          : "KullaniciPasiflestirme";
+
+        await recordUserActivity(transactionQuery, {
+          actor: req.user,
+          action,
+          detail:
+            `${req.user.adSoyad}, ${targetUser.adSoyad} ` +
+            `(${targetUser.email}) kullanıcısını ` +
+            `${aktifMi ? "aktif" : "pasif"} duruma getirdi.`,
+        });
+
+        return targetUser;
+      },
+    );
 
     return res.json({
       user: {
-        id: result.rows[0].id,
-        email: result.rows[0].email,
-        aktifMi: result.rows[0].aktifmi,
+        id: updatedUser.id,
+        email: updatedUser.email,
+        aktifMi: updatedUser.aktifMi,
       },
       message: "Kullanıcı güncellendi",
     });
   } catch (error) {
+    if (Number.isInteger(error?.statusCode)) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+      });
+    }
+
     console.error("Update user active failed:", error);
     return res.status(500).json({
       error: "Kullanıcı durumu güncellenemedi",

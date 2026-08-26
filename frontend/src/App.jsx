@@ -95,13 +95,6 @@ function App() {
     setTaskPanelRevision((current) => current + 1);
   };
 
-  const clearClientSession = () => {
-    if (typeof document !== "undefined") {
-      document.cookie =
-        "lawdesk_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax";
-    }
-  };
-
   const handleExpiredSession = async () => {
     try {
       await fetch("/api/auth/logout", {
@@ -109,7 +102,6 @@ function App() {
         credentials: "include",
       }).catch(() => undefined);
     } finally {
-      clearClientSession();
       setUser(null);
       setError("Oturum süresi doldu. Lütfen tekrar giriş yapın.");
       setCurrentPath("/login");
@@ -543,7 +535,6 @@ function App() {
 
         if (response.status === 401) {
           if (isActive) {
-            clearClientSession();
             setUser(null);
           }
           return;

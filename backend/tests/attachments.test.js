@@ -90,6 +90,7 @@ let taskVisible;
 let currentTaskStatus;
 let currentTaskArchived;
 let activity;
+let taskQueryLocks;
 
 before(async () => {
   testServer = expressApp.listen(0, "127.0.0.1");
@@ -133,6 +134,7 @@ beforeEach(async () => {
   currentTaskStatus = "Yeni Atandi";
   currentTaskArchived = false;
   activity = [];
+  taskQueryLocks = [];
 
   db.query = async (text, params = []) => {
     const sql = String(text || "");
@@ -157,6 +159,7 @@ beforeEach(async () => {
       normalized.includes('as "canview"') &&
       normalized.includes("from gorevler g")
     ) {
+      taskQueryLocks.push(normalized.includes("for update of g"));
       return {
         rows: [
           {
@@ -341,6 +344,7 @@ test("visible task user can list attachments", async () => {
   assert.equal(response.body.attachments[0].canDelete, true);
   assert.equal(response.body.canUpload, true);
   assert.equal(response.body.limits.maxFileSizeMb, 25);
+  assert.deepEqual(taskQueryLocks, [false]);
 });
 
 test("user outside task visibility cannot list attachments", async () => {
@@ -374,6 +378,7 @@ test("visible user can upload a validated PDF attachment", async () => {
   assert.equal(response.body.attachment.fileName, "denetim raporu.pdf");
   assert.equal(response.body.attachment.canDelete, true);
   assert.equal(activity[0].action, "EkYukleme");
+  assert.deepEqual(taskQueryLocks, [false, true]);
 
   const storedFile = await fs.readFile(
     path.join(TEST_STORAGE_ROOT, currentAttachment.storedName),
@@ -492,6 +497,7 @@ test("uploader can list and restore a removed attachment", async () => {
   assert.equal(currentAttachment.removed, false);
   assert.equal(currentAttachment.removedAt, null);
   assert.equal(activity[0].action, "EkGeriYukleme");
+  assert.equal(taskQueryLocks.at(-1), true);
 });
 
 test("removed attachment cannot be downloaded before restore", async () => {

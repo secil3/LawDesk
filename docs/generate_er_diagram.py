@@ -89,7 +89,7 @@ def page_header(
     pdf.roundRect(1610, 988, 250, 45, 12, stroke=1, fill=1)
     pdf.setFillColor(COLORS["navy"])
     pdf.setFont("LawDesk-Bold", 12)
-    pdf.drawCentredString(1735, 1015, "24 AĞUSTOS 2026")
+    pdf.drawCentredString(1735, 1015, "25 AĞUSTOS 2026")
     pdf.setFillColor(COLORS["muted"])
     pdf.setFont("LawDesk", 9.5)
     pdf.drawCentredString(1735, 999, "PostgreSQL - 17 tablo")
@@ -673,7 +673,7 @@ def generate(output_path: Path) -> None:
         pagesize=(PAGE_WIDTH, PAGE_HEIGHT),
         pageCompression=1,
     )
-    pdf.setTitle("LawDesk ER Diyagramı - 24 Ağustos 2026")
+    pdf.setTitle("LawDesk ER Diyagramı - 25 Ağustos 2026")
     pdf.setSubject(
         "Güncel PostgreSQL şeması, kayıt aktivasyonu, görev yaşam döngüsü ve migration modeli"
     )

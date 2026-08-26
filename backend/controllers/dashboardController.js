@@ -1,4 +1,8 @@
 const db = require("../config/db");
+const {
+  taskReadableSql,
+  taskVisibilitySql,
+} = require("../services/taskAccess");
 
 const REPORT_PERIODS = new Map([
   ["30", 30],
@@ -84,38 +88,20 @@ const normalizeBreakdown = (value, includeOverdue = false) => {
   }));
 };
 
-const TASK_VISIBILITY_SQL = `
-  (
-    $2::boolean
-    OR g.olusturankullaniciid = $1
-    OR g.atanankullaniciid = $1
-    OR g.gorunurlukkullaniciid = $1
-    OR g.atanangrupid = ANY($3::int[])
-    OR g.gorunurlukgrupid = ANY($3::int[])
-    OR (
-      cardinality($4::int[]) > 0
-      AND (
-        EXISTS (
-          SELECT 1
-          FROM grupuyelikleri assigned_membership
-          WHERE assigned_membership.kullaniciid = g.atanankullaniciid
-            AND assigned_membership.grupid = ANY($4::int[])
-        )
-        OR (
-          g.atanankullaniciid IS NULL
-          AND g.atanangrupid IS NULL
-          AND EXISTS (
-            SELECT 1
-            FROM grupuyelikleri creator_membership
-            WHERE creator_membership.kullaniciid =
-              g.olusturankullaniciid
-              AND creator_membership.grupid = ANY($4::int[])
-          )
-        )
-      )
-    )
-  )
-`;
+const TASK_VISIBILITY_SQL = taskVisibilitySql({
+  alias: "g",
+  userIdParam: "$1",
+  systemManagerParam: "$2",
+  groupIdsParam: "$3",
+  managedGroupIdsParam: "$4",
+});
+
+const TASK_READABLE_SQL = taskReadableSql({
+  alias: "g",
+  systemManagerParam: "$2",
+  managedGroupIdsParam: "$4",
+  privilegedViewerParam: "$5",
+});
 
 const DASHBOARD_SUMMARY_SQL = `
   WITH visible_tasks AS (
@@ -129,7 +115,7 @@ const DASHBOARD_SUMMARY_SQL = `
     LEFT JOIN gruplar assigned_group
       ON assigned_group.grupid = g.atanangrupid
     WHERE ${TASK_VISIBILITY_SQL}
-      AND ($5::boolean OR g.durum <> 'Tamamlandi')
+      AND ${TASK_READABLE_SQL}
   )
   SELECT
     (

@@ -959,7 +959,10 @@ test("task list passes visibility context to database", async () => {
   assert.match(recorded.listSql, /g\.atanankullaniciid = \$1/);
   assert.match(recorded.listSql, /assigned_membership/);
   assert.match(recorded.listSql, /g\.atanankullaniciid is null/);
-  assert.match(recorded.listSql, /g\.durum <> 'tamamlandi'/);
+  assert.match(
+    recorded.listSql,
+    /g\.durum not in \('tamamlandi', 'iptal edildi'\)/,
+  );
   assert.match(recorded.listSql, /g\.arsivlendimi = \$6::boolean/);
 });
 

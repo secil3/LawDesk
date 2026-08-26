@@ -270,6 +270,47 @@ test("me requires a valid login", async () => {
   });
 });
 
+test("allowed frontend origin receives CORS credentials headers", async () => {
+  const response = await request(app)
+    .get("/api/auth/me")
+    .set("Origin", "http://localhost:5175");
+
+  assert.equal(response.status, 401);
+  assert.equal(
+    response.headers["access-control-allow-origin"],
+    "http://localhost:5175",
+  );
+  assert.equal(
+    response.headers["access-control-allow-credentials"],
+    "true",
+  );
+});
+
+test("untrusted browser origin is rejected before route handling", async () => {
+  const response = await request(app)
+    .get("/api/auth/me")
+    .set("Origin", "https://evil.example.com");
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(response.body, {
+    error: "İstek kaynağına izin verilmiyor",
+  });
+  assert.equal(response.headers["access-control-allow-origin"], undefined);
+});
+
+test("logout is idempotent without a valid session", async () => {
+  const response = await request(app).post("/api/auth/logout");
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, {
+    message: "Çıkış başarılı",
+  });
+  assert.match(
+    response.headers["set-cookie"]?.[0] || "",
+    /lawdesk_test_session=;/,
+  );
+});
+
 test(
   "login, me and logout work as one session",
   async () => {

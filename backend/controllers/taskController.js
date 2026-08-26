@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const { taskReadableSql } = require("../services/taskAccess");
 const { createNotification } = require("./notificationController");
 
 const ALLOWED_PRIORITIES = new Set([
@@ -15,6 +16,20 @@ const ALLOWED_STATUSES = new Set([
   "Tamamlandi",
   "Iptal Edildi",
 ]);
+
+const TASK_DETAIL_READABLE_SQL = taskReadableSql({
+  alias: "g",
+  systemManagerParam: "$2",
+  managedGroupIdsParam: "$4",
+  privilegedViewerParam: "$6",
+});
+
+const TASK_LIST_READABLE_SQL = taskReadableSql({
+  alias: "g",
+  systemManagerParam: "$2",
+  managedGroupIdsParam: "$4",
+  privilegedViewerParam: "$5",
+});
 
 const TASK_TAGS_SELECT = `COALESCE(
   (
@@ -915,10 +930,7 @@ exports.getTaskById = async (req, res) => {
              )
            )
          )
-         AND (
-           g.arsivlendimi = FALSE
-           OR $6::boolean
-         )
+         AND ${TASK_DETAIL_READABLE_SQL}
        LIMIT 1`,
       [
         taskId,
@@ -1165,7 +1177,7 @@ exports.listTasks = async (req, res) => {
              )
            )
          )
-         AND ($5::boolean OR g.durum <> 'Tamamlandi')
+         AND ${TASK_LIST_READABLE_SQL}
          AND g.arsivlendimi = $6::boolean
          ${whereClause}
          ${orderByClause}`,
@@ -1231,7 +1243,7 @@ exports.listTasks = async (req, res) => {
            )
          )
        )
-       AND ($5::boolean OR g.durum <> 'Tamamlandi')
+       AND ${TASK_LIST_READABLE_SQL}
        AND g.arsivlendimi = $6::boolean
        ${whereClause}`;
 
@@ -1329,7 +1341,7 @@ exports.listTasks = async (req, res) => {
            )
          )
        )
-       AND ($5::boolean OR g.durum <> 'Tamamlandi')
+       AND ${TASK_LIST_READABLE_SQL}
        AND g.arsivlendimi = $6::boolean
        ${whereClause}
        ${orderByClause}

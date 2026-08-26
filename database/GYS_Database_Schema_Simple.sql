@@ -122,6 +122,9 @@ CREATE TABLE Gruplar (
     Aciklama        VARCHAR(500)
 );
 
+CREATE UNIQUE INDEX idx_gruplar_adi_normalize
+    ON Gruplar (LOWER(BTRIM(GrupAdi)));
+
 CREATE TABLE GrupUyelikleri (
     GrupUyelikID    SERIAL PRIMARY KEY,
     GrupID          INT NOT NULL REFERENCES Gruplar(GrupID),
