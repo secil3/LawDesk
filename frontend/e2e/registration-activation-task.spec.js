@@ -254,7 +254,7 @@ test("registration, approval, email activation, login and task creation", async 
     exact: true,
   }).click();
   await expect(candidatePage.getByRole("status").first()).toContainText(
-    "Görev başarıyla oluşturuldu",
+    "Görev oluşturuldu",
   );
   await expect(candidatePage.getByText(taskTitle, { exact: true }).first()).toBeVisible();
   await candidateContext.close();
