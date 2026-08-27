@@ -1,5 +1,9 @@
 # LawDesk native Windows kurulumu
 
+Kurulum ekibi, teknik adımlarla birlikte imzalanabilir
+[`Windows native teslim ve canlı kabul kontrol listesini`](../../docs/WINDOWS_NATIVE_HANDOFF_CHECKLIST.md)
+doldurmalıdır. Checklist tamamlanmadan gerçek kullanıcı alınmamalıdır.
+
 Bu paket Windows 10/11 Pro veya Enterprise üzerinde Docker ve WSL2 olmadan
 kurulum içindir. IIS, frontend'i HTTPS üzerinden sunar ve `/api` isteklerini
 yalnızca `127.0.0.1:3001` üzerinde dinleyen Node.js backend'e aktarır. Backend,

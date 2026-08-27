@@ -232,6 +232,9 @@ Gerçek değerleri içeren hiçbir `.env` dosyasını Git'e eklemeyin. Sunucu bi
 formu, ağ/TLS ayarları, ilk admin, SMTP testi, yedekleme ve geri dönüş adımları
 için [Üretim Dağıtım Rehberi](docs/DEPLOYMENT.md) izlenmelidir. Native Windows
 komutları ayrıca [Windows Kurulum Rehberi](deploy/windows/README.md) içindedir.
+Kurumla yapılacak son teslim ve GO/NO-GO kararı
+[Windows Native Teslim ve Canlı Kabul Kontrol Listesi](docs/WINDOWS_NATIVE_HANDOFF_CHECKLIST.md)
+üzerinden kayıt altına alınır.
 
 ---
 
