@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { readResponse } from "./api";
 import GroupTable from "./components/GroupTable";
@@ -45,6 +45,7 @@ function App() {
     ...EMPTY_LIST_PAGINATION,
   });
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
   const [currentPath, setCurrentPath] = useState(
     typeof window !== "undefined" ? window.location.pathname : "/",
   );
@@ -55,6 +56,7 @@ function App() {
     ...EMPTY_LIST_PAGINATION,
   });
   const [loadingGroups, setLoadingGroups] = useState(false);
+  const [groupSearch, setGroupSearch] = useState("");
   const [groupForm, setGroupForm] = useState({
     name: "",
     description: "",
@@ -71,12 +73,19 @@ function App() {
   const [savingMemberships, setSavingMemberships] = useState(false);
   const [groupAssignmentDrafts, setGroupAssignmentDrafts] = useState({});
   const [taskPanelRevision, setTaskPanelRevision] = useState(0);
+  const userSearchTimerRef = useRef(null);
+  const groupSearchTimerRef = useRef(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
+
+  useEffect(() => () => {
+    window.clearTimeout(userSearchTimerRef.current);
+    window.clearTimeout(groupSearchTimerRef.current);
+  }, []);
 
   const canCreateUsers = (userRecord) => {
     return userRecord?.rol === "admin";
@@ -124,7 +133,7 @@ function App() {
     }
   };
 
-  const loadUserPage = async (page = 1) => {
+  const loadUserPage = async (page = 1, search = userSearch) => {
     setLoadingUsers(true);
 
     try {
@@ -132,6 +141,7 @@ function App() {
         page: String(page),
         limit: String(LIST_PAGE_LIMIT),
       });
+      if (search.trim()) params.set("q", search.trim());
       const response = await fetch(`/api/admin/users?${params}`, {
         credentials: "include",
       });
@@ -184,7 +194,7 @@ function App() {
     }
   };
 
-  const loadGroupPage = async (page = 1) => {
+  const loadGroupPage = async (page = 1, search = groupSearch) => {
     setLoadingGroups(true);
 
     try {
@@ -192,6 +202,7 @@ function App() {
         page: String(page),
         limit: String(LIST_PAGE_LIMIT),
       });
+      if (search.trim()) params.set("q", search.trim());
       const response = await fetch(`/api/groups?${params}`, {
         credentials: "include",
       });
@@ -216,6 +227,22 @@ function App() {
     } finally {
       setLoadingGroups(false);
     }
+  };
+
+  const handleUserSearchChange = (value) => {
+    setUserSearch(value);
+    window.clearTimeout(userSearchTimerRef.current);
+    userSearchTimerRef.current = window.setTimeout(() => {
+      loadUserPage(1, value);
+    }, 250);
+  };
+
+  const handleGroupSearchChange = (value) => {
+    setGroupSearch(value);
+    window.clearTimeout(groupSearchTimerRef.current);
+    groupSearchTimerRef.current = window.setTimeout(() => {
+      loadGroupPage(1, value);
+    }, 250);
   };
 
   const handleCreateGroup = async (event) => {
@@ -742,6 +769,8 @@ function App() {
             assignmentDrafts={groupAssignmentDrafts}
             users={users}
             savingGroupId={savingGroupId}
+            searchTerm={groupSearch}
+            onSearchChange={handleGroupSearchChange}
             onDraftChange={(groupId, draft) =>
               setGroupDrafts((current) => ({ ...current, [groupId]: draft }))
             }
@@ -882,6 +911,8 @@ function App() {
       users={listedUsers}
       loadingUsers={loadingUsers}
       userPagination={userPagination}
+      userSearch={userSearch}
+      onUserSearchChange={handleUserSearchChange}
       onUserPageChange={loadUserPage}
       openMembershipEditor={openMembershipEditor}
       handleToggleActive={handleToggleActive}

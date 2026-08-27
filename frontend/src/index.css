@@ -430,7 +430,29 @@ button[type="submit"]:hover:not(:disabled),
   display: flex;
   align-items: center;
   gap: 12px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   cursor: pointer;
+}
+
+.public-navbar .nav-brand .lawdesk-brand {
+  gap: 12px;
+}
+
+.public-navbar .nav-brand .lawdesk-brand-icon-wrap {
+  width: 50px;
+  height: 50px;
+  flex-basis: 50px;
+}
+
+.public-navbar .nav-brand .lawdesk-brand-icon {
+  border-radius: 13px;
+}
+
+.public-navbar .nav-brand .lawdesk-brand-wordmark {
+  font-size: 1.18rem;
 }
 
 .public-navbar .nav-brand strong {
@@ -773,17 +795,22 @@ button[type="submit"]:hover:not(:disabled),
 }
 
 .topbar-logout-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: auto;
   min-height: 46px;
   margin: 0;
-  padding: 9px 14px;
-  border: 1px solid #e2e8f0;
+  padding: 9px 16px;
+  border: 1px solid rgba(14, 116, 144, 0.34);
   border-radius: 13px;
-  background: #ffffff;
-  color: #475569;
-  font-size: 0.76rem;
-  font-weight: 800;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+  background: #eefbfe;
+  color: #12344f;
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.01em;
+  box-shadow: 0 6px 16px rgba(14, 116, 144, 0.1);
   transition: border-color 160ms ease, background 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
@@ -798,12 +825,21 @@ button[type="submit"]:hover:not(:disabled),
   stroke-linejoin: round;
 }
 
+.topbar-logout-button svg {
+  color: #0e7490;
+  stroke-width: 2.15;
+}
+
 .topbar-logout-button:hover:not(:disabled) {
-  border-color: var(--color-error-border);
-  background: #fff7f7;
-  color: var(--color-error);
-  box-shadow: 0 7px 16px rgba(185, 28, 28, 0.1);
+  border-color: #fb7185;
+  background: #fff1f2;
+  color: #be123c;
+  box-shadow: 0 8px 18px rgba(190, 24, 93, 0.12);
   transform: translateY(-1px);
+}
+
+.topbar-logout-button:hover:not(:disabled) svg {
+  color: #e11d48;
 }
 
 .topbar-logout-button:active:not(:disabled) {
@@ -1189,6 +1225,191 @@ button[type="submit"]:hover:not(:disabled),
   font-weight: 800;
 }
 
+/* Shared LawDesk identity */
+.lawdesk-brand {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+  color: var(--color-text, #0b1425);
+}
+
+.lawdesk-brand-icon-wrap {
+  position: relative;
+  display: block;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+}
+
+.lawdesk-brand-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.lawdesk-brand-icon.is-dark,
+.lawdesk-brand-icon.is-reversed {
+  display: none;
+}
+
+.lawdesk-brand.is-reversed {
+  color: #f6f7f9;
+}
+
+.lawdesk-brand.is-reversed .lawdesk-brand-icon.is-light {
+  display: none;
+}
+
+.lawdesk-brand.is-reversed .lawdesk-brand-icon.is-dark {
+  display: none;
+}
+
+.lawdesk-brand.is-reversed .lawdesk-brand-icon.is-reversed {
+  display: block;
+}
+
+.lawdesk-brand.is-reversed .lawdesk-brand-copy small {
+  color: rgba(246, 247, 249, 0.7);
+}
+
+.lawdesk-brand-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.lawdesk-brand-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 1.06rem;
+  font-weight: 850;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.lawdesk-brand-law {
+  color: currentColor;
+}
+
+.lawdesk-brand-desk {
+  color: #32b7dc;
+}
+
+.lawdesk-brand-copy small {
+  color: var(--color-muted-text, #64748b);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.015em;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.lawdesk-brand.is-compact {
+  gap: 8px;
+}
+
+.lawdesk-brand.is-compact .lawdesk-brand-icon-wrap {
+  width: 34px;
+  height: 34px;
+  flex-basis: 34px;
+}
+
+.lawdesk-brand.is-compact .lawdesk-brand-icon {
+  border-radius: 9px;
+}
+
+.lawdesk-brand.is-compact .lawdesk-brand-wordmark {
+  font-size: 0.92rem;
+}
+
+html[data-theme="dark"] .lawdesk-brand {
+  color: #f6f7f9;
+}
+
+html[data-theme="dark"] .lawdesk-brand-icon.is-light {
+  display: none;
+}
+
+html[data-theme="dark"] .lawdesk-brand-icon.is-dark {
+  display: block;
+}
+
+.lawdesk-brand.is-navbar .lawdesk-brand-icon.is-light {
+  display: block;
+}
+
+.lawdesk-brand.is-navbar .lawdesk-brand-icon.is-dark,
+.lawdesk-brand.is-navbar .lawdesk-brand-icon.is-reversed {
+  display: none;
+}
+
+html[data-theme="dark"] .lawdesk-brand.is-navbar {
+  color: #f6f7f9;
+}
+
+html[data-theme="dark"] .lawdesk-brand.is-navbar .lawdesk-brand-icon.is-dark {
+  display: none;
+}
+
+html[data-theme="dark"] .lawdesk-brand.is-navbar .lawdesk-brand-icon.is-light {
+  display: block;
+}
+
+html[data-theme="dark"] .lawdesk-brand.is-navbar .lawdesk-brand-icon.is-reversed {
+  display: none;
+}
+
+html[data-theme="dark"] .lawdesk-brand.is-navbar .lawdesk-brand-copy small {
+  color: rgba(246, 247, 249, 0.7);
+}
+
+html[data-theme="dark"] .lawdesk-brand-copy small,
+.auth-context-panel .lawdesk-brand-copy small {
+  color: rgba(246, 247, 249, 0.68);
+}
+
+.auth-context-panel .lawdesk-brand {
+  color: #f6f7f9;
+}
+
+.sidebar-brand-button .lawdesk-brand {
+  width: 100%;
+}
+
+.product-hero-signature {
+  width: fit-content;
+  margin-bottom: 16px;
+  padding: 7px 12px 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--color-surface) 86%, transparent);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--color-secondary) 8%, transparent);
+}
+
+.product-hero-signature .lawdesk-brand-wordmark {
+  font-size: 0.88rem;
+}
+
+@media (max-width: 640px) {
+  .nav-brand .lawdesk-brand-copy small {
+    display: none;
+  }
+
+  .nav-brand .lawdesk-brand-icon-wrap {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+  }
+
+  .nav-brand .lawdesk-brand-icon {
+    border-radius: 10px;
+  }
+}
+
 .brand-name,
 .brand-subtitle,
 .auth-heading p,
@@ -1320,9 +1541,34 @@ h1 {
     transform 0.2s ease;
 }
 
-button:hover:not(:disabled) {
-  background: var(--color-secondary);
+html:not([data-theme="dark"]) button:hover:not(:disabled) {
+  background: #e5eaf0;
+  color: #172033;
   transform: translateY(-1px);
+}
+
+html:not([data-theme="dark"]) button[type="submit"]:hover:not(:disabled),
+html:not([data-theme="dark"]) .btn-primary:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: #10233f;
+}
+
+html:not([data-theme="dark"]) .danger-button:hover:not(:disabled),
+html:not([data-theme="dark"]) .btn-danger:hover:not(:disabled),
+html:not([data-theme="dark"]) .logout-confirm-submit:hover:not(:disabled) {
+  background: var(--color-error);
+  color: #ffffff;
+}
+
+html:not([data-theme="dark"]) .logout-button:hover:not(:disabled),
+html:not([data-theme="dark"]) .topbar-logout-button:hover:not(:disabled) {
+  border-color: #fb7185;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+html:not([data-theme="dark"]) .topbar-logout-button:hover:not(:disabled) svg {
+  color: #e11d48;
 }
 
 button:focus-visible {
@@ -2217,6 +2463,126 @@ button:disabled {
   border-radius: 14px;
   background: #ffffff;
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+}
+
+/* Compact search controls above group and user tables */
+.table-list-with-search {
+  display: grid;
+  gap: 10px;
+}
+
+.table-search {
+  display: flex;
+  align-items: center;
+  width: min(100%, 360px);
+  min-height: 36px;
+  padding: 0 8px 0 11px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 32%, var(--color-border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--color-surface) 94%, var(--color-primary-soft));
+  color: var(--color-muted-text);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-secondary) 5%, transparent);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.table-search:focus-within {
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+
+.table-search > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  fill: none;
+  stroke: var(--color-primary-hover);
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+.table-search input {
+  min-width: 0;
+  height: 34px;
+  flex: 1;
+  padding: 0 8px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.73rem;
+  font-weight: 650;
+}
+
+.table-search input:hover,
+.table-search input:focus,
+.table-search input:focus-visible {
+  min-height: 34px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.table-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.table-search input::placeholder {
+  color: var(--color-muted-text);
+  opacity: 0.82;
+}
+
+.table-search-clear {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-muted-text);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.table-search-clear:hover {
+  background: var(--color-primary-soft);
+  color: var(--color-secondary);
+}
+
+.table-search-count {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border-radius: 7px;
+  background: var(--color-primary-soft);
+  color: var(--color-secondary);
+  font-size: 0.64rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+html[data-theme="dark"] .table-search {
+  border-color: color-mix(in srgb, var(--color-primary) 34%, var(--dark-border));
+  background: #101d31;
+  color: #9fb0c8;
+}
+
+html[data-theme="dark"] .table-search:focus-within {
+  border-color: var(--color-primary);
+  background: #142238;
+}
+
+html[data-theme="dark"] .table-search input {
+  color: var(--dark-text);
+}
+
+@media (max-width: 640px) {
+  .table-search {
+    width: 100%;
+  }
 }
 
 .user-list-description {
@@ -4397,27 +4763,47 @@ html[data-theme="dark"] .group-card-header {
 }
 
 .task-toolbar {
-  display: grid;
-  gap: 14px;
-  margin: 20px 0 18px;
-  padding: 18px;
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 14px 0 16px;
+  padding: 10px;
   border: 1px solid #e2e8f0;
-  border-radius: 18px;
+  border-radius: 14px;
   background: linear-gradient(180deg, rgba(248,250,252,0.9), rgba(255,255,255,1));
 }
 
+.task-toolbar > .table-search {
+  width: min(100%, 280px);
+}
+
 .task-filter-row {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  display: flex;
+  flex: 1 1 580px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .task-sort-box {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  align-items: end;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding-left: 8px;
+  border-left: 1px solid #dbe3ee;
+}
+
+.task-filter-row > .task-field {
+  flex: 1 1 112px;
+}
+
+.task-sort-box .task-field:first-child {
+  width: 132px;
+}
+
+.task-sort-box .task-field:last-child {
+  width: 100px;
 }
 
 .task-field {
@@ -4431,6 +4817,27 @@ html[data-theme="dark"] .group-card-header {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #64748b;
+}
+
+.task-toolbar .task-field {
+  gap: 4px;
+}
+
+.task-toolbar .task-field span {
+  padding-left: 2px;
+  font-size: 0.61rem;
+  letter-spacing: 0.055em;
+  color: #718096;
+}
+
+.task-toolbar .task-field select {
+  height: 36px;
+  min-height: 36px;
+  padding: 6px 28px 6px 9px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  box-shadow: none;
 }
 
 .task-field input,
@@ -4456,6 +4863,42 @@ html[data-theme="dark"] .group-card-header {
 .task-filter-row .task-field,
 .task-sort-box .task-field {
   min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .task-toolbar > .table-search {
+    width: 100%;
+  }
+
+  .task-sort-box {
+    flex: 1 1 240px;
+  }
+
+  .task-sort-box .task-field {
+    flex: 1 1 0;
+    width: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .task-filter-row,
+  .task-sort-box {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .task-filter-row > .task-field,
+  .task-sort-box .task-field {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .task-sort-box {
+    padding-top: 8px;
+    padding-left: 0;
+    border-top: 1px solid #dbe3ee;
+    border-left: 0;
+  }
 }
 
 .task-assignment-editor,
@@ -6779,6 +7222,10 @@ html[data-theme="dark"] .activity-filter-grid {
   background: transparent;
 }
 
+html[data-theme="dark"] .task-sort-box {
+  border-color: var(--dark-border);
+}
+
 html[data-theme="dark"] .task-field span,
 html[data-theme="dark"] .activity-panel-heading > div > p:last-child,
 html[data-theme="dark"] .activity-result-summary {
@@ -6823,15 +7270,25 @@ html[data-theme="dark"] .app-topbar-profile-copy small {
 }
 
 html[data-theme="dark"] .topbar-logout-button {
-  border-color: var(--dark-border);
-  background: #101d31;
-  color: #cbd5e1;
+  border-color: rgba(81, 196, 226, 0.42);
+  background: rgba(81, 196, 226, 0.11);
+  color: #f6f7f9;
+  box-shadow: 0 7px 18px rgba(2, 6, 23, 0.24);
+}
+
+html[data-theme="dark"] .topbar-logout-button svg {
+  color: #51c4e2;
 }
 
 html[data-theme="dark"] .topbar-logout-button:hover:not(:disabled) {
-  border-color: var(--color-error-border);
-  background: var(--color-error-soft);
-  color: var(--color-error-border);
+  border-color: #fb7185;
+  background: rgba(190, 24, 93, 0.18);
+  color: #ffe4e6;
+  box-shadow: 0 9px 20px rgba(190, 24, 93, 0.18);
+}
+
+html[data-theme="dark"] .topbar-logout-button:hover:not(:disabled) svg {
+  color: #fda4af;
 }
 
 html[data-theme="dark"] .logout-confirm-card {
@@ -7036,6 +7493,20 @@ html[data-theme="dark"] .logout-confirm-copy > p:last-child {
   display: flex;
   align-items: center;
   gap: 7px;
+}
+
+.product-preview-brand .lawdesk-brand-icon-wrap {
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
+}
+
+.product-preview-brand .lawdesk-brand-icon {
+  border-radius: 7px;
+}
+
+.product-preview-brand .lawdesk-brand-wordmark {
+  font-size: 0.72rem;
 }
 
 .product-preview-brand > span {

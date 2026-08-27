@@ -127,6 +127,7 @@ exports.listGroups = async (req, res) => {
     normalizePositiveInteger(req.query?.limit, 10),
     100,
   );
+  const search = normalizeText(req.query?.q, 100);
 
   try {
     let query = `SELECT g.grupid AS "id",
@@ -146,6 +147,7 @@ exports.listGroups = async (req, res) => {
          ON member.kullaniciid = gu.kullaniciid`;
 
     const params = [];
+    const conditions = [];
 
     if (!isSystemViewer) {
       if (visibleGroupIds.length === 0) {
@@ -164,15 +166,22 @@ exports.listGroups = async (req, res) => {
         });
       }
 
-      query += ` WHERE g.grupid = ANY($1::int[])`;
       params.push([...new Set(visibleGroupIds)]);
+      conditions.push(`g.grupid = ANY($${params.length}::int[])`);
     }
 
-    const visibilityWhere = !isSystemViewer
-      ? `WHERE g.grupid = ANY($1::int[])`
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(
+        `(g.grupadi ILIKE $${params.length} OR COALESCE(g.aciklama, '') ILIKE $${params.length})`,
+      );
+    }
+
+    const whereSql = conditions.length > 0
+      ? `WHERE ${conditions.join(" AND ")}`
       : "";
 
-    query += ` GROUP BY g.grupid, g.grupadi, g.aciklama ORDER BY g.grupadi ASC`;
+    query += ` ${whereSql} GROUP BY g.grupid, g.grupadi, g.aciklama ORDER BY g.grupadi ASC`;
 
     if (!hasPagination) {
       const result = await db.query(query, params);
@@ -181,9 +190,9 @@ exports.listGroups = async (req, res) => {
     }
 
     const countResult = await db.query(
-      `SELECT COUNT(*)::int AS "total"
+       `SELECT COUNT(*)::int AS "total"
        FROM gruplar g
-       ${visibilityWhere}`,
+       ${whereSql}`,
       params,
     );
     const total = Number(countResult.rows[0]?.total || 0);
@@ -395,15 +404,39 @@ exports.listUsers = async (req, res) => {
     normalizePositiveInteger(req.query?.limit, 10),
     100,
   );
+  const search = normalizeText(req.query?.q, 100);
 
   try {
     const baseParams = [archived];
+    let searchWhere = "";
+
+    if (search) {
+      baseParams.push(`%${search}%`);
+      searchWhere = `AND (
+        k.adsoyad ILIKE $2
+        OR k.email ILIKE $2
+        OR CASE k.rol
+             WHEN 'yonetici' THEN 'yönetici yonetici'
+             ELSE 'kullanıcı kullanici'
+           END ILIKE $2
+        OR EXISTS (
+          SELECT 1
+          FROM grupuyelikleri search_gu
+          JOIN gruplar search_g
+            ON search_g.grupid = search_gu.grupid
+          WHERE search_gu.kullaniciid = k.kullaniciid
+            AND search_g.grupadi ILIKE $2
+        )
+      )`;
+    }
+
     const countResult = hasPagination
       ? await db.query(
           `SELECT COUNT(*)::int AS "total"
            FROM kullanicilar k
            WHERE k.rol IN ('kullanici', 'yonetici')
-             AND k.silindimi = $1::boolean`,
+             AND k.silindimi = $1::boolean
+             ${searchWhere}`,
           baseParams,
         )
       : null;
@@ -412,7 +445,11 @@ exports.listUsers = async (req, res) => {
       ? paginationFor(requestedPage, limit, total)
       : null;
     const offset = pagination ? (pagination.page - 1) * limit : 0;
-    const paginationSql = hasPagination ? "LIMIT $2 OFFSET $3" : "";
+    const limitPlaceholder = `$${baseParams.length + 1}`;
+    const offsetPlaceholder = `$${baseParams.length + 2}`;
+    const paginationSql = hasPagination
+      ? `LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`
+      : "";
     const queryParams = hasPagination
       ? [...baseParams, limit, offset]
       : baseParams;
@@ -445,6 +482,7 @@ exports.listUsers = async (req, res) => {
          ON g.grupid = gu.grupid
        WHERE k.rol IN ('kullanici', 'yonetici')
          AND k.silindimi = $1::boolean
+         ${searchWhere}
        GROUP BY k.kullaniciid,
                 k.adsoyad,
                 k.email,

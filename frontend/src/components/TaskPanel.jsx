@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { readResponse } from "../api";
 import PaginationControls from "./PaginationControls";
+import TableSearch from "./TableSearch";
 import TaskAttachments from "./TaskAttachments";
 
 const EMPTY_TASK_FORM = {
@@ -135,6 +136,7 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
     total: 0,
     totalPages: 1,
   });
+  const searchTimerRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [creating, setCreating] = useState(false);
@@ -256,6 +258,10 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
   useEffect(() => {
     setSearchInput(queryState.search);
   }, [queryState.search]);
+
+  useEffect(() => () => {
+    window.clearTimeout(searchTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!toast) {
@@ -600,6 +606,14 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
     }));
   };
 
+  const handleSearchChange = (value) => {
+    setSearchInput(value);
+    window.clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = window.setTimeout(() => {
+      updateQueryState("search", value.trim());
+    }, 250);
+  };
+
   return (
     <section className="task-panel" aria-labelledby="task-panel-title">
       <div className="task-panel-heading">
@@ -818,15 +832,13 @@ function TaskPanel({ refreshKey = 0, onNavigate }) {
       </div>
 
       <form className="task-toolbar" onSubmit={handleSearchSubmit}>
-        <label className="task-field task-field-wide task-search-field">
-          <span>Arama</span>
-          <input
-            type="search"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Görevlerde ara..."
-          />
-        </label>
+        <TableSearch
+          value={searchInput}
+          onChange={handleSearchChange}
+          placeholder="Görevlerde ara..."
+          label="Görevlerde ara"
+          resultCount={pagination.total}
+        />
 
         <div className="task-filter-row">
           <label className="task-field">

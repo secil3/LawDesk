@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { readResponse } from "../api";
+import BrandLogo from "../components/BrandLogo";
 
 function AuthLayout({
   user,
@@ -117,11 +118,7 @@ function AuthLayout({
           onClick={() => onNavigate("/dashboard")}
           aria-label="Ana sayfaya git"
         >
-          <span className="brand-mark">L</span>
-          <div className="brand-meta">
-            <strong>LawDesk</strong>
-            <small>Panel</small>
-          </div>
+          <BrandLogo subtitle="Panel" variant="navbar" />
         </button>
 
         <nav

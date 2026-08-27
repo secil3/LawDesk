@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { readResponse } from "../../api";
+import BrandLogo from "../../components/BrandLogo";
 
 function ActivationPage({ onNavigate }) {
   const [token] = useState(() => {
@@ -109,11 +110,7 @@ function ActivationPage({ onNavigate }) {
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="activation-title">
         <header className="brand">
-          <span className="brand-mark" aria-hidden="true">L</span>
-          <div>
-            <p className="brand-name">LawDesk</p>
-            <p className="brand-subtitle">Hesap aktivasyonu</p>
-          </div>
+          <BrandLogo subtitle="Hesap aktivasyonu" />
         </header>
 
         <div className="auth-heading">

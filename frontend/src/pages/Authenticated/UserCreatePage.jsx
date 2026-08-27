@@ -7,6 +7,8 @@ function UserCreatePage({
   users,
   loadingUsers,
   userPagination,
+  userSearch,
+  onUserSearchChange,
   onUserPageChange,
   openMembershipEditor,
   handleToggleActive,
@@ -81,6 +83,8 @@ function UserCreatePage({
         <UserTable
           users={users}
           loading={loadingUsers}
+          searchTerm={userSearch}
+          onSearchChange={onUserSearchChange}
           onToggleActive={handleToggleActive}
           onEditMemberships={openMembershipEditor}
         />
