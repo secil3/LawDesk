@@ -3,6 +3,7 @@ require("dotenv").config();
 const { getAuthConfig } = require("../config/auth");
 const { getDatabaseConfig } = require("../config/database");
 const { getHttpConfig } = require("../config/http");
+const { getListenerConfig } = require("../config/listener");
 const {
   assertNoProductionPlaceholders,
 } = require("../config/production");
@@ -16,6 +17,7 @@ const checkProductionConfig = () => {
   getAuthConfig();
   getDatabaseConfig();
   getHttpConfig();
+  getListenerConfig();
   getEmailConfig();
   assertNoProductionPlaceholders();
 

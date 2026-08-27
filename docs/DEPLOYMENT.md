@@ -1,19 +1,24 @@
 # LawDesk üretim dağıtım rehberi
 
-Bu belge LawDesk deposunu kurum sunucusuna kuracak BT ekibi içindir. Önerilen
-yöntem Docker Compose'tur. Sunucu bilgileri henüz belli değilse **Sunucu bilgi
-formu** bölümü kurum tarafından doldurulmadan canlı kullanıcı alınmamalıdır.
+Bu belge LawDesk deposunu kurum ortamına kuracak BT ekibi içindir. Hedef ortam
+Windows 10/11 ve Docker/WSL2 kullanılamıyorsa `deploy/windows` altındaki native
+IIS/PowerShell paketi kullanılır. Linux veya Docker kabul edilen ortamlarda
+Compose ve systemd/Nginx seçenekleri korunur. **Sunucu bilgi formu** kurum
+tarafından doldurulmadan canlı kullanıcı alınmamalıdır.
 
 ## 1. Teslimat kapsamı
 
 Depo aşağıdaki üretim parçalarını birlikte taşır:
 
 - React arayüzünü derleyip Nginx ile sunan frontend image'ı
-- Node.js 22 üzerinde çalışan, migration'ları açılışta uygulayan backend image'ı
+- Node.js 24 LTS üzerinde çalışan, migration'ları açılışta uygulayan backend
 - İsteğe bağlı PostgreSQL 16 servisi
 - Kalıcı PostgreSQL ve dosya eki volume'ları
 - Liveness, readiness ve SMTP doğrulama kontrolleri
+- Kalıcı aktivasyon e-posta outbox'ı ve otomatik SMTP yeniden denemeleri
+- Gerçek tarayıcı E2E testi ve 70 kullanıcılı k6 yük profili
 - Reverse proxy örneği ve üretim ortam değişkeni şablonu
+- Native Windows için IIS, başlangıç görevi, health, yedek ve restore PowerShell araçları
 
 Örnek kullanıcı ve görev kayıtları üretimde çalıştırılmaz. `npm run
 seed:development` yalnızca geliştirme içindir ve production ortamında kendini
@@ -38,6 +43,16 @@ Bu nedenle disk kapasitesi kullanıcı sayısından çok gerçek ek dosyası kul
 göre izlenmelidir. PostgreSQL ve ek dosyalar aynı yedekleme zaman diliminde
 korunmalıdır.
 
+Windows 10/11 istemci sürümlerindeki IIS, Microsoft tarafından belgelenen 10
+eşzamanlı işlenen istek sınırına tabidir; ek istekler kuyruğa alınabilir. Bu
+nedenle toplam 50–70 hesaplı kullanımda dahi gerçek hedef bilgisayar üzerinde
+`peak` yük testi canlı kabul engelidir. Eşikler geçmezse Windows Server veya
+kurumca onaylı alternatif native reverse proxy gerekir.
+
+Windows 10 standart desteği sona erdiğinden yalnızca kurumca doğrulanmış aktif
+ESU veya desteklenen LTSC yaşam döngüsündeki kurulum kabul edilir. Geçerli
+güvenlik güncellemesi kapsamı yoksa Windows 11 zorunlu canlı kabul ön koşuludur.
+
 ## 3. Sunucu bilgi formu
 
 BT ekibi dağıtımdan önce aşağıdaki alanları kesinleştirir:
@@ -45,7 +60,9 @@ BT ekibi dağıtımdan önce aşağıdaki alanları kesinleştirir:
 | Konu | Kurum değeri |
 | --- | --- |
 | İşletim sistemi ve sürümü | |
-| Docker Engine / Compose sürümü | |
+| Windows sürümü/edition veya Linux dağıtımı | |
+| Docker/WSL2 izin durumu | |
+| IIS, URL Rewrite ve ARR kurulum durumu | |
 | Uygulama alan adı | |
 | TLS sertifikası sorumlusu | |
 | Reverse proxy / load balancer sayısı | |
@@ -74,6 +91,12 @@ BT ekibi dağıtımdan önce aşağıdaki alanları kesinleştirir:
   okunabilir olmalı ve Git'e hiçbir zaman eklenmemelidir.
 - Sunucunun saat eşitlemesi etkin olmalıdır; token süresi ve denetim kayıtları
   doğru saate bağlıdır.
+- Native Windows kurulumunda Node backend yalnızca `127.0.0.1:3001` adresinde
+  dinler. IIS dışındaki istemcilere `3001/TCP` açılmaz.
+- Windows bilgisayar uykuya alınmamalı veya kullanıcı tarafından kapatılmamalıdır.
+  Güç, güncelleme ve yeniden başlatma politikası BT tarafından yönetilmelidir.
+- Native Windows hedefi son kullanıcı iş istasyonu veya analiz edilmemiş paylaşımlı
+  IIS hostu olmamalı; LawDesk'e ayrılmış, kurumca yönetilen bilgisayar/VM olmalıdır.
 
 Kurum Nginx'i için başlangıç örneği
 `deploy/nginx/host-reverse-proxy.example.conf` dosyasındadır. Sertifika ve alan
@@ -82,7 +105,8 @@ adı değerleri kurum tarafından değiştirilir.
 ## 5. Sürüm seçimi ve dosyaların hazırlanması
 
 Canlıya branch adıyla değil, testleri yeşil olan sabit bir release tag'iyle
-çıkılması önerilir.
+çıkılması önerilir. Release henüz oluşturulmadıysa yalnızca kurumca onaylanmış
+commit hash'i kullanılmalı ve hash teslim tutanağına yazılmalıdır.
 
 ```bash
 git clone https://github.com/secil3/LawDesk.git
@@ -225,9 +249,23 @@ alınmaz. Bu kontrol posta teslimini garanti etmez; kurumun test posta kutusuyla
 gerçek kayıt → admin onayı → aktivasyon bağlantısı → parola → giriş akışı da
 tamamlanmalıdır.
 
-### Docker kullanılamıyorsa
+Aktivasyon e-postaları önce PostgreSQL `epostaoutbox` tablosuna yazılır. Token
+kopyası outbox'ta AES-256-GCM ile şifrelidir; anahtar `AUTH_TOKEN_SECRET` üzerinden
+ayrı bağlamda türetilir ve başarılı SMTP tesliminde şifreli içerik silinir.
+Geçici hata artan aralıklarla en fazla `EMAIL_OUTBOX_MAX_ATTEMPTS` kez yeniden
+denenir. Bu nedenle `AUTH_TOKEN_SECRET` değiştirilmeden önce bekleyen outbox işi
+olmadığı doğrulanmalıdır:
 
-Kurum politikası Docker'a izin vermiyorsa Node.js 22, PostgreSQL 16 veya kurumun
+```sql
+SELECT durum, COUNT(*)
+FROM epostaoutbox
+GROUP BY durum
+ORDER BY durum;
+```
+
+### Linux'ta Docker kullanılamıyorsa
+
+Kurum politikası Docker'a izin vermiyorsa Node.js 24 LTS, PostgreSQL 16 veya kurumun
 desteklediği uyumlu sürüm ve Nginx sistem paketleriyle aynı mimari kurulabilir:
 
 1. Release `/opt/lawdesk/current` altında salt okunur tutulur.
@@ -252,6 +290,46 @@ Native örnekte kullanıcı → Nginx → backend zinciri olduğundan
 eder, PostgreSQL hazır olana kadar yalnızca geçici bağlantı hatalarında migration'ı
 kontrollü biçimde yeniden dener ve SIGTERM sırasında bağlantıları güvenli kapatır.
 
+### Windows 10/11 native kurulum
+
+Docker Desktop ve WSL2 kullanılamayan Windows 10/11 Pro veya Enterprise
+bilgisayarlarda `deploy/windows` paketi kullanılır. Windows Home, IIS tabanlı
+production kurulumu için desteklenmez. Hedef mimari şöyledir:
+
+- IIS, derlenmiş React dosyalarını HTTPS üzerinden sunar.
+- IIS URL Rewrite ve ARR, `/api` isteklerini `127.0.0.1:3001` adresindeki Node
+  backend'e iletir.
+- Backend, bilgisayar açılışında Windows Task Scheduler tarafından Local Service
+  hesabıyla başlatılır ve hata halinde yeniden çalıştırılır.
+- PostgreSQL 16 aynı bilgisayarda native servis olarak veya kurumun ayrı
+  PostgreSQL sunucusunda çalışır.
+- Sırlar repo dışında `C:\ProgramData\LawDesk\config\lawdesk.env`, ekler ise
+  `C:\ProgramData\LawDesk\attachments` altında tutulur.
+
+Kurulumdan önce Node.js 24 LTS, PostgreSQL client araçları, IIS, URL Rewrite ve
+ARR kurulur; kurum TLS sertifikası `Local Computer / Personal` deposuna private
+key ile yüklenir. Sonra yönetici PowerShell'inde:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Install-LawDesk.ps1 -CertificateThumbprint GERCEK_SERTIFIKA_THUMBPRINT
+notepad C:\ProgramData\LawDesk\config\lawdesk.env
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Install-LawDesk.ps1 -CertificateThumbprint GERCEK_SERTIFIKA_THUMBPRINT
+```
+
+İlk komut ortam şablonunu repo dışında oluşturur ve örnek değerler değiştirilene
+kadar bilerek durur. İkinci kurulum komutuna ilk admin oluşturulacaksa yalnızca
+ilk başarılı kurulumda `-CreateInitialAdmin` eklenir.
+
+Kurucu; ortam dosyası ACL'lerini sınırlar, bağımlılıkları kilit dosyalarından
+kurar, frontend production build'ini alır, temiz şemayı ve migration'ları uygular,
+ilk admini isteğe bağlı oluşturur, IIS'i yapılandırır, başlangıç görevini
+kaydeder ve health/readiness kontrollerini çalıştırır. Native ortamda Compose'a
+özgü `POSTGRES_*` alanları kullanılmaz; `DB_HOST`, `DB_PORT`, `DB_NAME`,
+`DB_USER`, `DB_PASSWORD` ve gerekirse `DB_SSL_CA_PATH` doldurulur.
+`BACKEND_BIND_ADDRESS=127.0.0.1` ve doğrudan IIS topolojisinde
+`TRUST_PROXY_HOPS=1` değiştirilmez. Ayrıntılı ön koşul, kurulum ve hata ayıklama
+adımları [`deploy/windows/README.md`](../deploy/windows/README.md) içindedir.
+
 ## 8. İlk admin hesabı
 
 1. Kurum, `INITIAL_ADMIN_EMAIL` posta kutusunun ilgili kişiye ait olduğunu
@@ -275,9 +353,16 @@ docker compose --env-file deploy/production.env -f compose.production.yml up -d 
 
 İkinci admin dahil diğer hesaplar kayıt talebi ve aktivasyon akışıyla açılır.
 
+Native Windows kurucusu ilk çalıştırmada aynı işlemi yapabilir. Bunun için
+`lawdesk.env` içinde doğrulanmış admin alanları doldurulur ve kurucuya
+`-CreateInitialAdmin` verilir. Başarılı oluşturma sonrasında kurucu
+`INITIAL_ADMIN_PASSWORD` satırını ortam dosyasından otomatik kaldırır.
+
 ## 9. Reverse proxy ve HTTPS kabulü
 
-Kurum reverse proxy'si `127.0.0.1:8080` adresine yönlendirilir. Kabul sırasında:
+Docker/Linux topolojisinde kurum reverse proxy'si `127.0.0.1:8080` adresine
+yönlendirilir. Native Windows topolojisinde IIS doğrudan 80/443 dinler ve yalnızca
+`/api` trafiğini loopback backend'e iletir. Kabul sırasında:
 
 - HTTP isteği HTTPS'e yönlenmeli.
 - Sertifika alan adıyla eşleşmeli ve tarayıcı tarafından güvenilir olmalı.
@@ -286,6 +371,12 @@ Kurum reverse proxy'si `127.0.0.1:8080` adresine yönlendirilir. Kabul sırasın
 - 25 MB dosya yüklemesi proxy tarafından reddedilmemeli
   (`client_max_body_size 26m` veya kurumsal karşılığı).
 - Backend ve PostgreSQL portları dış ağdan erişilememeli.
+
+Native Windows kabul kontrolü yönetici PowerShell'inde şu komutla çalıştırılır:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Test-LawDeskHealth.ps1 -PublicBaseUrl https://lawdesk.kurum.example
+```
 
 ## 10. Yedekleme ve geri yükleme
 
@@ -318,6 +409,21 @@ Geri yükleme canlı veriyi değiştiren bir işlemdir. BT ekibi önce mevcut du
 ayrı yedeğini alır, backend/frontend'i durdurur, veritabanı ve ekleri aynı yedek
 zamanına döndürür, sonra `/api/ready` ve uçtan uca kabul akışını tekrar çalıştırır.
 
+Native Windows paketinde veritabanı ve ekler birlikte, SHA-256 manifestiyle
+yedeklenir. Hedef mutlaka sunucu dışı veya daha sonra sunucu dışına taşınacak
+kurumsal bir konum olmalıdır:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Backup-LawDesk.ps1 -Destination E:\LawDeskBackups
+```
+
+Geri yükleme mevcut production verisini değiştirir; önce ayrı yedek alınmalı ve
+doğru veritabanı adı açıkça onaylanmalıdır:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Restore-LawDesk.ps1 -BackupDirectory E:\LawDeskBackups\lawdesk-YYYYMMDD-HHMMSS-utc -ExpectedDatabaseName gys_lawdesk -ConfirmRestore
+```
+
 ## 11. Güncelleme ve geri dönüş
 
 Güncelleme sırası:
@@ -328,6 +434,12 @@ Güncelleme sırası:
 4. `docker compose ... build --pull` çalıştırın.
 5. `docker compose ... up -d` çalıştırın.
 6. Health, SMTP ve temel kullanıcı akışlarını doğrulayın.
+
+Native Windows güncellemesinde onaylı commit/tag checkout edildikten ve yedek
+alındıktan sonra aynı `Install-LawDesk.ps1` komutu yeniden çalıştırılır. Kurucu
+başlangıç görevini durdurur, kilitli bağımlılıkları ve frontend build'ini
+yeniler, migration'ları uygular, IIS yapılandırmasını korur ve health kontrolü
+geçmeden başarılı sonuç vermez.
 
 Migration sistemi yalnızca ileri yönlüdür. Yeni sürüm migration uygulamadıysa
 önceki release tag'inin image'ları yeniden oluşturularak kod geri alınabilir.
@@ -340,11 +452,12 @@ release öncesi veritabanı ve ek yedeği birlikte geri yüklenmelidir.
 
 - Dış HTTPS URL ve sertifika son kullanma tarihi
 - `/healthz` ve `/api/ready` başarısı
-- Container restart sayısı
+- Container restart sayısı veya native Windows başlangıç görevinin durumu
 - 5xx oranı ve backend hata logları
 - PostgreSQL disk kullanımı ve bağlantı sayısı
 - Ek dosya volume disk kullanımı
 - SMTP hataları
+- `epostaoutbox` içinde bekleyen, işlenen veya başarısız iş sayısı
 - Yedekleme işinin son başarılı zamanı
 
 Loglar parola, SMTP parolası, JWT veya aktivasyon tokenı içermemelidir. Destek
@@ -354,14 +467,16 @@ göre maskelenmelidir.
 ## 13. Canlı kabul listesi
 
 - [ ] Onaylı release tag'i kullanıldı; Git çalışma alanı temiz.
-- [ ] CI backend, gerçek PostgreSQL ve frontend build işleri yeşil.
-- [ ] Production env Git tarafından yok sayılıyor ve dosya izni `600`.
+- [ ] CI backend, gerçek PostgreSQL, frontend build, bağımlılık taraması, Playwright E2E, native Windows package ve production deployment işleri yeşil.
+- [ ] Production env Git tarafından yok sayılıyor; Linux'ta `600`, Windows'ta yalnızca Administrators, SYSTEM ve Local Service okuyabiliyor.
 - [ ] `/healthz`, `/api/health` ve `/api/ready` başarılı.
 - [ ] HTTPS, alan adı ve proxy sayısı doğrulandı.
 - [ ] Backend/PostgreSQL portları dışarı açık değil.
 - [ ] SMTP verify başarılı.
 - [ ] İlk admin oluşturuldu ve bootstrap parolası ortamdan silindi.
 - [ ] Test posta kutusuyla kayıt ve tek kullanımlık aktivasyon tamamlandı.
+- [ ] SMTP geçici kesinti ve otomatik outbox yeniden denemesi doğrulandı.
+- [ ] 70 kullanıcılı `peak` k6 testi eşiklerden geçti.
 - [ ] Rol/grup yetkileri örnek hesaplarla kontrol edildi.
 - [ ] Dosya yükleme/indirme kontrol edildi.
 - [ ] PostgreSQL ve ek dosya yedeği alındı.

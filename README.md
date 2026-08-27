@@ -14,6 +14,7 @@ Sistem; rol tabanlı erişim, grup bazlı görev görünürlüğü, görev atama
 * Kullanıcı kayıt talebi ve admin onay süreci
 * E-posta üzerinden hesap aktivasyonu
 * Tek kullanımlık ve süreli aktivasyon tokenları
+* SMTP kesintilerinde kalıcı e-posta kuyruğu ve otomatik yeniden deneme
 * Aktif / pasif kullanıcı yönetimi
 * Kullanıcıların birden fazla gruba atanabilmesi
 * Grup bazında farklı roller tanımlayabilme
@@ -158,7 +159,7 @@ Sayfalama aşağıdaki temel listelerde kullanılmaktadır:
 | Backend        | Node.js, Express 5             |
 | Database       | PostgreSQL                     |
 | Authentication | JWT, Argon2id, HttpOnly Cookie |
-| Testing        | Node.js Test Runner, Supertest |
+| Testing        | Node.js Test Runner, Supertest, Playwright, k6 |
 | Email          | SMTP                           |
 | Deployment     | Docker Compose, Nginx, systemd örneği |
 | CI/CD          | GitHub Actions                 |
@@ -180,6 +181,7 @@ LawDesk/
 │   └── tests/
 │
 ├── frontend/
+│   ├── e2e/
 │   └── src/
 │
 ├── database/
@@ -190,9 +192,11 @@ LawDesk/
 ├── deploy/
 │   ├── nginx/
 │   ├── systemd/
+│   ├── windows/
 │   └── production.env.example
 │
 ├── compose.production.yml
+├── load/
 │
 └── docs/
     ├── DEPLOYMENT.md
@@ -205,7 +209,7 @@ LawDesk/
 
 ## ⚙️ Gereksinimler
 
-* Node.js 22.12+
+* Node.js 24.11+ LTS
 * npm
 * PostgreSQL
 * Git
@@ -213,14 +217,21 @@ LawDesk/
 
 ## Üretim dağıtımı
 
-Kurum sunucusunda önerilen kurulum Docker Compose paketidir. Paket; frontend
-Nginx, backend, isteğe bağlı PostgreSQL, kalıcı ek/veritabanı alanları ve sağlık
-kontrollerini birlikte sağlar. Kurumsal PostgreSQL ve Docker kullanılmayan
-systemd/Nginx kurulumu da belgelenmiştir.
+Windows 10/11 üzerinde Docker/WSL2 kullanılamayan kurum ortamı için native
+`IIS + Node.js + PostgreSQL` paketi bulunur. PowerShell araçları production env,
+şema/migration, frontend build, IIS reverse proxy, backend başlangıç görevi,
+health kontrolü, yedek ve geri yükleme işlemlerini yönetir. Linux/Docker Compose
+ve systemd/Nginx seçenekleri de depoda korunur.
+
+Windows istemci IIS sürümleri 10 eşzamanlı işlenen istek sınırına tabi olduğundan
+50–70 hesaplı kurulum, gerçek hedef bilgisayarda `peak` yük testi geçmeden canlı
+kabul edilmez. Ayrıntı ve Windows Server/alternatif proxy karar eşiği Windows
+kurulum rehberindedir.
 
 Gerçek değerleri içeren hiçbir `.env` dosyasını Git'e eklemeyin. Sunucu bilgi
 formu, ağ/TLS ayarları, ilk admin, SMTP testi, yedekleme ve geri dönüş adımları
-için [Üretim Dağıtım Rehberi](docs/DEPLOYMENT.md) izlenmelidir.
+için [Üretim Dağıtım Rehberi](docs/DEPLOYMENT.md) izlenmelidir. Native Windows
+komutları ayrıca [Windows Kurulum Rehberi](deploy/windows/README.md) içindedir.
 
 ---
 
@@ -259,6 +270,7 @@ Windows PowerShell, `npm.ps1` çalıştırmayı güvenlik ilkesi nedeniyle engel
 
 ```env
 PORT=3001
+BACKEND_BIND_ADDRESS=127.0.0.1
 NODE_ENV=development
 DATABASE_URL=postgresql://postgres:PAROLANIZ@localhost:5432/gys_lawdesk
 INTEGRATION_DATABASE_URL=postgresql://postgres:PAROLANIZ@localhost:5432/gys_lawdesk_test
@@ -288,13 +300,18 @@ SMTP_SOCKET_TIMEOUT_MS=20000
 SMTP_USER=lawdesk@example.com
 SMTP_PASSWORD=SMTP_HESAP_PAROLASI
 SMTP_FROM=LawDesk <lawdesk@example.com>
+EMAIL_OUTBOX_POLL_INTERVAL_MS=30000
+EMAIL_OUTBOX_RETRY_BASE_MS=60000
+EMAIL_OUTBOX_MAX_ATTEMPTS=10
+EMAIL_OUTBOX_LOCK_TIMEOUT_MS=300000
+EMAIL_OUTBOX_BATCH_SIZE=10
 INITIAL_ADMIN_NAME=Admin Kullanici
 INITIAL_ADMIN_EMAIL=admin@example.com
 INITIAL_ADMIN_EMAIL_VERIFIED=false
 INITIAL_ADMIN_PASSWORD=EN_AZ_12_KARAKTERLIK_GUCLU_PAROLA
 ```
 
-`AUTH_TOKEN_SECRET` en az 64 karakter olmalıdır. `AUTH_TOKEN_TTL_HOURS` değeri 1-24 saat aralığında bir tam sayı olmalıdır. `APP_BASE_URL`, aktivasyon bağlantısının açacağı ve CORS tarafından izin verilecek frontend adresidir; production ortamında HTTPS olmalıdır. Başka güvenilir frontend origin'leri gerekiyorsa `CORS_ALLOWED_ORIGINS` alanına virgülle ayrılarak eklenir. Yerel geliştirmede `TRUST_PROXY_HOPS=0` bırakılır; production değeri gerçek reverse proxy zincirine göre belirlenir. Yanlış proxy sayısı IP tabanlı hız limitini etkileyebileceği için altyapı topolojisi doğrulanmadan değiştirilmemelidir. Production ortamında `DB_SSL_MODE` açıkça seçilmelidir: yalnızca kapalı özel ağ için `disable`, şifreli fakat sertifika doğrulamasız bağlantı için `require`, kurumsal uzak PostgreSQL için tercihen `verify-full`. Port 587 için `SMTP_SECURE=false` ve `SMTP_REQUIRE_TLS=true`; doğrudan TLS kullanan port 465 için genellikle `SMTP_SECURE=true` kullanılır. Kurum SMTP sunucusunun değerleri esas alınmalıdır.
+`AUTH_TOKEN_SECRET` en az 64 karakter olmalıdır. `AUTH_TOKEN_TTL_HOURS` değeri 1-24 saat aralığında bir tam sayı olmalıdır. `APP_BASE_URL`, aktivasyon bağlantısının açacağı ve CORS tarafından izin verilecek frontend adresidir; production ortamında HTTPS olmalıdır. Başka güvenilir frontend origin'leri gerekiyorsa `CORS_ALLOWED_ORIGINS` alanına virgülle ayrılarak eklenir. Yerel geliştirmede `BACKEND_BIND_ADDRESS=127.0.0.1` ve `TRUST_PROXY_HOPS=0` bırakılır; production değerleri gerçek reverse proxy zincirine göre belirlenir. Yanlış proxy sayısı IP tabanlı hız limitini etkileyebileceği için altyapı topolojisi doğrulanmadan değiştirilmemelidir. Production ortamında `DB_SSL_MODE` açıkça seçilmelidir: yalnızca kapalı özel ağ için `disable`, şifreli fakat sertifika doğrulamasız bağlantı için `require`, kurumsal uzak PostgreSQL için tercihen `verify-full`. Port 587 için `SMTP_SECURE=false` ve `SMTP_REQUIRE_TLS=true`; doğrudan TLS kullanan port 465 için genellikle `SMTP_SECURE=true` kullanılır. Kurum SMTP sunucusunun değerleri esas alınmalıdır.
 
 Mac veya Linux ortamında güvenli bir token anahtarı üretmek için aşağıdaki komutun çıktısını `AUTH_TOKEN_SECRET` değeri olarak kullanabilirsiniz:
 
@@ -359,7 +376,7 @@ cd backend
 npm test
 ```
 
-Güncel birim test paketi 220 senaryodan oluşur ve kayıt talebinin genel yanıtı, aktif admin bildirimi, admin onayı/e-posta gönderimi, migration checksum/tekrar çalıştırma davranışı, migration kilidi hatası, production şablon değerlerinin reddi, SMTP şifreleme/test taşıyıcısı/port/zaman aşımı zorunlulukları, üretim veritabanı/TLS ayarları, liveness-readiness kontrolleri, tek kullanımlık aktivasyon, Argon2id, auth, giriş hız limiti, CORS origin sınırı, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, grup bazlı kapalı görev kapsamı, görev tipi-grup yönlendirmesi, atama, düzenleme, yaşam döngüsü, alt görev, yorum, eşzamanlı ek sınırı, disk kaybında PostgreSQL dosya yedeğine dönüş, dosya eki, etiket, bildirim görünürlüğü, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
+Güncel birim test paketi 235 senaryodan oluşur ve kayıt talebinin genel yanıtı, aktif admin bildirimi, admin onayı/e-posta kuyruğu, outbox şifreleme ve SMTP yeniden deneme davranışı, güvenli backend dinleme adresi, migration checksum/tekrar çalıştırma davranışı, migration kilidi hatası, production şablon değerlerinin reddi, SMTP şifreleme/test taşıyıcısı/port/zaman aşımı zorunlulukları, üretim veritabanı/TLS ayarları, liveness-readiness kontrolleri, tek kullanımlık aktivasyon, Argon2id, auth, giriş hız limiti, CORS origin sınırı, yetkilendirme, kullanıcı/grup yönetimi ve sayfalama, görev görünürlüğü, grup bazlı kapalı görev kapsamı, görev tipi-grup yönlendirmesi, atama, düzenleme, yaşam döngüsü, alt görev, yorum, eşzamanlı ek sınırı, disk kaybında PostgreSQL dosya yedeğine dönüş, dosya eki, etiket, bildirim görünürlüğü, görev tipi yönetimi, genel arama, denetim izi dışa aktarma ve görünürlük kapsamlı dashboard raporu akışlarını kapsar.
 
 Testler authentication, authorization, kullanıcı ve grup yönetimi, görev yönetimi, görev görünürlüğü, görev tipleri, atama, alt görevler, yorumlar, dosya ekleri, etiketler, bildirimler, genel arama, audit log ve dashboard raporları gibi temel akışları kapsamaktadır.
 
@@ -393,9 +410,28 @@ cd frontend
 npm run build
 ```
 
+### Tarayıcı E2E testi
+
+Playwright testi; gerçek PostgreSQL ve MailHog ile kayıt talebi, admin onayı,
+aktivasyon e-postası, parola belirleme, giriş ve görev oluşturma zincirini
+doğrular. GitHub Actions bu ortamı otomatik kurar. Yerelde çalıştırmak için ayrı
+bir `_test` veritabanı ve MailHog gerekir; ardından frontend klasöründe:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+### 50–70 kullanıcı yük testi
+
+`.github/workflows/load-test.yml` içindeki **LawDesk Load Test** iş akışı elle
+başlatılır. `smoke`, `standard` ve 70 sanal kullanıcılı `peak` profilleri
+bulunur. Test yalnızca adı `_test` ile biten geçici veritabanını seed eder;
+eşikler ve senaryo ayrıntıları `load/README.md` içindedir.
+
 ### CI
 
-GitHub Actions, `main` branch'ine yapılan push ve Pull Request işlemlerinde PostgreSQL servisli test, frontend build ve production Docker paketinin gerçek PostgreSQL ile ayağa kalkma/health kontrollerini otomatik olarak çalıştırır.
+GitHub Actions, `main` branch'ine yapılan push ve Pull Request işlemlerinde PostgreSQL servisli backend testlerini, frontend build'ini, yüksek/kritik bağımlılık taramasını, Playwright tarayıcı E2E akışını, native Windows PowerShell paketini ve production Docker paketinin gerçek PostgreSQL ile ayağa kalkma/health kontrollerini otomatik olarak çalıştırır. Tam yük testi ayrı ve manuel iş akışıdır.
 
 ---
 
@@ -407,7 +443,7 @@ LawDesk'te temel güvenlik gereksinimleri dikkate alınarak:
 * JWT tabanlı authentication kullanılır.
 * Session cookie `HttpOnly` olarak tutulur.
 * Production ortamında `Secure` ve `SameSite=Strict` cookie özellikleri kullanılır.
-* Aktivasyon tokenlarının yalnızca SHA-256 özeti veritabanında tutulur.
+* Aktivasyon tokenının kalıcı doğrulama kaydı yalnızca SHA-256 özetidir. SMTP gönderimi tamamlanana kadar outbox kopyası AES-256-GCM ile şifreli tutulur ve başarılı gönderimde silinir.
 * Aktivasyon bağlantıları süreli ve tek kullanımlıdır.
 * Kayıt endpoint'i rate limiting uygular.
 * Başarısız giriş denemeleri IP bazında sınırlandırılır; bilinmeyen veya pasif hesaplarda da Argon2id doğrulaması çalıştırılır.
@@ -417,6 +453,7 @@ LawDesk'te temel güvenlik gereksinimleri dikkate alınarak:
 * CORS yalnızca açıkça izin verilen frontend origin'lerini kabul eder.
 * API ve production Nginx güvenlik başlıkları uygular; teknoloji başlığı gizlenir.
 * Production veritabanı TLS modu açıkça seçilir ve bağlantı havuzu sınırlandırılır.
+* Native Windows backend'i yalnızca loopback adresinde dinler; dış erişim IIS HTTPS üzerinden yapılır.
 * Grup yöneticisinin kapalı/arşivlenmiş görev erişimi yalnızca yönettiği gruplarla sınırlıdır.
 * Grup adları boşluk ve büyük/küçük harf farkı yok sayılarak veritabanı seviyesinde benzersizdir.
 * Gerçek kullanıcı bilgileri seed veya migration dosyalarında tutulmaz.
@@ -441,6 +478,7 @@ Production deployment paketi depoda bulunmaktadır. Canlı kullanım; kurumun su
 
 * [ER Diagram](docs/GYS_ER_Diagram.pdf)
 * [Production Deployment Guide](docs/DEPLOYMENT.md)
+* [Native Windows Deployment Guide](deploy/windows/README.md)
 * [Production Cutover Guide](docs/PRODUCTION_CUTOVER.md)
 
 ---

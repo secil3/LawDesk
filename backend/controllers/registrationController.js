@@ -6,7 +6,9 @@ const db = require("../config/db");
 const { REGISTRATION_RESPONSE } = require(
   "../middleware/registrationRateLimit",
 );
-const { sendActivationEmail } = require("../services/emailService");
+const emailOutboxService = require(
+  "../services/emailOutboxService",
+);
 const { createNotification } = require("./notificationController");
 
 const DEFAULT_PAGE = 1;
@@ -167,48 +169,16 @@ const REQUEST_SELECT = `
     ON created_user.kullaniciid = request.olusturulankullaniciid
 `;
 
-const recordEmailOutcome = async (
-  requestId,
-  { sent, errorMessage = null },
-) => {
-  await db.query(
-    `UPDATE kayit_talepleri
-     SET aktivasyonepostagonderimtarihi =
-           CASE WHEN $2::boolean THEN NOW() ELSE aktivasyonepostagonderimtarihi END,
-         aktivasyonepostahatasi = $3
-     WHERE kayittalepid = $1`,
-    [requestId, sent, errorMessage?.slice(0, 500) || null],
-  );
-};
-
-const deliverActivationEmail = async (activation) => {
+const deliverQueuedActivationEmail = async (emailOutboxId) => {
   try {
-    await sendActivationEmail({
-      to: activation.email,
-      name: activation.name,
-      token: activation.token,
-      expiresAt: activation.expiresAt,
-    });
+    return await emailOutboxService.deliverEmailOutboxJob(emailOutboxId);
   } catch (error) {
-    console.error("Activation email failed:", error);
-    await recordEmailOutcome(activation.requestId, {
-      sent: false,
-      errorMessage: "Aktivasyon e-postası gönderilemedi",
-    }).catch((recordError) => {
-      console.error("Activation email failure could not be recorded:", recordError);
-    });
-    return { sent: false };
+    console.error(
+      `Activation email outbox job ${emailOutboxId} could not be processed:`,
+      error,
+    );
+    return { processed: false, sent: false };
   }
-
-  await recordEmailOutcome(activation.requestId, { sent: true }).catch(
-    (recordError) => {
-      console.error(
-        "Activation email success could not be recorded:",
-        recordError,
-      );
-    },
-  );
-  return { sent: true };
 };
 
 exports.submitRegistrationRequest = async (req, res) => {
@@ -437,11 +407,12 @@ exports.approveRegistrationRequest = async (req, res) => {
         );
       }
 
-      await query(
+      const tokenResult = await query(
         `INSERT INTO kullaniciaktivasyontokenlari
            (kullaniciid, kayittalepid, tokenhash, sonkullanmatarihi,
             olusturankullaniciid)
-         VALUES ($1, $2, $3, $4, $5)`,
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING tokenid AS "id"`,
         [
           userId,
           requestId,
@@ -449,6 +420,18 @@ exports.approveRegistrationRequest = async (req, res) => {
           generatedToken.expiresAt,
           req.user.id,
         ],
+      );
+      const emailOutboxId = await emailOutboxService.enqueueActivationEmail(
+        query,
+        {
+          requestId,
+          userId,
+          activationTokenId: tokenResult.rows[0].id,
+          name: registrationRequest.adsoyad,
+          email: registrationRequest.email,
+          token: generatedToken.token,
+          expiresAt: generatedToken.expiresAt,
+        },
       );
 
       await query(
@@ -478,21 +461,22 @@ exports.approveRegistrationRequest = async (req, res) => {
       return {
         requestId,
         userId,
-        name: registrationRequest.adsoyad,
-        email: registrationRequest.email,
-        token: generatedToken.token,
-        expiresAt: generatedToken.expiresAt,
+        emailOutboxId,
       };
     });
 
-    const emailResult = await deliverActivationEmail(activation);
+    const emailResult = await deliverQueuedActivationEmail(
+      activation.emailOutboxId,
+    );
 
     if (!emailResult.sent) {
-      return res.status(502).json({
-        error:
-          "Hesap oluşturuldu ancak aktivasyon e-postası gönderilemedi. Yeniden gönderin.",
+      return res.status(202).json({
+        message:
+          "Kayıt talebi onaylandı; aktivasyon e-postası sıraya alındı ve otomatik yeniden denenecek.",
         approved: true,
         requestId,
+        userId: activation.userId,
+        emailQueued: true,
       });
     }
 
@@ -620,6 +604,10 @@ exports.resendActivationEmail = async (req, res) => {
         throw createHttpError(409, "Hesap artık aktivasyon beklemiyor");
       }
 
+      await emailOutboxService.cancelPendingActivationEmails(
+        query,
+        requestId,
+      );
       await query(
         `UPDATE kullaniciaktivasyontokenlari
          SET iptaltarihi = NOW()
@@ -628,11 +616,12 @@ exports.resendActivationEmail = async (req, res) => {
            AND iptaltarihi IS NULL`,
         [registrationRequest.userId],
       );
-      await query(
+      const tokenResult = await query(
         `INSERT INTO kullaniciaktivasyontokenlari
            (kullaniciid, kayittalepid, tokenhash, sonkullanmatarihi,
             olusturankullaniciid)
-         VALUES ($1, $2, $3, $4, $5)`,
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING tokenid AS "id"`,
         [
           registrationRequest.userId,
           requestId,
@@ -640,6 +629,18 @@ exports.resendActivationEmail = async (req, res) => {
           generatedToken.expiresAt,
           req.user.id,
         ],
+      );
+      const emailOutboxId = await emailOutboxService.enqueueActivationEmail(
+        query,
+        {
+          requestId,
+          userId: registrationRequest.userId,
+          activationTokenId: tokenResult.rows[0].id,
+          name: registrationRequest.adsoyad,
+          email: registrationRequest.email,
+          token: generatedToken.token,
+          expiresAt: generatedToken.expiresAt,
+        },
       );
       await query(
         `UPDATE kayit_talepleri
@@ -651,18 +652,19 @@ exports.resendActivationEmail = async (req, res) => {
       return {
         requestId,
         userId: registrationRequest.userId,
-        name: registrationRequest.adsoyad,
-        email: registrationRequest.email,
-        token: generatedToken.token,
-        expiresAt: generatedToken.expiresAt,
+        emailOutboxId,
       };
     });
 
-    const emailResult = await deliverActivationEmail(activation);
+    const emailResult = await deliverQueuedActivationEmail(
+      activation.emailOutboxId,
+    );
 
     if (!emailResult.sent) {
-      return res.status(502).json({
-        error: "Aktivasyon e-postası gönderilemedi",
+      return res.status(202).json({
+        message:
+          "Yeni aktivasyon e-postası sıraya alındı ve otomatik yeniden denenecek.",
+        emailQueued: true,
       });
     }
 
@@ -776,7 +778,8 @@ exports.activateAccount = async (req, res) => {
     await db.withTransaction(async (query) => {
       const tokenResult = await query(
         `SELECT token.tokenid AS "tokenId",
-                token.kullaniciid AS "userId"
+                token.kullaniciid AS "userId",
+                token.kayittalepid AS "requestId"
          FROM kullaniciaktivasyontokenlari token
          JOIN kullanicilar user_account
            ON user_account.kullaniciid = token.kullaniciid
@@ -819,6 +822,10 @@ exports.activateAccount = async (req, res) => {
            AND kullanilmatarihi IS NULL
            AND iptaltarihi IS NULL`,
         [activation.userId, activation.tokenId],
+      );
+      await emailOutboxService.cancelPendingActivationEmails(
+        query,
+        activation.requestId,
       );
       await query(
         `INSERT INTO aktiviteloglari

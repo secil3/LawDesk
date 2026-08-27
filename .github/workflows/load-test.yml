@@ -1,0 +1,110 @@
+name: LawDesk Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Çalıştırılacak yük profili
+        required: true
+        default: peak
+        type: choice
+        options:
+          - smoke
+          - standard
+          - peak
+
+run-name: LawDesk load test (${{ inputs.profile }})
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v5
+
+      - name: Production test ortamını hazırla
+        run: |
+          cp deploy/production.env.example deploy/production.env
+          sed -i 's|^APP_BASE_URL=.*|APP_BASE_URL=https://lawdesk.load.invalid|' deploy/production.env
+          sed -i 's|^POSTGRES_DB=.*|POSTGRES_DB=gys_lawdesk_load_test|' deploy/production.env
+          sed -i 's|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=load-database-password-1234567890|' deploy/production.env
+          sed -i 's|^AUTH_TOKEN_SECRET=.*|AUTH_TOKEN_SECRET=load-auth-secret-load-auth-secret-load-auth-secret-load-auth-secret-load-auth-secret|' deploy/production.env
+          sed -i 's|^SMTP_HOST=.*|SMTP_HOST=smtp.load.invalid|' deploy/production.env
+          sed -i 's|^SMTP_USER=.*|SMTP_USER=lawdesk@load.invalid|' deploy/production.env
+          sed -i 's|^SMTP_PASSWORD=.*|SMTP_PASSWORD=load-smtp-password-123456|' deploy/production.env
+          sed -i 's|^SMTP_FROM=.*|SMTP_FROM=LawDesk Load <lawdesk@load.invalid>|' deploy/production.env
+          sed -i 's|^INITIAL_ADMIN_NAME=.*|INITIAL_ADMIN_NAME=Load Admin|' deploy/production.env
+          sed -i 's|^INITIAL_ADMIN_EMAIL=.*|INITIAL_ADMIN_EMAIL=admin@load.invalid|' deploy/production.env
+          sed -i 's|^INITIAL_ADMIN_EMAIL_VERIFIED=.*|INITIAL_ADMIN_EMAIL_VERIFIED=true|' deploy/production.env
+          sed -i 's|^INITIAL_ADMIN_PASSWORD=.*|INITIAL_ADMIN_PASSWORD=LoadAdminParolasi123!|' deploy/production.env
+
+      - name: Production image'larını oluştur
+        run: >-
+          docker compose
+          --profile bundled-db
+          --env-file deploy/production.env
+          --file compose.production.yml
+          build
+
+      - name: Test ortamını başlat
+        run: >-
+          docker compose
+          --profile bundled-db
+          --env-file deploy/production.env
+          --file compose.production.yml
+          up --detach --wait --wait-timeout 180
+
+      - name: Yük testi verisini oluştur
+        run: >-
+          docker compose
+          --profile bundled-db
+          --env-file deploy/production.env
+          --file compose.production.yml
+          exec -T
+          -e LOAD_TEST_SEED=true
+          -e LOAD_TEST_USER_COUNT=70
+          -e LOAD_TEST_TASK_COUNT=250
+          -e LOAD_TEST_USER_PASSWORD=LoadKullaniciParolasi123!
+          backend
+          node scripts/seedLoadTest.js
+
+      - name: k6 yük testini çalıştır
+        run: |
+          mkdir -p load-results
+          docker run --rm --network host \
+            -e BASE_URL=http://127.0.0.1:8080 \
+            -e AUTH_COOKIE_NAME=lawdesk_session \
+            -e LOAD_PROFILE=${{ inputs.profile }} \
+            -e LOAD_TEST_USER_COUNT=70 \
+            -e LOAD_TEST_USER_PASSWORD=LoadKullaniciParolasi123! \
+            -v "${{ github.workspace }}/load:/scripts:ro" \
+            -v "${{ github.workspace }}/load-results:/results" \
+            grafana/k6:2.2.0 run \
+            --summary-export=/results/load-summary.json \
+            /scripts/lawdesk.k6.js
+
+      - name: Yük testi özetini yükle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lawdesk-load-${{ inputs.profile }}
+          path: load-results/load-summary.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Hata durumunda container loglarını göster
+        if: failure()
+        run: |
+          docker compose --profile bundled-db --env-file deploy/production.env --file compose.production.yml ps --all
+          docker compose --profile bundled-db --env-file deploy/production.env --file compose.production.yml logs --no-color --tail=200
+
+      - name: Test ortamını kapat
+        if: always()
+        run: >-
+          docker compose
+          --profile bundled-db
+          --env-file deploy/production.env
+          --file compose.production.yml
+          down --volumes --remove-orphans

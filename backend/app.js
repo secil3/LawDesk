@@ -21,6 +21,9 @@ const {
   assertNoProductionPlaceholders,
 } = require("./config/production");
 const { getEmailConfig } = require("./services/emailService");
+const {
+  getEmailOutboxConfig,
+} = require("./services/emailOutboxService");
 
 const app = express();
 
@@ -31,6 +34,7 @@ const httpConfig = getHttpConfig();
 if (process.env.NODE_ENV === "production") {
   // Aktivasyon e-postası zorunlu olduğundan eksik SMTP ayarıyla servis açılmaz.
   getEmailConfig();
+  getEmailOutboxConfig();
   assertNoProductionPlaceholders();
 }
 

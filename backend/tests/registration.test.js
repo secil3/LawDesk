@@ -19,6 +19,9 @@ const db = require("../config/db");
 const registrationController = require(
   "../controllers/registrationController",
 );
+const emailOutboxService = require(
+  "../services/emailOutboxService",
+);
 
 const GENERIC_RESPONSE = {
   message:
@@ -29,6 +32,12 @@ const VALID_PASSWORD = "GuvenliAktivasyonParolasi123!";
 
 const originalQuery = db.query;
 const originalWithTransaction = db.withTransaction;
+const originalEnqueueActivationEmail =
+  emailOutboxService.enqueueActivationEmail;
+const originalDeliverEmailOutboxJob =
+  emailOutboxService.deliverEmailOutboxJob;
+const originalCancelPendingActivationEmails =
+  emailOutboxService.cancelPendingActivationEmails;
 
 let transactionCalls;
 let transactionQueries;
@@ -37,7 +46,8 @@ let pendingRequest;
 let activationAvailable;
 let storedPasswordHash;
 let approvalTokenInsert;
-let approvalEmailRecorded;
+let approvalOutboxPayload;
+let deliverySent;
 
 const transactionQuery = async (text, params = []) => {
   const sql = String(text);
@@ -76,7 +86,10 @@ const transactionQuery = async (text, params = []) => {
     normalized.includes("for update")
   ) {
     return activationAvailable
-      ? { rows: [{ tokenId: 7, userId: 19 }], rowCount: 1 }
+      ? {
+          rows: [{ tokenId: 7, userId: 19, requestId: 41 }],
+          rowCount: 1,
+        }
       : { rows: [], rowCount: 0 };
   }
 
@@ -103,7 +116,7 @@ const transactionQuery = async (text, params = []) => {
 
   if (normalized.includes("insert into kullaniciaktivasyontokenlari")) {
     approvalTokenInsert = params;
-    return { rows: [], rowCount: 1 };
+    return { rows: [{ id: 7 }], rowCount: 1 };
   }
 
   if (normalized.includes("update kullanicilar")) {
@@ -138,7 +151,20 @@ beforeEach(() => {
   activationAvailable = true;
   storedPasswordHash = null;
   approvalTokenInsert = null;
-  approvalEmailRecorded = false;
+  approvalOutboxPayload = null;
+  deliverySent = true;
+
+  emailOutboxService.enqueueActivationEmail = async (query, payload) => {
+    approvalOutboxPayload = payload;
+    return 91;
+  };
+  emailOutboxService.deliverEmailOutboxJob = async (jobId) => {
+    assert.equal(jobId, 91);
+    return { processed: true, sent: deliverySent, jobId };
+  };
+  emailOutboxService.cancelPendingActivationEmails = async () => ({
+    rowCount: 0,
+  });
 
   db.query = async (text, params = []) => {
     const sql = String(text);
@@ -163,11 +189,6 @@ beforeEach(() => {
 
     if (normalized.includes("from grupuyelikleri gu")) {
       return { rows: [], rowCount: 0 };
-    }
-
-    if (normalized.includes("update kayit_talepleri")) {
-      approvalEmailRecorded = params[1] === true;
-      return { rows: [], rowCount: 1 };
     }
 
     if (normalized.includes("from kullaniciaktivasyontokenlari token")) {
@@ -204,6 +225,12 @@ beforeEach(() => {
 after(async () => {
   db.query = originalQuery;
   db.withTransaction = originalWithTransaction;
+  emailOutboxService.enqueueActivationEmail =
+    originalEnqueueActivationEmail;
+  emailOutboxService.deliverEmailOutboxJob =
+    originalDeliverEmailOutboxJob;
+  emailOutboxService.cancelPendingActivationEmails =
+    originalCancelPendingActivationEmails;
   await db.close();
 });
 
@@ -315,7 +342,7 @@ test("group selections are normalized and duplicate groups are rejected", () => 
   );
 });
 
-test("admin approval creates a pending user and sends activation email", async () => {
+test("admin approval creates a pending user and queues activation email", async () => {
   const adminToken = jwt.sign(
     {},
     process.env.AUTH_TOKEN_SECRET,
@@ -344,7 +371,11 @@ test("admin approval creates a pending user and sends activation email", async (
   assert.equal(approvalTokenInsert[1], 41);
   assert.match(approvalTokenInsert[2], /^[a-f0-9]{64}$/);
   assert.equal(approvalTokenInsert[4], 1);
-  assert.equal(approvalEmailRecorded, true);
+  assert.equal(approvalOutboxPayload.requestId, 41);
+  assert.equal(approvalOutboxPayload.userId, 19);
+  assert.equal(approvalOutboxPayload.activationTokenId, 7);
+  assert.equal(approvalOutboxPayload.email, "approved@example.com");
+  assert.equal(approvalOutboxPayload.token.length, 43);
 
   const userInsert = transactionQueries.find((query) =>
     query.sql.toLowerCase().includes("insert into kullanicilar"),
@@ -354,6 +385,34 @@ test("admin approval creates a pending user and sends activation email", async (
     "approved@example.com",
     "kullanici",
   ]);
+});
+
+test("admin approval remains successful when SMTP delivery is queued", async () => {
+  deliverySent = false;
+  const adminToken = jwt.sign(
+    {},
+    process.env.AUTH_TOKEN_SECRET,
+    {
+      subject: "1",
+      issuer: "lawdesk-backend",
+      audience: "lawdesk-web",
+      expiresIn: "1h",
+      algorithm: "HS256",
+    },
+  );
+
+  const response = await request(expressApp)
+    .post("/api/admin/registration-requests/41/approve")
+    .set(
+      "Cookie",
+      `${process.env.AUTH_COOKIE_NAME}=${adminToken}`,
+    )
+    .send({ systemRole: "kullanici", memberships: [] });
+
+  assert.equal(response.status, 202);
+  assert.equal(response.body.approved, true);
+  assert.equal(response.body.emailQueued, true);
+  assert.match(response.body.message, /otomatik yeniden denenecek/);
 });
 
 test("activation validates the token, stores Argon2id and is single-use", async () => {
