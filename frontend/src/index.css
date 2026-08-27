@@ -3491,15 +3491,24 @@ html[data-theme="dark"] .table-search input {
 
 /* Dark theme */
 html[data-theme="dark"] {
-  --dark-canvas: #0f172a;
-  --dark-sidebar: #0b1220;
-  --dark-surface: #111c2f;
-  --dark-surface-raised: #17233a;
-  --dark-surface-soft: #1e293b;
-  --dark-border: #2b3b55;
-  --dark-text: #e2e8f0;
-  --dark-muted: #94a3b8;
-  --dark-primary: var(--color-primary);
+  --dark-canvas: #101c2b;
+  --dark-sidebar: #172b3d;
+  --dark-surface: #263b50;
+  --dark-surface-raised: #2d455b;
+  --dark-surface-soft: #30495f;
+  --dark-input: #17283a;
+  --dark-input-hover: #1d3044;
+  --dark-border: rgba(151, 183, 204, 0.3);
+  --dark-border-strong: rgba(166, 199, 218, 0.5);
+  --dark-text: #e8f1f5;
+  --dark-body-text: #c4d2da;
+  --dark-muted: #91a7b3;
+  --dark-placeholder: #708995;
+  --dark-disabled: #617783;
+  --dark-primary: #7db6cf;
+  --dark-primary-hover: #96c7da;
+  --dark-primary-soft: rgba(125, 182, 207, 0.16);
+  --dark-primary-active: rgba(125, 182, 207, 0.24);
   color: var(--dark-text);
   background: var(--dark-canvas);
 }
@@ -6986,10 +6995,25 @@ html[data-theme="dark"] .group-card-header {
 }
 
 /* Dark theme surface completion */
+html[data-theme="dark"] .dashboard-hero {
+  border-color: var(--dark-border-strong);
+  background: #29465a;
+  background-image: none;
+  box-shadow: 0 16px 36px rgba(4, 13, 25, 0.2);
+}
+
+html[data-theme="dark"] .dashboard-section,
+html[data-theme="dark"] .dashboard-report-card,
+html[data-theme="dark"] .dashboard-info-card {
+  border-color: var(--dark-border);
+  background: var(--dark-surface);
+  background-image: none;
+}
+
 html[data-theme="dark"] .global-search {
-  border-color: #334c72;
-  background: #142238;
-  box-shadow: 0 14px 34px rgba(2, 6, 23, 0.24);
+  border-color: var(--dark-border);
+  background: var(--dark-surface-raised);
+  box-shadow: 0 14px 34px rgba(4, 13, 25, 0.2);
 }
 
 html[data-theme="dark"] .global-search-heading h3 {
@@ -7004,12 +7028,12 @@ html[data-theme="dark"] .global-search-state {
 
 html[data-theme="dark"] .dashboard-report-toolbar {
   border-color: var(--dark-border);
-  background: #17233a;
-  box-shadow: 0 8px 22px rgba(2, 6, 23, 0.12);
+  background: var(--dark-surface-raised);
+  box-shadow: 0 8px 22px rgba(4, 13, 25, 0.12);
 }
 
 html[data-theme="dark"] .dashboard-report-toolbar label {
-  color: #9fb0c8;
+  color: var(--dark-muted);
 }
 
 html[data-theme="dark"] .metric-card,
@@ -7017,26 +7041,26 @@ html[data-theme="dark"] .metric-card.accent-card,
 html[data-theme="dark"] .metric-card.soft-card,
 html[data-theme="dark"] .metric-card.muted-card {
   border-color: var(--dark-border);
-  background: #17233a;
+  background: var(--dark-surface-raised);
   background-image: none;
   box-shadow: 0 10px 24px rgba(2, 6, 23, 0.16);
 }
 
 html[data-theme="dark"] .metric-card.accent-card {
-  background: #22334f;
+  background: #334b68;
 }
 
 html[data-theme="dark"] .metric-card.soft-card {
-  background: #162d43;
+  background: #2a4558;
 }
 
 html[data-theme="dark"] .metric-card.muted-card {
-  background: #273043;
+  background: #323f50;
 }
 
 html[data-theme="dark"] .metric-card span,
 html[data-theme="dark"] .metric-card small {
-  color: #9fb0c8;
+  color: var(--dark-muted);
 }
 
 html[data-theme="dark"] .metric-card strong {
@@ -7107,7 +7131,7 @@ html[data-theme="dark"] .task-type-management,
 html[data-theme="dark"] .comment-create-form,
 html[data-theme="dark"] .comment-history {
   border-color: var(--dark-border);
-  background: #142238;
+  background: var(--dark-surface);
   background-image: none;
   color: var(--dark-text);
   box-shadow: 0 10px 26px rgba(2, 6, 23, 0.14);
@@ -7127,7 +7151,7 @@ html[data-theme="dark"] .attachment-file-icon,
 html[data-theme="dark"] .activity-list li,
 html[data-theme="dark"] .status-summary-item {
   border-color: var(--dark-border);
-  background: #17233a;
+  background: var(--dark-surface-raised);
   background-image: none;
   color: #cbd5e1;
 }
@@ -7136,8 +7160,8 @@ html[data-theme="dark"] .group-card-section-info,
 html[data-theme="dark"] .group-card-section-members,
 html[data-theme="dark"] .group-card-section-assign {
   border-color: var(--dark-border);
-  border-left-color: #4f6b91;
-  background: #17233a;
+  border-left-color: var(--dark-primary);
+  background: var(--dark-surface-raised);
   background-image: none;
 }
 
