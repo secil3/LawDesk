@@ -64,6 +64,9 @@ BT ekibi dağıtımdan önce aşağıdaki alanları kesinleştirir:
   kullanılabilir.
 - Compose varsayılan olarak LawDesk'i sadece `127.0.0.1:8080` üzerinde yayınlar.
   Backend ve PostgreSQL host portu yayınlamaz.
+- Frontend'in `edge` ağı yalnızca yayınlanan arayüz portunun host reverse
+  proxy'ye ulaşmasını sağlar. Frontend-backend trafiği ayrı `application`,
+  backend-PostgreSQL trafiği ise ayrı `database` iç ağı üzerinden geçer.
 - Backend'in kurumsal SMTP'ye ve DNS/NTP hizmetlerine çıkışı açık olmalıdır.
 - Kurumsal PostgreSQL kullanılıyorsa yalnızca uygulama sunucusundan ilgili
   PostgreSQL host/portuna erişim verilir.
