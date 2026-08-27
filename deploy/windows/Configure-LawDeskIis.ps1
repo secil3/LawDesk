@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$AppRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
+    [string]$AppRoot,
     [string]$EnvFile = "$env:ProgramData\LawDesk\config\lawdesk.env",
     [string]$SiteName = "LawDesk",
 
@@ -11,6 +11,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+if ([string]::IsNullOrWhiteSpace($AppRoot)) {
+    $AppRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+}
+
 . (Join-Path $PSScriptRoot "LawDesk.Windows.Common.ps1")
 
 Assert-LawDeskAdministrator

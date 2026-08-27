@@ -1,10 +1,15 @@
 [CmdletBinding()]
 param(
-    [string]$AppRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+    [string]$AppRoot
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+if ([string]::IsNullOrWhiteSpace($AppRoot)) {
+    $AppRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+}
+
 . (Join-Path $PSScriptRoot "LawDesk.Windows.Common.ps1")
 
 & (Join-Path $PSScriptRoot "Test-LawDeskPrerequisites.ps1") `
