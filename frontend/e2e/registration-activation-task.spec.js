@@ -192,10 +192,47 @@ test("registration, approval, email activation, login and task creation", async 
   }).click();
   await expect(candidatePage).toHaveURL(/\/dashboard$/);
 
+  const taskOptionsResponsePromise = candidatePage.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/tasks/options" &&
+      response.request().method() === "GET",
+  );
+  const taskTagsResponsePromise = candidatePage.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/tasks/tags" &&
+      response.request().method() === "GET",
+  );
+
   await candidatePage.getByRole("button", {
     name: "Görevler",
     exact: true,
   }).click();
+
+  const [taskOptionsResponse, taskTagsResponse] = await Promise.all([
+    taskOptionsResponsePromise,
+    taskTagsResponsePromise,
+  ]);
+  const taskOptionsBody = await taskOptionsResponse.json();
+  const taskTagsBody = await taskTagsResponse.json();
+
+  expect(
+    taskOptionsResponse.ok(),
+    `Görev seçenekleri alınamadı: ${JSON.stringify(taskOptionsBody)}`,
+  ).toBe(true);
+  expect(
+    taskTagsResponse.ok(),
+    `Etiketler alınamadı: ${JSON.stringify(taskTagsBody)}`,
+  ).toBe(true);
+
+  const contractTaskType = taskOptionsBody.types?.find(
+    (taskType) => taskType.name === "Sözleşme",
+  );
+
+  expect(
+    contractTaskType,
+    `Sözleşme görev tipi bulunamadı: ${JSON.stringify(taskOptionsBody.types)}`,
+  ).toBeTruthy();
+
   const taskForm = candidatePage.locator("form.task-form");
   await expect(taskForm.getByRole("heading", {
     name: "Yeni görev oluştur",
@@ -204,9 +241,13 @@ test("registration, approval, email activation, login and task creation", async 
   await taskForm.getByLabel("Açıklama", { exact: true }).fill(
     "Playwright ile gerçek kullanıcı akışında oluşturuldu.",
   );
-  await taskForm.getByLabel("Görev tipi", { exact: true }).selectOption({
-    label: "Sözleşme",
-  });
+  const taskTypeSelect = taskForm.getByLabel("Görev tipi", { exact: true });
+  const contractTaskTypeValue = String(contractTaskType.id);
+
+  await expect(
+    taskTypeSelect.locator(`option[value="${contractTaskTypeValue}"]`),
+  ).toHaveCount(1);
+  await taskTypeSelect.selectOption(contractTaskTypeValue);
   await taskForm.getByRole("button", {
     name: "Görev oluştur",
     exact: true,
