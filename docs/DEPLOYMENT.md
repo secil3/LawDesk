@@ -1,5 +1,9 @@
 # LawDesk üretim dağıtım rehberi
 
+Windows native kurulumun kurum bilgileri, kanıtları, GO/NO-GO kapıları ve
+imzaları [`WINDOWS_NATIVE_HANDOFF_CHECKLIST.md`](WINDOWS_NATIVE_HANDOFF_CHECKLIST.md)
+üzerinden kaydedilir.
+
 Bu belge LawDesk deposunu kurum ortamına kuracak BT ekibi içindir. Hedef ortam
 Windows 10/11 ve Docker/WSL2 kullanılamıyorsa `deploy/windows` altındaki native
 IIS/PowerShell paketi kullanılır. Linux veya Docker kabul edilen ortamlarda
