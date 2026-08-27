@@ -241,13 +241,14 @@ test("registration, approval, email activation, login and task creation", async 
   await taskForm.getByLabel("Açıklama", { exact: true }).fill(
     "Playwright ile gerçek kullanıcı akışında oluşturuldu.",
   );
-  const taskTypeSelect = taskForm.getByLabel("Görev tipi", { exact: true });
+  const taskTypeSelect = taskForm.getByRole("combobox", {
+    name: "Görev tipi",
+    exact: true,
+  });
   const contractTaskTypeValue = String(contractTaskType.id);
 
-  await expect(
-    taskTypeSelect.locator(`option[value="${contractTaskTypeValue}"]`),
-  ).toHaveCount(1);
   await taskTypeSelect.selectOption(contractTaskTypeValue);
+  await expect(taskTypeSelect).toHaveValue(contractTaskTypeValue);
   await taskForm.getByRole("button", {
     name: "Görev oluştur",
     exact: true,
