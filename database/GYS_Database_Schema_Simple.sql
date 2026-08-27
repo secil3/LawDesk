@@ -113,6 +113,59 @@ CREATE INDEX idx_aktivasyontokenlari_hash_gecerlilik
        (TokenHash, SonKullanmaTarihi)
     WHERE KullanilmaTarihi IS NULL AND IptalTarihi IS NULL;
 
+CREATE TABLE EpostaOutbox (
+    EpostaOutboxID          BIGSERIAL PRIMARY KEY,
+    KayitTalepID            INT NOT NULL
+                                REFERENCES Kayit_Talepleri(KayitTalepID),
+    KullaniciID             INT NOT NULL
+                                REFERENCES Kullanicilar(KullaniciID),
+    AktivasyonTokenID       INT NOT NULL
+                                REFERENCES KullaniciAktivasyonTokenlari(TokenID),
+    Tur                     VARCHAR(30) NOT NULL DEFAULT 'Aktivasyon'
+                                CHECK (Tur IN ('Aktivasyon')),
+    AliciEmail              VARCHAR(150) NOT NULL,
+    AliciAdi                VARCHAR(150) NOT NULL,
+    SifreliIcerik           TEXT,
+    Durum                   VARCHAR(20) NOT NULL DEFAULT 'Bekliyor'
+                                CHECK (
+                                    Durum IN (
+                                        'Bekliyor',
+                                        'Isleniyor',
+                                        'Gonderildi',
+                                        'Basarisiz',
+                                        'Iptal'
+                                    )
+                                ),
+    DenemeSayisi            INT NOT NULL DEFAULT 0
+                                CHECK (DenemeSayisi >= 0),
+    SonrakiDenemeTarihi     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    KilitlenmeTarihi        TIMESTAMPTZ,
+    SonHata                 VARCHAR(500),
+    GonderimTarihi          TIMESTAMPTZ,
+    OlusturmaTarihi         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    GuncellemeTarihi        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT epostaoutbox_aktif_icerik_tutarliligi
+        CHECK (
+            (Durum IN ('Bekliyor', 'Isleniyor') AND SifreliIcerik IS NOT NULL)
+            OR
+            (Durum IN ('Gonderildi', 'Basarisiz', 'Iptal') AND SifreliIcerik IS NULL)
+        )
+);
+
+CREATE UNIQUE INDEX idx_epostaoutbox_aktif_aktivasyon
+    ON EpostaOutbox (KayitTalepID)
+    WHERE Tur = 'Aktivasyon'
+      AND Durum IN ('Bekliyor', 'Isleniyor');
+
+CREATE INDEX idx_epostaoutbox_hazir
+    ON EpostaOutbox (SonrakiDenemeTarihi, EpostaOutboxID)
+    WHERE Durum = 'Bekliyor';
+
+CREATE INDEX idx_epostaoutbox_kilit
+    ON EpostaOutbox (KilitlenmeTarihi, EpostaOutboxID)
+    WHERE Durum = 'Isleniyor';
+
 /* ============================================================
    2. GRUPLAR  (en az 2 grup: Uyum, KVKK)
    ============================================================ */

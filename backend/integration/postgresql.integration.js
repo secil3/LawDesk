@@ -119,6 +119,7 @@ const seedDatabase = async () => {
     `TRUNCATE TABLE
        aktiviteloglari,
        bildirimler,
+       epostaoutbox,
        kullaniciaktivasyontokenlari,
        kayit_talepleri,
        ekler,
@@ -483,6 +484,8 @@ test("admin approval creates a pending account and one-use activation enables lo
             membership.gruprolu AS "groupRole",
             token.tokenid AS "tokenId",
             token.tokenhash AS "tokenHash",
+            email_job.durum AS "emailJobStatus",
+            email_job.sifreliicerik AS "emailJobPayload",
             EXTRACT(EPOCH FROM (token.sonkullanmatarihi - NOW())) / 3600
               AS "hoursRemaining"
      FROM kayit_talepleri request
@@ -493,6 +496,8 @@ test("admin approval creates a pending account and one-use activation enables lo
       AND membership.grupid = 1
      JOIN kullaniciaktivasyontokenlari token
        ON token.kayittalepid = request.kayittalepid
+     JOIN epostaoutbox email_job
+       ON email_job.aktivasyontokenid = token.tokenid
      WHERE request.kayittalepid = $1`,
     [registrationRequestId],
   );
@@ -504,6 +509,8 @@ test("admin approval creates a pending account and one-use activation enables lo
   assert.equal(pendingAccount.active, false);
   assert.equal(pendingAccount.activationPending, true);
   assert.equal(pendingAccount.groupRole, "grup_uyesi");
+  assert.equal(pendingAccount.emailJobStatus, "Gonderildi");
+  assert.equal(pendingAccount.emailJobPayload, null);
   assert.match(pendingAccount.tokenHash.trim(), /^[a-f0-9]{64}$/);
   assert.ok(Number(pendingAccount.hoursRemaining) > 23.9);
   assert.ok(Number(pendingAccount.hoursRemaining) <= 24);

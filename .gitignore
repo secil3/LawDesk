@@ -8,3 +8,7 @@ dist
 .DS_Store
 backend/storage/
 deploy/production.env
+deploy/windows/lawdesk.env
+frontend/playwright-report/
+frontend/test-results/
+load-results/

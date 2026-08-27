@@ -12,3 +12,8 @@ deploy/production.env
 **/*.log
 backend/storage
 docs
+frontend/e2e
+frontend/playwright-report
+frontend/test-results
+load
+load-results

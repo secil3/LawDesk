@@ -89,10 +89,10 @@ def page_header(
     pdf.roundRect(1610, 988, 250, 45, 12, stroke=1, fill=1)
     pdf.setFillColor(COLORS["navy"])
     pdf.setFont("LawDesk-Bold", 12)
-    pdf.drawCentredString(1735, 1015, "25 AĞUSTOS 2026")
+    pdf.drawCentredString(1735, 1015, "27 AĞUSTOS 2026")
     pdf.setFillColor(COLORS["muted"])
     pdf.setFont("LawDesk", 9.5)
-    pdf.drawCentredString(1735, 999, "PostgreSQL - 17 tablo")
+    pdf.drawCentredString(1735, 999, "PostgreSQL - 18 tablo")
 
     pdf.setStrokeColor(COLORS["line"])
     pdf.line(54, 970, 1866, 970)
@@ -100,7 +100,7 @@ def page_header(
     pdf.setFillColor(COLORS["muted"])
     pdf.setFont("LawDesk", 10.5)
     pdf.drawString(58, 25, "LawDesk - Güncel sade PostgreSQL veri modeli")
-    pdf.drawRightString(1862, 25, f"Sayfa {page_number}/3")
+    pdf.drawRightString(1862, 25, f"Sayfa {page_number}/4")
 
 
 def draw_legend(pdf: canvas.Canvas, x: float, y: float) -> None:
@@ -380,12 +380,13 @@ def access_page(pdf: canvas.Canvas) -> None:
     draw_note(
         pdf,
         705,
-        315,
+        270,
         500,
         "Aktivasyon bütünlüğü",
         [
             "Bekleyen hesap pasiftir ve SifreHash NULL kalır",
-            "Tokenın yalnızca SHA-256 özeti veritabanında tutulur",
+            "Aktivasyon tablosunda yalnızca SHA-256 özeti tutulur",
+            "SMTP outbox kopyası şifrelidir ve teslimde silinir",
             "24 saatlik bağlantı tek kullanımdan sonra kapanır",
             "Parola aktivasyonda Argon2id ile üretilir",
         ],
@@ -627,7 +628,7 @@ def collaboration_page(pdf: canvas.Canvas) -> None:
         [
             "Her başvuru aynı genel dış yanıtı üretir",
             "Bekleyen e-posta için tek aktif talep bulunur",
-            "Aktivasyon tokenı hash olarak ve tek kullanımlık tutulur",
+            "Token hash tutulur; outbox kopyası şifreli ve geçicidir",
         ],
         accent=COLORS["teal"],
         fill=COLORS["teal_soft"],
@@ -664,6 +665,195 @@ def collaboration_page(pdf: canvas.Canvas) -> None:
     pdf.showPage()
 
 
+def email_delivery_page(pdf: canvas.Canvas) -> None:
+    page_header(
+        pdf,
+        4,
+        "LawDesk ER Diyagramı - Güvenilir e-posta teslimi",
+        "Şifreli SMTP outbox, otomatik yeniden deneme ve worker yaşam döngüsü",
+    )
+    draw_legend(pdf, 1220, 938)
+
+    request_rows = [
+        ("KayitTalepID", "serial", ["PK"]),
+        ("Email", "varchar(150)", ["NN"]),
+        ("Durum", "varchar(20)", ["NN"]),
+        ("OlusturulanKullaniciID", "integer", ["FK"]),
+        ("AktivasyonEposta...", "timestamptz / hata", []),
+    ]
+    token_rows = [
+        ("TokenID", "serial", ["PK"]),
+        ("KullaniciID", "integer", ["NN", "FK"]),
+        ("KayitTalepID", "integer", ["NN", "FK"]),
+        ("TokenHash", "char(64)", ["NN", "UQ"], "teal_soft"),
+        ("SonKullanmaTarihi", "timestamptz", ["NN"]),
+    ]
+    user_rows = [
+        ("KullaniciID", "serial", ["PK"]),
+        ("Email", "varchar(150)", ["NN", "UQ"]),
+        ("AktifMi", "boolean", ["NN"]),
+        ("AktivasyonBekliyorMu", "boolean", ["NN"]),
+    ]
+    outbox_rows = [
+        ("EpostaOutboxID", "bigserial", ["PK"], "green_soft"),
+        ("KayitTalepID", "integer", ["NN", "FK"]),
+        ("KullaniciID", "integer", ["NN", "FK"]),
+        ("AktivasyonTokenID", "integer", ["NN", "FK"]),
+        ("Tur", "varchar(30)", ["NN"]),
+        ("AliciEmail", "varchar(150)", ["NN"]),
+        ("AliciAdi", "varchar(150)", ["NN"]),
+        ("SifreliIcerik", "text", [], "teal_soft"),
+        ("Durum", "varchar(20)", ["NN"], "green_soft"),
+        ("DenemeSayisi", "integer", ["NN"]),
+        ("SonrakiDenemeTarihi", "timestamptz", ["NN"]),
+        ("KilitlenmeTarihi", "timestamptz", []),
+        ("SonHata", "varchar(500)", []),
+        ("GonderimTarihi", "timestamptz", []),
+        ("OlusturmaTarihi", "timestamptz", ["NN"]),
+        ("GuncellemeTarihi", "timestamptz", ["NN"]),
+    ]
+    worker_rows = [
+        ("POLL_INTERVAL", "30 saniye", []),
+        ("RETRY_BASE", "60 saniye", []),
+        ("MAX_ATTEMPTS", "10", []),
+        ("LOCK_TIMEOUT", "5 dakika", []),
+        ("BATCH_SIZE", "10", []),
+    ]
+
+    request_box = draw_table(
+        pdf, 55, 925, 430, "Kayit_Talepleri (özet)", request_rows, compact=True
+    )
+    token_box = draw_table(
+        pdf,
+        55,
+        690,
+        430,
+        "KullaniciAktivasyonTokenlari (özet)",
+        token_rows,
+        accent=COLORS["teal"],
+        compact=True,
+    )
+    user_box = draw_table(
+        pdf, 55, 455, 430, "Kullanicilar (özet)", user_rows, compact=True
+    )
+    outbox_box = draw_table(
+        pdf,
+        600,
+        925,
+        700,
+        "EpostaOutbox",
+        outbox_rows,
+        accent=COLORS["green"],
+        row_height=18,
+        compact=True,
+    )
+    worker_box = draw_table(
+        pdf,
+        600,
+        500,
+        700,
+        "Worker ayarları (environment)",
+        worker_rows,
+        accent=COLORS["purple"],
+        compact=True,
+    )
+
+    connector(
+        pdf,
+        [(request_box["right"], 825), (outbox_box["x"], 825)],
+        "talep  1 : *",
+        color=COLORS["green"],
+    )
+    connector(
+        pdf,
+        [(token_box["right"], 620), (540, 620), (540, 770), (outbox_box["x"], 770)],
+        "token  1 : *",
+        color=COLORS["teal"],
+        label_position=(540, 695),
+    )
+    connector(
+        pdf,
+        [(user_box["right"], 390), (565, 390), (565, 715), (outbox_box["x"], 715)],
+        "alıcı  1 : *",
+        label_position=(565, 550),
+    )
+    connector(
+        pdf,
+        [
+            (outbox_box["center_x"], outbox_box["bottom"]),
+            (worker_box["center_x"], worker_box["top"]),
+        ],
+        "işleme",
+        color=COLORS["purple"],
+        dashed=True,
+    )
+
+    draw_note(
+        pdf,
+        1420,
+        755,
+        445,
+        "Kalıcı teslim",
+        [
+            "Onay ve outbox aynı transaction içinde oluşur",
+            "Servis yeniden başlasa da bekleyen iş kaybolmaz",
+            "Birden çok worker SKIP LOCKED ile çakışmaz",
+            "Takılan iş lock timeout sonrasında geri alınır",
+        ],
+        accent=COLORS["green"],
+        fill=COLORS["green_soft"],
+    )
+    draw_note(
+        pdf,
+        1420,
+        535,
+        445,
+        "Token gizliliği",
+        [
+            "Doğrulama tablosunda yalnızca SHA-256 hash vardır",
+            "Outbox payload AES-256-GCM ile şifrelenir",
+            "Anahtar AUTH_TOKEN_SECRET bağlamından türetilir",
+            "Teslim tamamlanınca şifreli payload silinir",
+            "Loglara token veya parola yazılmaz",
+        ],
+        accent=COLORS["teal"],
+        fill=COLORS["teal_soft"],
+    )
+    draw_note(
+        pdf,
+        1420,
+        335,
+        445,
+        "Durum geçişleri",
+        [
+            "Bekliyor -> Isleniyor -> Gonderildi",
+            "Geçici hata işi yeniden Bekliyor yapar",
+            "Artan gecikme en çok bir saatte sınırlandırılır",
+            "Sınır dolarsa Basarisiz ve manuel yeniden gönderim",
+        ],
+        accent=COLORS["purple"],
+        fill=COLORS["purple_soft"],
+    )
+    draw_note(
+        pdf,
+        1420,
+        115,
+        445,
+        "Doğrulama kapsamı",
+        [
+            "Birim testleri şifreleme ve retry hesabını sınar",
+            "PostgreSQL testi outbox son durumunu doğrular",
+            "Playwright MailHog üzerinden gerçek linki kullanır",
+            "SMTP kesintisi operasyon kabulünde ayrıca denenir",
+            "Başarısız iş sayısı izleme sistemine bağlanır",
+        ],
+        accent=COLORS["coral"],
+        fill=COLORS["coral_soft"],
+    )
+
+    pdf.showPage()
+
+
 def generate(output_path: Path) -> None:
     register_fonts()
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -673,9 +863,9 @@ def generate(output_path: Path) -> None:
         pagesize=(PAGE_WIDTH, PAGE_HEIGHT),
         pageCompression=1,
     )
-    pdf.setTitle("LawDesk ER Diyagramı - 25 Ağustos 2026")
+    pdf.setTitle("LawDesk ER Diyagramı - 27 Ağustos 2026")
     pdf.setSubject(
-        "Güncel PostgreSQL şeması, kayıt aktivasyonu, görev yaşam döngüsü ve migration modeli"
+        "Güncel PostgreSQL şeması, kayıt aktivasyonu, e-posta outbox, görev yaşam döngüsü ve migration modeli"
     )
     pdf.setAuthor("LawDesk")
     pdf.setCreator("LawDesk docs/generate_er_diagram.py")
@@ -683,6 +873,7 @@ def generate(output_path: Path) -> None:
     access_page(pdf)
     task_page(pdf)
     collaboration_page(pdf)
+    email_delivery_page(pdf)
     pdf.save()
 
 

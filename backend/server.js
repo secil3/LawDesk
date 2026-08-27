@@ -1,12 +1,19 @@
 const app = require("./app");
 const db = require("./config/db");
+const { getListenerConfig } = require("./config/listener");
+const {
+  startEmailOutboxWorker,
+} = require("./services/emailOutboxService");
 
-const PORT = process.env.PORT || 3001;
 const SHUTDOWN_TIMEOUT_MS = 10000;
+const listener = getListenerConfig();
 
-const server = app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+const server = app.listen(listener.port, listener.host, () => {
+  console.log(
+    `Server is running on ${listener.host}:${listener.port}`,
+  );
 });
+const stopEmailOutboxWorker = startEmailOutboxWorker();
 
 let shutdownStarted = false;
 
@@ -17,6 +24,7 @@ const shutdown = (signal) => {
 
   shutdownStarted = true;
   console.log(`${signal} received; shutting down gracefully`);
+  const workerShutdown = stopEmailOutboxWorker();
 
   const timeout = setTimeout(() => {
     console.error("Graceful shutdown timed out");
@@ -28,6 +36,7 @@ const shutdown = (signal) => {
 
   server.close(async (serverError) => {
     try {
+      await workerShutdown;
       await db.close();
     } catch (databaseError) {
       console.error(
