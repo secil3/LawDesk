@@ -9,6 +9,8 @@
     "test:integration": "node --test --test-concurrency=1 integration/postgresql.integration.js",
     "test:all": "npm test && npm run test:integration",
     "migrate": "node scripts/migrate.js",
+    "check:production-config": "node scripts/checkProductionConfig.js",
+    "verify:smtp": "node scripts/verifySmtp.js",
     "seed:development": "node scripts/seedDevelopment.js",
     "create-admin": "node scripts/createInitialAdmin.js",
     "reset-admin-password": "node scripts/resetAdminPassword.js"
@@ -24,6 +26,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
     "nodemailer": "^9.0.5",

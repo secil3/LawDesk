@@ -12,13 +12,25 @@ const parseBoolean = (value, fallback = false) => {
 };
 
 const parsePort = (value) => {
-  const port = Number.parseInt(value || "587", 10);
+  const port = Number(value || "587");
 
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error("SMTP_PORT must be a valid TCP port");
   }
 
   return port;
+};
+
+const parseTimeout = (value, label, fallback) => {
+  const timeout = Number(value ?? fallback);
+
+  if (!Number.isInteger(timeout) || timeout < 1000 || timeout > 120000) {
+    throw new Error(
+      `${label} must be an integer between 1000 and 120000`,
+    );
+  }
+
+  return timeout;
 };
 
 const getEmailConfig = () => {
@@ -28,6 +40,10 @@ const getEmailConfig = () => {
   );
   const from = process.env.SMTP_FROM?.trim();
   const appBaseUrl = process.env.APP_BASE_URL?.trim();
+
+  if (process.env.NODE_ENV === "production" && jsonTransport) {
+    throw new Error("SMTP_JSON_TRANSPORT cannot be enabled in production");
+  }
 
   if (!from) {
     throw new Error("SMTP_FROM is required");
@@ -90,6 +106,21 @@ const getEmailConfig = () => {
     port: parsePort(process.env.SMTP_PORT),
     secure,
     requireTLS,
+    connectionTimeout: parseTimeout(
+      process.env.SMTP_CONNECTION_TIMEOUT_MS,
+      "SMTP_CONNECTION_TIMEOUT_MS",
+      10000,
+    ),
+    greetingTimeout: parseTimeout(
+      process.env.SMTP_GREETING_TIMEOUT_MS,
+      "SMTP_GREETING_TIMEOUT_MS",
+      10000,
+    ),
+    socketTimeout: parseTimeout(
+      process.env.SMTP_SOCKET_TIMEOUT_MS,
+      "SMTP_SOCKET_TIMEOUT_MS",
+      20000,
+    ),
     auth: user ? { user, pass: password } : undefined,
     jsonTransport: false,
   };
@@ -102,6 +133,9 @@ const transportFor = (config) => {
     port: config.port,
     secure: config.secure,
     requireTLS: config.requireTLS,
+    connectionTimeout: config.connectionTimeout,
+    greetingTimeout: config.greetingTimeout,
+    socketTimeout: config.socketTimeout,
     user: config.auth?.user,
   });
 
@@ -116,6 +150,9 @@ const transportFor = (config) => {
         port: config.port,
         secure: config.secure,
         requireTLS: config.requireTLS,
+        connectionTimeout: config.connectionTimeout,
+        greetingTimeout: config.greetingTimeout,
+        socketTimeout: config.socketTimeout,
         auth: config.auth,
       });
   transporterKey = key;
@@ -170,6 +207,16 @@ const sendActivationEmail = async ({
   });
 };
 
+const verifyEmailConnection = async () => {
+  const config = getEmailConfig();
+
+  if (config.jsonTransport) {
+    return true;
+  }
+
+  return transportFor(config).verify();
+};
+
 const resetTransportForTests = () => {
   transporter = undefined;
   transporterKey = undefined;
@@ -180,4 +227,5 @@ module.exports = {
   getEmailConfig,
   resetTransportForTests,
   sendActivationEmail,
+  verifyEmailConnection,
 };

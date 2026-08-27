@@ -1,0 +1,125 @@
+name: lawdesk
+
+services:
+  postgres:
+    profiles: ["bundled-db"]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB tanimlanmalidir}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER tanimlanmalidir}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD tanimlanmalidir}
+    volumes:
+      - lawdesk_postgres_data:/var/lib/postgresql/data
+      - ./database/GYS_Database_Schema_Simple.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    shm_size: 256mb
+    networks:
+      - database
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ./deploy/production.env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: ${DB_HOST:?DB_HOST tanimlanmalidir}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${POSTGRES_DB:?POSTGRES_DB tanimlanmalidir}
+      DB_USER: ${POSTGRES_USER:?POSTGRES_USER tanimlanmalidir}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD tanimlanmalidir}
+      ATTACHMENT_STORAGE_DIR: /var/lib/lawdesk/attachments
+    volumes:
+      - lawdesk_attachments:/var/lib/lawdesk/attachments
+      - ./deploy/certs:/etc/lawdesk/certs:ro
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3001/api/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - application
+      - database
+      - egress
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${LAWDESK_BIND_ADDRESS:-127.0.0.1}:${LAWDESK_HTTP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/healthz | grep -q '^ok'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - edge
+      - application
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  edge:
+    driver: bridge
+  application:
+    internal: true
+  database:
+    internal: true
+  egress:
+    driver: bridge
+
+volumes:
+  lawdesk_postgres_data:
+    name: lawdesk_postgres_data
+  lawdesk_attachments:
+    name: lawdesk_attachments

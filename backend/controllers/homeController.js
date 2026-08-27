@@ -4,6 +4,23 @@ exports.getRoot = (req, res) => {
   res.json({ message: "LawDesk Backend is Running" });
 };
 
+exports.getHealth = (req, res) => {
+  res.json({ status: "ok" });
+};
+
+exports.getReadiness = async (req, res) => {
+  try {
+    await db.testConnection();
+    return res.json({ status: "ready" });
+  } catch (error) {
+    console.error(
+      "Readiness check failed",
+      error?.code ? `(code: ${error.code})` : "",
+    );
+    return res.status(503).json({ status: "not_ready" });
+  }
+};
+
 exports.testDbConnection = async (req, res) => {
   if (process.env.NODE_ENV === "production") {
     return res.status(404).json({ error: "Not found" });

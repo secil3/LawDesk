@@ -1,0 +1,31 @@
+[Unit]
+Description=LawDesk backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lawdesk
+Group=lawdesk
+WorkingDirectory=/opt/lawdesk/current/backend
+EnvironmentFile=/etc/lawdesk/lawdesk.env
+ExecStartPre=/usr/bin/node scripts/checkProductionConfig.js
+ExecStart=/usr/bin/node scripts/startProduction.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+UMask=0027
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/lawdesk/attachments
+
+[Install]
+WantedBy=multi-user.target

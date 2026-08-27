@@ -438,6 +438,21 @@ test("visible user can download an attachment", async () => {
   assert.match(response.body.toString("utf8"), /^%PDF-/);
 });
 
+test("download falls back to PostgreSQL when the stored file is missing", async () => {
+  await createStoredPdf();
+  await fs.unlink(
+    path.join(TEST_STORAGE_ROOT, currentAttachment.storedName),
+  );
+
+  const response = await authenticated(
+    request(app).get("/api/tasks/50/attachments/70/download"),
+    3,
+  );
+
+  assert.equal(response.status, 200);
+  assert.match(response.body.toString("utf8"), /^%PDF-/);
+});
+
 test("unrelated user cannot remove another user's attachment", async () => {
   await createStoredPdf();
 
